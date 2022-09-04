@@ -47,6 +47,12 @@ Run the following commands to install the packet generation tool.
 cd ~; sudo sh install_client.sh
 ```
 
+##### Set up configurations on server
+
+````
+sudo ./setup_server.sh
+````
+
 ### An example of profiling a BPF program
 In this example, we will (1) use `bpftool` to measure the latency of an XDP program and (2) use `perf` to profile the XDP program at the instruction level.
 
