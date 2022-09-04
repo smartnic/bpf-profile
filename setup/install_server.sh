@@ -1,5 +1,4 @@
 #!/bin/sh
-#!/bin/sh
 
 # The machine will reboot at the end of install_step1 and install_step2
 

@@ -1,4 +1,4 @@
-# sudo python3 send_udp_packets_xl170.py [dport]
+# sudo python3 send_udp_packets_for_xl170.py [dport]
 
 from scapy.all import*
 import sys
