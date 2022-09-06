@@ -5,9 +5,7 @@ from statistics import stdev
 import matplotlib.pyplot as plt
 import numpy as np
 
-CLIENT = "hp065.utah.cloudlab.us"
-PROG_NAME = "xdpex1"
-PROG_FILE_NAME = "xdpex1_prog.txt" # input file. program level raw data from bpftool
+PROG_FILE_NAME = "prog.txt" # input file. program level raw data from bpftool
 LATENCY_FILE_NAME = "avg_latency.csv"
 LATENCY_FILE_NAME_STDEV = "avg_latency_stdev.csv"
 LATENCY_FILE_NAME_EACH_RUN = "latency.csv"
@@ -114,7 +112,7 @@ def read_data_from_csv_file(input_file):
     f.close()
     return data
 
-def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, version_name_list, output_folder):
+def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list, output_folder):
     # read Standard Deviation from csv file
     input_file = f"{input_folder}/{LATENCY_FILE_NAME_STDEV}"
     stdev_list = read_data_from_csv_file(input_file)
@@ -130,7 +128,7 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, version_n
 
     # plot the figure with error bar
     plt.figure()
-    plt.title(PROG_NAME)
+    plt.title(prog_name)
     plt.xlabel("Number of cores")
     plt.ylabel("Average latency (cycles)")
     plt.grid()
@@ -145,7 +143,7 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, version_n
     print(f"output: {output_file}")
     plt.savefig(output_file)
 
-def prog_avg_latency(num_runs, num_cores_min, num_cores_max, input_folder, version_name_list, output_folder):
+def visualize_prog_avg_latency(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
     if not exists(output_folder):
         os.system(f"sudo mkdir -p {output_folder}")
     first_flag = True
@@ -162,7 +160,7 @@ def prog_avg_latency(num_runs, num_cores_min, num_cores_max, input_folder, versi
         write_latency_each_run(num_runs, num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder)
         write_avg_latency(num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder)
 
-    plot_progs_avg_latency(num_cores_min, num_cores_max, output_folder, version_name_list, output_folder)
+    plot_progs_avg_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, output_folder)
 
 if __name__ == "__main__":
     input_folder = "/mydata/test2/xdpex1"
@@ -170,5 +168,6 @@ if __name__ == "__main__":
     num_cores_min = 1
     num_cores_max = 8
     num_runs = 3
+    prog_name = "xdpex1"
     version_name_list = ["case1", "case1_1"]
-    prog_avg_latency(num_runs, num_cores_min, num_cores_max, input_folder, version_name_list, output_folder)
+    visualize_prog_avg_latency(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)

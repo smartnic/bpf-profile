@@ -5,9 +5,7 @@ from statistics import stdev
 import matplotlib.pyplot as plt
 import numpy as np
 
-CLIENT = "hp065.utah.cloudlab.us"
-PROG_NAME = "xdpex1"
-INSN_FILE_NAME = "xdpex1_perf.txt" # input file. instruction level raw data from perf
+INSN_FILE_NAME = "perf.txt" # input file. instruction level raw data from perf
 PROG_LATENCY_FILE_NAME_EACH_RUN = "latency.csv"
 LATENCY_FILE_NAME = "avg_insn_latency.csv"
 LATENCY_FILE_NAME_STDEV = "avg_insn_latency_stdev.csv"
@@ -118,7 +116,7 @@ def read_data_from_csv_file(input_file):
     f.close()
     return data
 
-def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, version_name_list, output_folder):
+def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list, output_folder):
     # read Standard Deviation from csv file
     input_file = f"{input_folder}/{LATENCY_FILE_NAME_STDEV}"
     stdev_list = read_data_from_csv_file(input_file)
@@ -134,7 +132,7 @@ def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, vers
 
     # plot the figure with error bar
     plt.figure()
-    plt.title(PROG_NAME)
+    plt.title(prog_name)
     plt.xlabel("Number of cores")
     plt.ylabel("Average latency (cycles)")
     plt.grid()
@@ -168,7 +166,7 @@ def insn_latency_each_run(num_runs, num_cores_min, num_cores_max, percent_matrix
     return insn_latency_matrix
 
 
-def prog_avg_latency(num_runs, num_cores_min, num_cores_max, input_folder, version_name_list, insn_ids, output_folder):
+def visualize_insn_avg_latency(prog_name, version_name_list, insn_ids, num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
     if not exists(output_folder):
         os.system(f"sudo mkdir -p {output_folder}")
     first_flag = True
@@ -194,7 +192,7 @@ def prog_avg_latency(num_runs, num_cores_min, num_cores_max, input_folder, versi
         write_avg_insn_latency(num_cores_min, num_cores_max, insn_latency_matrix, write_mode, 
                                version_name, output_folder)
 
-    plot_progs_avg_insn_latency(num_cores_min, num_cores_max, output_folder, version_name_list, output_folder)   
+    plot_progs_avg_insn_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, output_folder)
 
 if __name__ == "__main__":
     input_folder = "/mydata/test2/xdpex1"
@@ -202,12 +200,13 @@ if __name__ == "__main__":
     num_cores_min = 1
     num_cores_max = 8 # from 1 to 8
     num_runs = 3
+    prog_name = "xdpex1"
     version_name_list = ["case1", "case1_1"]
-    insn_ids_case = []
+    insn_ids_version = []
     for i in range(num_cores_min, num_cores_max + 1):
-        insn_ids_case.append(["0", "7f"])
+        insn_ids_version.append(["0", "7f"])
     insn_ids = []
     for i in range(len(version_name_list)):
-        insn_ids.append(insn_ids_case)
+        insn_ids.append(insn_ids_version)
     print(insn_ids)
-    prog_avg_latency(num_runs, num_cores_min, num_cores_max, input_folder, version_name_list, insn_ids, output_folder)
+    visualize_insn_avg_latency(prog_name, version_name_list, insn_ids, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
