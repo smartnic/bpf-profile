@@ -10,7 +10,7 @@ Run the following commands to install the profiling tools and build BPF programs
 
 Caveat: the machine will reboot after running `sudo sh install_server.sh 1` or `sudo sh install_server.sh 2`.
 ```
-cd ~
+cd ~; cp bpf-profile/setup/install_server.sh .
 sudo sh install_server.sh 1
 sudo sh install_server.sh 2
 sudo sh install_server.sh 3
@@ -44,13 +44,15 @@ features: libbfd, skeletons
 ##### Installation on client
 Run the following commands to install the packet generation tool.
 ```
-cd ~; sudo sh install_client.sh
+cd bpf-profile/setup; sudo sh install_client.sh
 ```
 
 ##### Set up configurations on server
+`ens1f1np` is an interface on the server, which can be used to receive packets from the client. It might be different. You could use `ifconfig` to find the interface name on your machine.
 
 ````
-sudo ./setup_server.sh
+cd bpf-profile/setup
+sudo ./setup_server.sh ens1f1np
 ````
 
 ### An example of profiling a BPF program
