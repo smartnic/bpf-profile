@@ -9,5 +9,7 @@ echo "Running RSS"
 sudo ./rss.sh $1
 echo "Running IRQ"
 sudo ./irq.sh $1
+echo "Running constant_freq"
+sudo ./constant_freq.sh
 cd ../
 echo "DONE"
