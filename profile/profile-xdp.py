@@ -149,5 +149,5 @@ if __name__ == "__main__":
         sys.exit(0)
     for version in version_name_list:
         prog_name_prefix = f"{args.prog_name}_{version}"
-        # todo: output_folder = f"{args.output_folder}/{version}"
-        run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, args.output_folder, args.num_runs)
+        output_folder_version = f"{args.output_folder}/{version}"
+        run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, args.num_runs)
