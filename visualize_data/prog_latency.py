@@ -163,11 +163,11 @@ def visualize_prog_avg_latency(prog_name, version_name_list, num_runs, num_cores
     plot_progs_avg_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, output_folder)
 
 if __name__ == "__main__":
-    input_folder = "/mydata/test2/xdpex1"
-    output_folder = "/mydata/test2/xdpex1/analyze"
+    input_folder = "/mydata/test3/xdpex1"
+    output_folder = "/mydata/test3/xdpex1/analyze_v2"
     num_cores_min = 1
     num_cores_max = 8
-    num_runs = 3
+    num_runs = 5
     prog_name = "xdpex1"
-    version_name_list = ["case1", "case1_1"]
+    version_name_list = ["v2"]
     visualize_prog_avg_latency(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)

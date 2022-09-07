@@ -15,7 +15,7 @@ def read_config_from_file(input_file, num_cores_min, num_cores_max):
         return [], []
     f = open(input_file, "r")
     for line in f:
-        line = line.strip().split(":")
+        line = line.strip().split(":", 1)
         if len(line) < 2:
             continue
         if line[0] == version_name_keyword:

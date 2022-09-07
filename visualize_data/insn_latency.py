@@ -195,16 +195,23 @@ def visualize_insn_avg_latency(prog_name, version_name_list, insn_ids, num_runs,
     plot_progs_avg_insn_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, output_folder)
 
 if __name__ == "__main__":
-    input_folder = "/mydata/test2/xdpex1"
-    output_folder = "/mydata/test2/xdpex1/analyze"
+    input_folder = "/mydata/test3/xdpex1"
+    output_folder = "/mydata/test3/xdpex1/analyze_v2"
     num_cores_min = 1
     num_cores_max = 8 # from 1 to 8
-    num_runs = 3
+    num_runs = 5
     prog_name = "xdpex1"
-    version_name_list = ["case1", "case1_1"]
-    insn_ids_version = []
-    for i in range(num_cores_min, num_cores_max + 1):
-        insn_ids_version.append(["0", "7f"])
+    version_name_list = ["v2"]
+    insn_ids_version = [["84", "88", "8b"],
+                        ["92", "96", "99"],
+                        ["99", "9d", "a0"],
+                        ["a4", "a8", "ab"],
+                        ["ab", "af", "b2"],
+                        ["b2", "b6", "b9"],
+                        ["bd", "c1", "c4"],
+                        ["c4", "c8", "cb"]]
+    # for i in range(num_cores_min, num_cores_max + 1):
+    #     insn_ids_version.append(["0", "7f"])
     insn_ids = []
     for i in range(len(version_name_list)):
         insn_ids.append(insn_ids_version)

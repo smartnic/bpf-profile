@@ -1,0 +1,7 @@
+client: p065.utah.cloudlab.us
+client_iface: ens1f1
+client_mac: 9c:dc:71:5d:01:51
+client_ip: 10.10.1.2
+server_iface: ens1f1np1
+server_mac: 9c:dc:71:5d:57:d1
+server_ip: 10.10.1.1
