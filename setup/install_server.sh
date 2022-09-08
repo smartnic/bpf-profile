@@ -44,6 +44,7 @@ install_step3() {
     sudo apt-get install libslang2-dev libgtk2.0-dev libperl-dev python2-dev libzstd-dev libcap-dev 
     sudo apt-get install libnuma-dev libbabeltrace-dev libbabeltrace-ctf-dev libaudit-dev libiberty-dev
     sudo apt-get install htop
+    sudo apt-get install python3-matplotlib
 
     # download linux source code
     wget https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/snapshot/linux-5.16.tar.gz
