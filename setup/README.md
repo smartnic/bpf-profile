@@ -52,7 +52,7 @@ cd bpf-profile/setup; sudo sh install_client.sh
 
 ````
 cd bpf-profile/setup
-sudo ./setup_server.sh ens1f1np
+sudo bash setup_server.sh ens1f1np
 ````
 
 ### An example of profiling a BPF program
@@ -64,8 +64,9 @@ cd ~/linux-5.16/samples/bpf
 sudo ./xdp1 -N ens1f1np
 ```
 
-Run the following command on the client to send packets from the client to the server. `send_udp_packets_for_xl170.py` is a script in `profile` folder in this repository. You might need to change the interface name, MAC addresses, and IP addresses.
+Run the following command on the client to send packets from the client to the server. You might need to change the interface name, MAC addresses, and IP addresses in the [config file](https://github.com/smartnic/bpf-profile/blob/main/profile/config.xl170).
 ```
+cd ~/bpf-profile/profile
 sudo python3 send_udp_packets_for_xl170.py 13
 ```
 It may take a while for the client to generate the packets. After seeing that the XDP program is triggered to run, we can 
