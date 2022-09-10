@@ -87,7 +87,8 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
     run_cmd(cmd, wait=True)
 
     # 4.2 use bpftool to get overall latency
-    cmd = "sudo bpftool prog profile tag " + tag + " duration " + str(seconds) + " cycles instructions llc_misses > tmp/prog.txt"
+    # todo: remove "llc_misses" since not able to create this event on AMD machines
+    cmd = "sudo bpftool prog profile tag " + tag + " duration " + str(seconds) + " cycles instructions > tmp/prog.txt"
     run_cmd(cmd, wait=True)
 
     # 5. clean environment
