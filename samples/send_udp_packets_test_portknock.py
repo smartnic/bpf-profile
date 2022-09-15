@@ -34,7 +34,7 @@ def read_machine_info_from_file(keyword):
     return res
 
 # n: the number of dport list
-def dport_permutation(n):
+def all_dport_list(n):
     res = []
     if n == 0: 
         return [[]]
@@ -43,7 +43,7 @@ def dport_permutation(n):
             res.append([x])
         return res
 
-    dport_list = dport_permutation(n - 1)
+    dport_list = all_dport_list(n - 1)
     for dport in DPORT_SEQ:
         for x in dport_list:
             res.append([dport] + x)
@@ -53,7 +53,7 @@ def dport_permutation(n):
 # only one sequence will open the server port, dport of the allowed is PORT_ALLOW
 def construct_port_sequences(num_ports):
     res = []
-    dports_list = dport_permutation(num_ports - 1)
+    dports_list = all_dport_list(num_ports - 1)
     for i, dports in enumerate(dports_list):
         res.append(dports + [PORT_START + i])
     print(f"{len(res)} sequences:")
