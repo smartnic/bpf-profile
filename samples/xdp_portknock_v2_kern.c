@@ -56,7 +56,6 @@ int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth = data;
-  struct array_elem *value;
   u16 h_proto;
   u64 nh_off;
   int ipproto;
