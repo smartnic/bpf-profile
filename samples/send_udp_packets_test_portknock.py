@@ -10,8 +10,9 @@ import sys
 
 CONFIG_file_xl170 = "config.xl170"
 DPORT_SEQ = [100, 101, 102]
-PORT_DENY = 1111
-PORT_ALLOW = 2222
+PORT_START = 1
+NUM_PORTS_IN_PAYLOAD = 7
+PORT_PADDING = 0xffff # this port won't be processed by the xdp program, only used for padding
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -52,25 +53,20 @@ def dport_permutation(n):
 # only one sequence will open the server port, dport of the allowed is PORT_ALLOW
 def construct_port_sequences(num_ports):
     res = []
-    port_deny = PORT_DENY
-    port_allow = PORT_ALLOW
     dports_list = dport_permutation(num_ports - 1)
-    for dports in dports_list:
-        # if the knocking sequence is correct, set the port as PORT_ALLOW
-        x = len(DPORT_SEQ)
-        if dports[-x:] == DPORT_SEQ:
-            res.append(dports + [port_allow]) # knocking sequence + port_allow
-        else:
-            res.append(dports + [port_deny]) # knocking sequence + port_deny
-    print(f"{len(res)} packet sequences:")
+    for i, dports in enumerate(dports_list):
+        res.append(dports + [PORT_START + i])
+    print(f"{len(res)} sequences:")
     for x in res:
         print(x)
     return res;
 
 def construct_packet(sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
-    payload=b'\x11\x11\x22\x22\x33\x33\x44\x44\x55\x55\x66\x66\x77\x77'
-    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=payload)
+    dports_bytes = PORT_PADDING.to_bytes(2, 'big') * NUM_PORTS_IN_PAYLOAD
+    payload = (str(PORT_PADDING) + ", ") * NUM_PORTS_IN_PAYLOAD
+    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
     # hexdump(packet)
+    print(f"dport: {dport}, payload: {payload}")
     return packet
 
 def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip):
@@ -82,26 +78,58 @@ def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, 
             packet_list.append(packet)
     sendpfast(packet_list, iface=client_iface)
 
-def construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_data):
+def construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
     dport = dports[-1]
-    port_padding = 0xffff # this port won't be used
-    num_padding = 7 - num_data;
+    num_padding = NUM_PORTS_IN_PAYLOAD - num_ports_in_md;
 
+    payload = ""
     dports_bytes = b''
     for p in dports[:-1]:
         dports_bytes += p.to_bytes(2, 'big')
+        payload += str(p) + ", "
 
-    dports_bytes += port_padding.to_bytes(2, 'big') * num_padding
+    dports_bytes += PORT_PADDING.to_bytes(2, 'big') * num_padding
+    payload += (str(PORT_PADDING) + ", ") * num_padding
+    print(f"dport: {dport}, payload: {payload}")
 
     packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
     # hexdump(packet)
     return packet
 
-def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_data):
-    packet_list = []
-    dports_list = construct_port_sequences(num_data + 1)
+# construct port sequences when num of ports < len(DPORT_SEQ)
+# x + k(num_ports_in_md + 1) = len(DPORT_SEQ) + 1
+def construct_port_sequences_few_num_ports(num_ports_in_md):
+    res = []
+    minimal_port_list_len = len(DPORT_SEQ) + 1
+    dports_list = construct_port_sequences(minimal_port_list_len)
+    num_ports_in_one_packet = num_ports_in_md + 1
+    k = int(minimal_port_list_len / num_ports_in_one_packet)
+    x = minimal_port_list_len - k * num_ports_in_one_packet
+    num_padding = num_ports_in_md - (x - 1)
+    # print(f"k = {k}, num_padding = {num_padding}")
     for dports in dports_list:
-        packet = construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_data)
+        if len(dports) < minimal_port_list_len:
+            raise
+        # the first list is with paddding
+        l = num_padding * [PORT_PADDING] + dports[:x]
+        res.append(l)
+        for i in range(k):
+            l = dports[x + i * num_ports_in_one_packet: x + (i + 1) * num_ports_in_one_packet]
+            res.append(l)
+    return res
+
+def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
+    dports_list = []
+    if num_ports_in_md < len(DPORT_SEQ):
+        dports_list = construct_port_sequences_few_num_ports(num_ports_in_md)
+    else:
+        dports_list = construct_port_sequences(num_ports_in_md + 1)
+    packet_list = []
+    print(f"{len(dports_list)} sequences in packets: ")
+    for dports in dports_list:
+        print(dports)
+    for dports in dports_list:
+        packet = construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
         packet_list.append(packet)
     sendpfast(packet_list, iface=client_iface)
 
@@ -122,7 +150,7 @@ if __name__ == "__main__":
     if version == "v2":
         num_cores = int(sys.argv[3])
     print(f"version = {version}, sport = {sport}, number of cores = {num_cores}")
-    num_data = num_cores - 1
+    num_ports_in_md = num_cores - 1
 
     client_iface = read_machine_info_from_file("client_iface")
     client_mac = read_machine_info_from_file("client_mac")
@@ -133,4 +161,4 @@ if __name__ == "__main__":
     if version == "v1":
         send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip)
     elif version == "v2":
-        send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_data)
+        send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
