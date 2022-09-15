@@ -51,18 +51,32 @@ static inline int parse_udp(void *data, u64 *nh_off, void *data_end,
   return 0;
 }
 
+static inline u32 get_new_state(u32 state, u16 dport) {
+  if (state == CLOSED_0 && dport == PORT_1) {
+    state = CLOSED_1;
+  } else if (state == CLOSED_1 && dport == PORT_2) {
+    state = CLOSED_2;
+  } else if (state == CLOSED_2 && dport == PORT_3) {
+    state = OPEN;
+  } else {
+    state = CLOSED_0;
+  }
+  return state;
+}
+
 SEC("xdp_portknock")
 int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth = data;
   u16 h_proto;
-  u64 nh_off;
+  u64 nh_off, md_size;
   int ipproto;
   u16 dport, sport;
   int rc = XDP_DROP;
   int state_id = 0;
-  u32 *state;
+  u32 *value, state;
+  u16 cur_port;
 
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
@@ -86,24 +100,30 @@ int xdp_prog(struct xdp_md *ctx) {
   }
 
   // Read metadata from payload
-  u64 size = (NUM_PKTS - 1) * sizeof(u16);
-  if (data + nh_off + size > data_end)
+  md_size = (NUM_PKTS - 1) * sizeof(u16);
+  if (data + nh_off + md_size > data_end)
     return rc;
 
   value = bpf_map_lookup_elem(&port_state, &state_id);
   if (!value) {
     return rc;
   }
+  state = *value;
 
-  u16 ports[NUM_PKTS - 1];
+  // Process metadata
   for (int i = 0; i < NUM_PKTS - 1; i++) {
-    ports[i] = ntohs(*(u16*)(data + nh_off));
+    cur_port = ntohs(*(u16*)(data + nh_off));
+    state = get_new_state(state, cur_port);
     nh_off += sizeof(u16);
   }
 
-  if (ports[0] == PORT_1 && ports[1] == PORT_2 && ports[2] == PORT_3) {
+  // Process current packet
+  if (state == OPEN) {
     rc = XDP_PASS;
   }
+  state = get_new_state(state, dport);
+
+  *value = state;
 
   return rc;
 }
