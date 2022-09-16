@@ -49,9 +49,34 @@ def all_dport_list(n):
             res.append([dport] + x)
     return res
 
+# construct port sequences when num of ports < len(DPORT_SEQ)
+# x + k(num_ports_in_md + 1) = len(DPORT_SEQ) + 1
+def construct_port_sequences_few_num_ports(num_ports_in_md):
+    res = []
+    minimal_port_list_len = len(DPORT_SEQ) + 1
+    dports_list = construct_port_sequences(minimal_port_list_len)
+    num_ports_in_one_packet = num_ports_in_md + 1
+    k = int(minimal_port_list_len / num_ports_in_one_packet)
+    x = minimal_port_list_len - k * num_ports_in_one_packet
+    num_padding = num_ports_in_md - (x - 1)
+    # print(f"k = {k}, num_padding = {num_padding}")
+    for dports in dports_list:
+        if len(dports) < minimal_port_list_len:
+            raise
+        # the first list is with paddding
+        if x > 0:
+            l = num_padding * [PORT_PADDING] + dports[:x]
+            res.append(l)
+        for i in range(k):
+            l = dports[x + i * num_ports_in_one_packet: x + (i + 1) * num_ports_in_one_packet]
+            res.append(l)
+    return res
+
 # Create a list of knocking sequence + port used to check whether can be allowed
 # only one sequence will open the server port, dport of the allowed is PORT_ALLOW
 def construct_port_sequences(num_ports):
+    if num_ports < len(DPORT_SEQ) + 1:
+        return construct_port_sequences_few_num_ports(num_ports - 1)
     res = []
     dports_list = all_dport_list(num_ports - 1)
     for i, dports in enumerate(dports_list):
@@ -96,35 +121,8 @@ def construct_packet_with_metadata(sport, dports, client_iface, client_mac, clie
     # hexdump(packet)
     return packet
 
-# construct port sequences when num of ports < len(DPORT_SEQ)
-# x + k(num_ports_in_md + 1) = len(DPORT_SEQ) + 1
-def construct_port_sequences_few_num_ports(num_ports_in_md):
-    res = []
-    minimal_port_list_len = len(DPORT_SEQ) + 1
-    dports_list = construct_port_sequences(minimal_port_list_len)
-    num_ports_in_one_packet = num_ports_in_md + 1
-    k = int(minimal_port_list_len / num_ports_in_one_packet)
-    x = minimal_port_list_len - k * num_ports_in_one_packet
-    num_padding = num_ports_in_md - (x - 1)
-    # print(f"k = {k}, num_padding = {num_padding}")
-    for dports in dports_list:
-        if len(dports) < minimal_port_list_len:
-            raise
-        # the first list is with paddding
-        if x > 0:
-            l = num_padding * [PORT_PADDING] + dports[:x]
-            res.append(l)
-        for i in range(k):
-            l = dports[x + i * num_ports_in_one_packet: x + (i + 1) * num_ports_in_one_packet]
-            res.append(l)
-    return res
-
 def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
-    dports_list = []
-    if num_ports_in_md < len(DPORT_SEQ):
-        dports_list = construct_port_sequences_few_num_ports(num_ports_in_md)
-    else:
-        dports_list = construct_port_sequences(num_ports_in_md + 1)
+    dports_list = construct_port_sequences(num_ports_in_md + 1)
     packet_list = []
     print(f"{len(dports_list)} sequences in packets: ")
     for dports in dports_list:
