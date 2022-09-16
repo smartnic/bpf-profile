@@ -111,8 +111,9 @@ def construct_port_sequences_few_num_ports(num_ports_in_md):
         if len(dports) < minimal_port_list_len:
             raise
         # the first list is with paddding
-        l = num_padding * [PORT_PADDING] + dports[:x]
-        res.append(l)
+        if x > 0:
+            l = num_padding * [PORT_PADDING] + dports[:x]
+            res.append(l)
         for i in range(k):
             l = dports[x + i * num_ports_in_one_packet: x + (i + 1) * num_ports_in_one_packet]
             res.append(l)
