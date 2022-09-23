@@ -64,7 +64,7 @@ int xdp_prog(struct xdp_md *ctx) {
     .src_port = 0,
     .dst_port = 0
   };
-  struct flow_key flow_tmp = flow;
+  struct flow_key *flow_tmp;
   u16 h_proto;
   u64 nh_off;
   u64 bytes, md_size;
@@ -103,12 +103,12 @@ int xdp_prog(struct xdp_md *ctx) {
   bytes = 0;
   for (int i = 0; i < NUM_PKTS - 1; i++) {
     md_elem = data + nh_off;
-    flow_tmp = md_elem->flow;
-    if (flow_tmp.protocol == flow.protocol &&
-        flow_tmp.src_ip == flow.src_ip &&
-        flow_tmp.dst_ip == flow.dst_ip &&
-        flow_tmp.src_port == flow.src_port &&
-        flow_tmp.dst_port == flow.dst_port) {
+    flow_tmp = &md_elem->flow;
+    if (flow_tmp->protocol == flow.protocol &&
+        flow_tmp->src_ip == flow.src_ip &&
+        flow_tmp->dst_ip == flow.dst_ip &&
+        flow_tmp->src_port == flow.src_port &&
+        flow_tmp->dst_port == flow.dst_port) {
       bytes += (u64)md_elem->bytes;
     }
     nh_off += sizeof(struct metadata_elem);
@@ -121,6 +121,7 @@ int xdp_prog(struct xdp_md *ctx) {
   value = bpf_map_lookup_elem(&my_map, &flow);
   if (value) {
     bytes += value->bytes;
+    value->bytes = bytes;
   } else {
     bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
   }
