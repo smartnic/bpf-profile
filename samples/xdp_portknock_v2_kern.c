@@ -99,7 +99,7 @@ int xdp_prog(struct xdp_md *ctx) {
     return rc;
   }
 
-  // Read metadata from payload
+  // Safety check of metadata
   md_size = (NUM_PKTS - 1) * sizeof(u16);
   if (data + nh_off + md_size > data_end)
     return rc;
@@ -117,7 +117,7 @@ int xdp_prog(struct xdp_md *ctx) {
     nh_off += sizeof(u16);
   }
 
-  // Process current packet
+  // Process the assigned packet
   if (state == OPEN) {
     rc = XDP_PASS;
   }
