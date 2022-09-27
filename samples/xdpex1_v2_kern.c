@@ -41,8 +41,7 @@ int xdp_prog(struct xdp_md *ctx) {
       nh_off = i * sizeof(u32);
       len += *(u32*)(data + nh_off);
     }
-    len += *value;
-    *value = len;
+    *value += len;
   }
   return XDP_DROP;
 }
