@@ -118,14 +118,14 @@ def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, 
     if not FLAG_LOOP:
         sendpfast(packet_list, iface=client_iface)
     else:
-        n = 100000
+        n = 100
         k = int(n / len(packet_list))
         r = n % len(packet_list)
         packets = []
         for i in range(k):
             packets += packet_list
         packets += packet_list[:r]
-        sendpfast(packets, iface=client_iface, pps=1000000, loop=100000000)
+        sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
 def construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
     dport = dports[-1]
@@ -159,14 +159,14 @@ def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, 
     if not FLAG_LOOP:
         sendpfast(packet_list, iface=client_iface)
     else:
-        n = 100000
+        n = 100
         k = int(n / len(packet_list))
         r = n % len(packet_list)
         packets = []
         for i in range(k):
             packets += packet_list
         packets += packet_list[:r]
-        sendpfast(packets, iface=client_iface, pps=1000000, loop=100000000)
+        sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:

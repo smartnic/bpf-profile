@@ -118,7 +118,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
 
     # 3. wait some seconds for the packet generation start sending packets
     # wait until tcpreplay starts
-    time.sleep(120)
+    time.sleep(10)
 
     # 4. measure the xdp prorgam
     try:

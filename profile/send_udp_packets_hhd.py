@@ -94,8 +94,8 @@ def send_udp_packets(version, num_pkts_in_md, sport, dport, client_iface, client
         packet = construct_packet_v3(num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
 
     # sendpfast(packet, iface=client_iface)
-    packets = 100000 * packet
-    sendpfast(packets, iface=client_iface, pps=1000000, loop=100000000)
+    packets = 100 * packet
+    sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
 
 if __name__ == "__main__":
