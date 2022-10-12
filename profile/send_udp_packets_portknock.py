@@ -1,4 +1,4 @@
-# sudo python3 send_udp_packets_test.py [function] [version] [sport] [# of cores]
+# sudo python3 send_udp_packets_test.py [function] [version] [sport]/[src_ip] [# of cores]
 # function: single, loop
 # version: v1, v2
 # v1 is for shared state, v2 is for local state
@@ -8,13 +8,23 @@ import argparse
 from os.path import exists
 from scapy.all import*
 import sys
+from os.path import expanduser
 
-CONFIG_file_xl170 = "config.xl170"
+home = expanduser("~")
+SPORT_ARM = 53
+DPORT_ARM = 12
+CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
+# DPORT_SEQ won't be used for arm machines
 DPORT_SEQ = [100, 101, 102]
 PORT_START = 1
 NUM_PORTS_IN_PAYLOAD = 7
 PORT_PADDING = 0xffff # this port won't be processed by the xdp program, only used for padding
 FLAG_LOOP = False
+FLGA_ARM = False
+
+CPU_ARM = "arm"
+CPU_INTEL = "intel"
+CPU_AMD = "amd"
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -98,7 +108,9 @@ def construct_packet(sport, dport, client_iface, client_mac, client_ip, server_m
 
 def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip):
     packet_list = []
-    dports_list = construct_port_sequences(len(DPORT_SEQ) + 1)
+    dports_list = [[DPORT_ARM]]
+    if not FLGA_ARM:
+        dports_list = construct_port_sequences(len(DPORT_SEQ) + 1)
     for dports in dports_list:
         for dport in dports:
             packet = construct_packet(sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
@@ -134,7 +146,9 @@ def construct_packet_with_metadata(sport, dports, client_iface, client_mac, clie
     return packet
 
 def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
-    dports_list = construct_port_sequences(num_ports_in_md + 1)
+    dports_list = [[DPORT_ARM]]
+    if not FLGA_ARM:
+        dports_list = construct_port_sequences(num_ports_in_md + 1)
     packet_list = []
     # print(f"{len(dports_list)} sequences in packets: ")
     # for dports in dports_list:
@@ -156,7 +170,7 @@ def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, 
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify function, version, and the source port.")
+        print("Please specify function, version, and the source port (or src ip for arm machines).")
         sys.exit(0)
 
     function = sys.argv[1]
@@ -174,19 +188,28 @@ if __name__ == "__main__":
     if version == "v2" and len(sys.argv) < 5:
         print("Please specify the number of cores")
         sys.exit(0)
-    sport = int(sys.argv[3])
     if version == "v2":
         num_cores = int(sys.argv[4])
-    print(f"version = {version}, sport = {sport}, number of cores = {num_cores}")
+    # print(f"version = {version}, sport = {sport}, number of cores = {num_cores}")
     num_ports_in_md = num_cores - 1
 
+    server_cpu = read_machine_info_from_file("server_cpu")
+    if server_cpu == CPU_ARM:
+        FLGA_ARM = True     
+
+    client_port = 0
+    if not FLGA_ARM:
+        client_port = int(sys.argv[3])
     client_iface = read_machine_info_from_file("client_iface")
     client_mac = read_machine_info_from_file("client_mac")
     client_ip = read_machine_info_from_file("client_ip")
     server_mac = read_machine_info_from_file("server_mac")
     server_ip = read_machine_info_from_file("server_ip")
-    print(client_iface, client_mac, client_ip, server_mac, server_ip)
+    if FLGA_ARM:
+        client_ip = sys.argv[3]
+        client_port = SPORT_ARM
+    print(client_iface, client_mac, client_ip, client_port, server_mac, server_ip)
     if version == "v1":
-        send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip)
+        send_udp_packets_v1(client_port, client_iface, client_mac, client_ip, server_mac, server_ip)
     elif version == "v2":
-        send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
+        send_udp_packets_v2(client_port, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
