@@ -5,3 +5,4 @@ client_ip: 10.10.1.2
 server_iface: ens1f1np1
 server_mac: 9c:dc:71:5d:57:d1
 server_ip: 10.10.1.1
+server_cpu: intel
