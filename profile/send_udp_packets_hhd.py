@@ -2,9 +2,17 @@ import argparse
 from os.path import exists
 from scapy.all import*
 import sys
+from os.path import expanduser
 
-CONFIG_file_xl170 = "config.xl170"
+home = expanduser("~")
+CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
 FLGA_ARM = False
+
+SPORT_ARM = 53
+DPORT_ARM = 12
+CPU_ARM = "arm"
+CPU_INTEL = "intel"
+CPU_AMD = "amd"
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -95,10 +103,6 @@ if __name__ == "__main__":
         print("Please specify version, src mac address (intel/amd) / src ip address (arm), and number of cores.")
         sys.exit(0)
 
-    if len(sys.argv) >= 4:
-        if sys.argv[4] == "arm":
-            FLGA_ARM = True
-
     version = sys.argv[1]
     if version not in ["v1", "v2", "v3"]:
         print(f"Version {version} is not v1, v2, or v3")
@@ -107,7 +111,11 @@ if __name__ == "__main__":
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])
     num_pkts_in_md = num_cores - 1
-    print(version, src_mac, src_ip, num_cores)
+    # print(version, src_mac, src_ip, num_cores)
+
+    server_cpu = read_machine_info_from_file("server_cpu")
+    if server_cpu == CPU_ARM:
+        FLGA_ARM = True
 
     client_iface = read_machine_info_from_file("client_iface")
     client_mac = src_mac  # use a fake mac for RSS
@@ -119,7 +127,7 @@ if __name__ == "__main__":
     server_mac = read_machine_info_from_file("server_mac")
     server_ip = read_machine_info_from_file("server_ip")
     print(client_iface, client_mac, client_ip, server_mac, server_ip)
-    # sport and dport do not matter
-    sport = 2000
-    dport = 2000
+    # sport and dport do not matter for intel/amd machines, so set them as what ARM machines requires
+    sport = SPORT_ARM
+    dport = DPORT_ARM
     send_udp_packets(version, num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
