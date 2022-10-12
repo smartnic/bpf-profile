@@ -26,6 +26,7 @@ SERVER_IFACE = ""
 SERVER_CPU = ""
 
 DISABLE_prog_latency = False
+DISABLE_prog_latency_ns = False
 DISABLE_insn_latency = False
 BENCHMARK_portknock = "portknock"
 BENCHMARK_hhd = "hhd"
@@ -138,11 +139,18 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
         run_cmd(cmd, wait=True)
         run_cmd("sudo rm -rf " + tmp_out_file, wait=True)
 
-    # 4.2 use bpftool to get overall latency
+    # 4.2 use bpftool to get overall latency (cycles)
     # todo: remove "llc_misses" since not able to create this event on AMD machines
     if not DISABLE_prog_latency:
         cmd = "sudo bpftool prog profile tag " + tag + " duration " + str(seconds) + " cycles instructions > tmp/prog.txt"
         run_cmd(cmd, wait=True)
+
+    # 4.3 use kernel stats to measure overall latency (nanoseconds)
+    if not DISABLE_prog_latency_ns:
+        run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=1", wait=True)
+        time.sleep(duration)
+        run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=0", wait=True)
+        cmd = f"sudo bpftool prog show | grep xdp > tmp/prog_ns.txt"
 
     # 5. clean environment
     clean_environment(client, prog_name)
@@ -196,13 +204,15 @@ if __name__ == "__main__":
     parser.add_argument('--nc_max', dest="num_cores_max", type=int, help='Maximum number of cores (greater than 1)', required=True)
     parser.add_argument('-d', dest="duration", type=int, help='Duration for each test. Unit: seconds', required=True)
     parser.add_argument('--disable_prog_latency', action='store_true', help='Disable prog latency measurement', required=False)
+    parser.add_argument('--disable_prog_latency_ns', action='store_true', help='Disable prog latency (nanoseconds, use kernel stats) measurement', required=False)
     parser.add_argument('--disable_insn_latency', action='store_true', help='Disable insn latency measurement', required=False)
     args = parser.parse_args()
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name
     DISABLE_prog_latency = args.disable_prog_latency
+    DISABLE_prog_latency_ns = args.disable_prog_latency_ns
     DISABLE_insn_latency = args.disable_insn_latency
-    if DISABLE_prog_latency and DISABLE_insn_latency:
+    if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency:
         sys.exit(0)
     # read client and server_iface from config.xl170
     CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
