@@ -202,7 +202,7 @@ if __name__ == "__main__":
     LOADER_NAME = args.loader_name
     DISABLE_prog_latency = args.disable_prog_latency
     DISABLE_insn_latency = args.disable_insn_latency
-    if DISABLE_prog_latency and DISABLE_prog_latency:
+    if DISABLE_prog_latency and DISABLE_insn_latency:
         sys.exit(0)
     # read client and server_iface from config.xl170
     CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
