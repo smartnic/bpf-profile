@@ -112,6 +112,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
   // Process metadata
   for (int i = 0; i < NUM_PKTS - 1; i++) {
+    // todo: remove ntohs() and modify the metadata constructed in scapy
     cur_port = ntohs(*(u16*)(data + nh_off));
     state = get_new_state(state, cur_port);
     nh_off += sizeof(u16);
