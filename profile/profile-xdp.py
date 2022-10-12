@@ -206,7 +206,7 @@ if __name__ == "__main__":
         sys.exit(0)
     # read client and server_iface from config.xl170
     CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
-    if CLIENT is None or SERVER_IFACE is None:
+    if CLIENT is None or SERVER_IFACE is None or SERVER_CPU is None:
         sys.exit(0)
     for version in version_name_list:
         prog_name_prefix = f"{args.prog_name}_{version}"
