@@ -1,6 +1,7 @@
 import argparse
 from os.path import exists
 from prog_latency import visualize_prog_avg_latency
+from prog_latency_ns import visualize_prog_avg_latency_ns
 from insn_latency import visualize_insn_avg_latency
 
 def read_config_from_file(input_file, num_cores_min, num_cores_max):
@@ -52,5 +53,7 @@ if __name__ == "__main__":
 
     visualize_prog_avg_latency(args.prog_name, version_name_list, args.num_runs, args.num_cores_min,
                                args.num_cores_max, args.input_folder, args.output_folder)
+    visualize_prog_avg_latency_ns(args.prog_name, version_name_list, args.num_runs, args.num_cores_min,
+                                  args.num_cores_max, args.input_folder, args.output_folder)
     visualize_insn_avg_latency(args.prog_name, version_name_list, insn_ids, args.num_runs, args.num_cores_min,
                                args.num_cores_max, args.input_folder, args.output_folder)
