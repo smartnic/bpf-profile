@@ -148,7 +148,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
     # 4.3 use kernel stats to measure overall latency (nanoseconds)
     if not DISABLE_prog_latency_ns:
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=1", wait=True)
-        time.sleep(duration)
+        time.sleep(seconds)
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=0", wait=True)
         cmd = f"sudo bpftool prog show | grep xdp > tmp/prog_ns.txt"
 
