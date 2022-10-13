@@ -160,15 +160,14 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
     run_cmd("sudo rm -rf tmp", wait=True)
     time.sleep(5)
 
-def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, num_runs):
+def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, run_id):
     core_list = []
     for i in range(1, core_num_max + 1):
         core_list.append(i)
         prog_name = f"{prog_name_prefix}_p{i}"
-        for j in range(0, num_runs):
-            output_folder_ij = output_folder + "/" + str(i) + "/" + str(j)
-            run_cmd("sudo mkdir -p " + output_folder_ij, wait=True)
-            run_test(prog_name, core_list, CLIENT, duration, output_folder_ij)
+        output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
+        run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
+        run_test(prog_name, core_list, CLIENT, duration, output_folder_i)
 
 def read_machine_info_from_file(input_file):
     client = None
@@ -218,7 +217,9 @@ if __name__ == "__main__":
     CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
     if CLIENT is None or SERVER_IFACE is None or SERVER_CPU is None:
         sys.exit(0)
-    for version in version_name_list:
-        prog_name_prefix = f"{args.prog_name}_{version}"
-        output_folder_version = f"{args.output_folder}/{version}"
-        run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, args.num_runs)
+    for run_id in range(0, args.num_runs):
+        print(f"Run {run_id} starts......")
+        for version in version_name_list:
+            prog_name_prefix = f"{args.prog_name}_{version}"
+            output_folder_version = f"{args.output_folder}/{version}"
+            run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, run_id)
