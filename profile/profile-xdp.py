@@ -150,7 +150,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=1", wait=True)
         time.sleep(seconds)
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=0", wait=True)
-        cmd = f"sudo bpftool prog show | grep xdp > tmp/prog_ns.txt"
+        run_cmd("sudo bpftool prog show | grep \"xdp.*run_time_ns\" > tmp/prog_ns.txt", wait=True)
 
     # 5. clean environment
     clean_environment(client, prog_name)
