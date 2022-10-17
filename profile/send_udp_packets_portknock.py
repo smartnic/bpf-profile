@@ -195,7 +195,7 @@ if __name__ == "__main__":
 
     server_cpu = read_machine_info_from_file("server_cpu")
     if server_cpu == CPU_ARM:
-        FLGA_ARM = True     
+        FLGA_ARM = True
 
     client_port = 0
     if not FLGA_ARM:
