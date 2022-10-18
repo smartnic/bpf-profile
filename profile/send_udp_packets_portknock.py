@@ -98,7 +98,7 @@ def construct_port_sequences(num_ports):
     #     print(x)
     return res;
 
-def construct_packet(sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
+def construct_packet(sport, dport, client_mac, client_ip, server_mac, server_ip):
     dports_bytes = PORT_PADDING.to_bytes(2, 'big') * NUM_PORTS_IN_PAYLOAD
     payload = (str(PORT_PADDING) + ", ") * NUM_PORTS_IN_PAYLOAD
     packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
@@ -106,15 +106,20 @@ def construct_packet(sport, dport, client_iface, client_mac, client_ip, server_m
     # print(f"dport: {dport}, payload: {payload}")
     return packet
 
-def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip):
+def construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip):
     packet_list = []
     dports_list = [[DPORT_ARM]]
     if not FLGA_ARM:
         dports_list = construct_port_sequences(len(DPORT_SEQ) + 1)
     for dports in dports_list:
         for dport in dports:
-            packet = construct_packet(sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
+            packet = construct_packet(sport, dport, client_mac, client_ip, server_mac, server_ip)
+            print(sport, dport, client_mac, client_ip, server_mac, server_ip)
             packet_list.append(packet)
+    return packet_list
+
+def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip):
+    packet_list = construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip)
     if not FLAG_LOOP:
         sendpfast(packet_list, iface=client_iface)
     else:
@@ -167,6 +172,12 @@ def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, 
             packets += packet_list
         packets += packet_list[:r]
         sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
+
+def portknock_construct_packets(version, sport, client_mac, client_ip, server_mac, server_ip):
+    packet_list = []
+    if version == "v1":
+        packet_list = construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip)
+    return packet_list
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
