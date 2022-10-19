@@ -120,16 +120,16 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
         run_cmd("rm -rf tmp", wait=True)
     run_cmd("mkdir tmp", wait=True)
 
-    benchmark, version = get_benchmark_version(prog_name)
-    run_packet_generator(benchmark, version, core_list, client)
-
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     run_cmd_on_core(cmd, 0)
 
-    # 3. wait some seconds for the packet generation start sending packets
+    # 3. run packet generator
+    # wait some seconds for the packet generation start sending packets
     # wait until tcpreplay starts
+    benchmark, version = get_benchmark_version(prog_name)
+    run_packet_generator(benchmark, version, core_list, client)
     time.sleep(10)
 
     # 4. measure the xdp prorgam
