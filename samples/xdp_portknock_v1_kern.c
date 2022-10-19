@@ -55,6 +55,21 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
   return 0;
 }
 
+static inline void swap_src_dst_mac(void *data) {
+  unsigned short *p = data;
+  unsigned short dst[3];
+
+  dst[0] = p[0];
+  dst[1] = p[1];
+  dst[2] = p[2];
+  p[0] = p[3];
+  p[1] = p[4];
+  p[2] = p[5];
+  p[3] = dst[0];
+  p[4] = dst[1];
+  p[5] = dst[2];
+}
+
 SEC("xdp_portknock")
 int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
@@ -108,7 +123,9 @@ int xdp_prog(struct xdp_md *ctx) {
   }
   bpf_spin_unlock(&value->lock);
 
-  return rc;
+  /* For all valid packets, bounce them back to the packet generator. */
+  swap_src_dst_mac(data);
+  return XDP_TX;
 }
 
 char _license[] SEC("license") = "GPL";
