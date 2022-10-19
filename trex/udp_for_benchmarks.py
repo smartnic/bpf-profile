@@ -22,12 +22,15 @@ class STLS1(object):
     '''
     Generalization of udp_1pkt_simple, can specify number of streams and packet length
     '''
-    def create_stream (self, packet_len, stream_count, benchmark, version):
+    def create_stream (self, packet_len, stream_count, benchmark, version, num_cores):
         packets = []
-        for i in range(stream_count):
+        for i in range(num_cores):
             base_pkts = []
+            # used for RSS, src ip starts from 10.10.1.1 (i.e., core 1)
+            src_ip = f"10.10.1.{i+1}"
+            print(f"create_stream: {src_ip}")
             if benchmark == "portknock":
-                base_pkts = portknock_construct_packets("loop", version, "10.10.1.2")
+                base_pkts = portknock_construct_packets("loop", version, src_ip)
             assert(len(base_pkts) > 0)
             for base_pkt in base_pkts:
                 base_pkt_len = len(base_pkt)
@@ -46,7 +49,10 @@ class STLS1(object):
         return packets
     def get_streams (self, direction = 0, packet_len = 64, stream_count = 1, **kwargs):
         # create 1 stream
-        return self.create_stream(packet_len - 4, stream_count, kwargs['kwargs']['benchmark'], kwargs['kwargs']['version'])
+        return self.create_stream(packet_len - 4, stream_count,
+            kwargs['kwargs']['benchmark'],
+            kwargs['kwargs']['version'],
+            kwargs['kwargs']['num_cores'])
 # dynamic load - used for trex console or simulator
 def register():
     return STLS1()
