@@ -15,7 +15,7 @@ START_SPORT = 53
 # src mac is used for xdp_hdd on intel/amd machines
 SRC_MAC_PRE = "10:10:10:10:10:"
 SRC_MAC_POST_START = 10 # src mac with 10:10:10:10:10:10 goes to cpu 0 on the server
-# src mac is used for xdp_hdd on arm machines
+# src ip is used for RSS for portknock
 SRC_IP_PRE = "10.10.1."
 SRC_IP_POST_START = 0 # src ip with 10.10.1.0 goes to cpu 0 on the server
 
@@ -86,11 +86,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
         client_cmd = ""
         if BENCHMARK_portknock in prog_name:
             paras = ""
-            rss_para = ""
-            if SERVER_CPU != CPU_ARM:
-                rss_para = str(START_SPORT+i)
-            else:
-                rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
+            rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             if "v1" in prog_name:
                 paras = f"loop v1 {rss_para}"
             else:
