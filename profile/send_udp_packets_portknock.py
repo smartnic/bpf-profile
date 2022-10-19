@@ -120,7 +120,6 @@ def construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip):
     for dports in dports_list:
         for dport in dports:
             packet = construct_packet(sport, dport, client_mac, client_ip, server_mac, server_ip)
-            print(sport, dport, client_mac, client_ip, server_mac, server_ip)
             packet_list.append(packet)
     return packet_list
 

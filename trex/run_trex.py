@@ -16,7 +16,8 @@ if __name__ == "__main__":
         c.connect() # connect to server
         c.reset(ports = 0)
         c.add_profile(filename="stl/udp_for_benchmarks.py", ports=0, 
-            kwargs={"packet_len": 64, "stream_count": 1, "benchmark": args.benchmark, "version": args.version})        # Need to specify 'force', or add the destination mac address in /etc/trex_cfg.yaml
+            kwargs={"packet_len": 64, "stream_count": 1, "benchmark": args.benchmark, "version": args.version})
+        # Need to specify 'force', or add the destination mac address in /etc/trex_cfg.yaml
         # otherwise, not able to send packets (cannot pass the start check)
         c.start(ports = 0, duration = args.time, mult=f"{rate}mpps", force=True)
         time.sleep(0.5)
