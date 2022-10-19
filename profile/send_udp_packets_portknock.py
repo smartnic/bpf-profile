@@ -1,4 +1,4 @@
-# sudo python3 send_udp_packets_test.py [function] [version] [sport]/[src_ip] [# of cores]
+# sudo python3 send_udp_packets_test.py [function] [version] [src_ip] [# of cores]
 # function: single, loop
 # version: v1, v2
 # v1 is for shared state, v2 is for local state
@@ -14,17 +14,23 @@ home = expanduser("~")
 SPORT_ARM = 53
 DPORT_ARM = 12
 CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
-# DPORT_SEQ won't be used for arm machines
-DPORT_SEQ = [100, 101, 102]
+# # DPORT_SEQ won't be used for arm machines
+# DPORT_SEQ = [100, 101, 102]
 PORT_START = 1
 NUM_PORTS_IN_PAYLOAD = 7
 PORT_PADDING = 0xffff # this port won't be processed by the xdp program, only used for padding
-FLAG_LOOP = False
-FLGA_ARM = False
-
 CPU_ARM = "arm"
 CPU_INTEL = "intel"
 CPU_AMD = "amd"
+
+FLAG_LOOP = True
+CLIENT_port = 2000
+CLIENT_iface = ''
+CLIENT_mac = ''
+CLIENT_ip = ''
+SERVER_mac = ''
+SERVER_ip = ''
+NUM_cores = 0
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -109,8 +115,8 @@ def construct_packet(sport, dport, client_mac, client_ip, server_mac, server_ip)
 def construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip):
     packet_list = []
     dports_list = [[DPORT_ARM]]
-    if not FLGA_ARM:
-        dports_list = construct_port_sequences(len(DPORT_SEQ) + 1)
+    # if not FLGA_ARM:
+    #     dports_list = construct_port_sequences(len(DPORT_SEQ) + 1)
     for dports in dports_list:
         for dport in dports:
             packet = construct_packet(sport, dport, client_mac, client_ip, server_mac, server_ip)
@@ -119,6 +125,7 @@ def construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip):
     return packet_list
 
 def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip):
+    print("send_udp_packets_v1", client_iface)
     packet_list = construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip)
     if not FLAG_LOOP:
         sendpfast(packet_list, iface=client_iface)
@@ -130,6 +137,7 @@ def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, 
         for i in range(k):
             packets += packet_list
         packets += packet_list[:r]
+        print(client_iface)
         sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
 def construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
@@ -152,8 +160,8 @@ def construct_packet_with_metadata(sport, dports, client_iface, client_mac, clie
 
 def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
     dports_list = [[DPORT_ARM]]
-    if not FLGA_ARM:
-        dports_list = construct_port_sequences(num_ports_in_md + 1)
+    # if not FLGA_ARM:
+    #     dports_list = construct_port_sequences(num_ports_in_md + 1)
     packet_list = []
     # print(f"{len(dports_list)} sequences in packets: ")
     # for dports in dports_list:
@@ -173,23 +181,37 @@ def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, 
         packets += packet_list[:r]
         sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
-def portknock_construct_packets(version, sport, client_mac, client_ip, server_mac, server_ip):
+# src_ip is used for RSS
+def set_up_arguments(function, num_cores, src_ip):
+    global FLAG_LOOP, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip
+    NUM_cores = num_cores
+    if function == "loop":
+        FLAG_LOOP = True
+    else:
+        FLAG_LOOP = False
+    CLIENT_iface = read_machine_info_from_file("client_iface")
+    CLIENT_mac = read_machine_info_from_file("client_mac")
+    CLIENT_ip = src_ip
+    CLIENT_port = SPORT_ARM
+    SERVER_mac = read_machine_info_from_file("server_mac")
+    SERVER_ip = read_machine_info_from_file("server_ip")
+
+def portknock_construct_packets(function, version, src_ip, num_cores = 0):
+    set_up_arguments(function, num_cores, src_ip)
     packet_list = []
     if version == "v1":
-        packet_list = construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip)
+        packet_list = construct_packet_v1(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip)
     return packet_list
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify function, version, and the source port (or src ip for arm machines).")
+        print("Please specify function, version, and the src ip.")
         sys.exit(0)
 
     function = sys.argv[1]
     if function != "single" and function != "loop":
         print(f"Function {version} is not single or loop")
         sys.exit(0)
-    if function == "loop":
-        FLAG_LOOP = True
 
     version = sys.argv[2]
     if version != "v1" and version != "v2":
@@ -201,26 +223,12 @@ if __name__ == "__main__":
         sys.exit(0)
     if version == "v2":
         num_cores = int(sys.argv[4])
-    # print(f"version = {version}, sport = {sport}, number of cores = {num_cores}")
-    num_ports_in_md = num_cores - 1
 
-    server_cpu = read_machine_info_from_file("server_cpu")
-    if server_cpu == CPU_ARM:
-        FLGA_ARM = True
+    src_ip = sys.argv[3]
+    set_up_arguments(function, num_cores, src_ip)
+    num_ports_in_md = NUM_cores - 1
 
-    client_port = 0
-    if not FLGA_ARM:
-        client_port = int(sys.argv[3])
-    client_iface = read_machine_info_from_file("client_iface")
-    client_mac = read_machine_info_from_file("client_mac")
-    client_ip = read_machine_info_from_file("client_ip")
-    server_mac = read_machine_info_from_file("server_mac")
-    server_ip = read_machine_info_from_file("server_ip")
-    if FLGA_ARM:
-        client_ip = sys.argv[3]
-        client_port = SPORT_ARM
-    print(client_iface, client_mac, client_ip, client_port, server_mac, server_ip)
     if version == "v1":
-        send_udp_packets_v1(client_port, client_iface, client_mac, client_ip, server_mac, server_ip)
+        send_udp_packets_v1(CLIENT_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     elif version == "v2":
-        send_udp_packets_v2(client_port, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
+        send_udp_packets_v2(CLIENT_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip, num_ports_in_md)

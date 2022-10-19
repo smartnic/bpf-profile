@@ -27,7 +27,7 @@ class STLS1(object):
         for i in range(stream_count):
             base_pkts = []
             if benchmark == "portknock":
-                base_pkts = portknock_construct_packets(version, 1025, "9c:dc:71:5d:e5:31", "10.10.1.1", "9c:dc:71:49:a8:91", "10.10.1.2")
+                base_pkts = portknock_construct_packets("loop", version, "10.10.1.2")
             assert(len(base_pkts) > 0)
             for base_pkt in base_pkts:
                 base_pkt_len = len(base_pkt)
