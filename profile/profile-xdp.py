@@ -30,6 +30,7 @@ DISABLE_prog_latency_ns = False
 DISABLE_insn_latency = False
 BENCHMARK_portknock = "portknock"
 BENCHMARK_hhd = "hhd"
+BENCHMARK_xdpex1 = "xdpex1"
 
 CPU_ARM = "arm"
 CPU_INTEL = "intel"
@@ -75,29 +76,16 @@ def clean_environment(client, prog_name):
     loader_cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
 
-def run_test(prog_name, core_list, client, seconds, output_folder):
-    # 1. print test name
-    print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
-    if exists("tmp"):
-        run_cmd("rm -rf tmp", wait=True)
-    run_cmd("mkdir tmp", wait=True)
+def run_packet_generator(benchmark, version, core_list, client):
     # start packet generation
     for i in core_list:
         client_cmd = ""
-        if BENCHMARK_portknock in prog_name:
-            paras = ""
+        if benchmark == BENCHMARK_portknock:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
-            if "v1" in prog_name:
-                paras = f"loop v1 {rss_para}"
-            else:
-                paras = f"loop v2 {rss_para} {len(core_list)}"
+            paras = f"loop {version} {rss_para} {len(core_list)}"
             client_cmd = f"sh -c 'sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &'"
-        elif BENCHMARK_hhd in prog_name:
+        elif benchmark == BENCHMARK_hhd:
             paras = "v1"
-            if "v2" in prog_name:
-                paras = "v2"
-            elif "v3" in prog_name:
-                paras = "v3"
             if SERVER_CPU != CPU_ARM:
                 paras += f" {SRC_MAC_PRE}{str(SRC_MAC_POST_START+i)}"
             else:
@@ -108,6 +96,33 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
             client_cmd = f"sh -c 'sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &'"
         cmd = f"ssh -p 22 {client} \"nohup sudo {client_cmd}\""
         run_cmd(cmd)
+
+def get_benchmark_version(prog_name):
+    benchmark = None
+    version = None
+    if BENCHMARK_portknock in prog_name:
+        benchmark = BENCHMARK_portknock
+    elif BENCHMARK_hhd in prog_name:
+        benchmark = BENCHMARK_hhd
+    else:
+        benchmark = BENCHMARK_xdpex1
+    versions = ["v1", "v2", "v3"]
+    for v in versions:
+        if v in prog_name:
+            version = v
+            break
+    return benchmark, version
+
+def run_test(prog_name, core_list, client, seconds, output_folder):
+    # 1. print test name
+    print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
+    if exists("tmp"):
+        run_cmd("rm -rf tmp", wait=True)
+    run_cmd("mkdir tmp", wait=True)
+
+    benchmark, version = get_benchmark_version(prog_name)
+    run_packet_generator(benchmark, version, core_list, client)
+
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
