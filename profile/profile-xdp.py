@@ -211,7 +211,7 @@ if __name__ == "__main__":
         sys.exit(0)
     # read client and server_iface from config.xl170
     CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
-    if CLIENT is None or SERVER_IFACE is None or SERVER_CPU is None:
+    if CLIENT is None or SERVER_IFACE is None:
         sys.exit(0)
     for run_id in range(0, args.num_runs):
         print(f"Run {run_id} starts......")
