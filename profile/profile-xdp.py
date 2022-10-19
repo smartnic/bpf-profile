@@ -96,6 +96,9 @@ def run_packet_generator(benchmark, version, core_list, client):
             client_cmd = f"sh -c 'sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &'"
         cmd = f"ssh -p 22 {client} \"nohup sudo {client_cmd}\""
         run_cmd(cmd)
+    # wait some seconds for the packet generation start sending packets
+    # wait until tcpreplay starts
+    time.sleep(10)
 
 def get_benchmark_version(prog_name):
     benchmark = None
@@ -126,11 +129,8 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
     run_cmd_on_core(cmd, 0)
 
     # 3. run packet generator
-    # wait some seconds for the packet generation start sending packets
-    # wait until tcpreplay starts
     benchmark, version = get_benchmark_version(prog_name)
     run_packet_generator(benchmark, version, core_list, client)
-    time.sleep(10)
 
     # 4. measure the xdp prorgam
     try:
