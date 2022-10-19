@@ -36,6 +36,10 @@ CPU_ARM = "arm"
 CPU_INTEL = "intel"
 CPU_AMD = "amd"
 
+PKTGEN_SCAPY = "scapy"
+PKTGEN_TREX = "trex"
+PKTGEN_input = ""
+
 def get_prog_tag():
     cmd = "bpftool prog show | grep xdp"
     try:
@@ -216,6 +220,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_prog_latency', action='store_true', help='Disable prog latency measurement', required=False)
     parser.add_argument('--disable_prog_latency_ns', action='store_true', help='Disable prog latency (nanoseconds, use kernel stats) measurement', required=False)
     parser.add_argument('--disable_insn_latency', action='store_true', help='Disable insn latency measurement', required=False)
+    parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
     args = parser.parse_args()
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name
@@ -223,6 +228,9 @@ if __name__ == "__main__":
     DISABLE_prog_latency_ns = args.disable_prog_latency_ns
     DISABLE_insn_latency = args.disable_insn_latency
     if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency:
+        sys.exit(0)
+    PKTGEN_input = args.pktgen
+    if PKTGEN_input != PKTGEN_SCAPY and PKTGEN_input != PKTGEN_TREX:
         sys.exit(0)
     # read client and server_iface from config.xl170
     CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
