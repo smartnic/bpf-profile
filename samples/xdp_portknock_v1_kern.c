@@ -5,6 +5,7 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <bpf/bpf_helpers.h>
+#include "xdp_utils.h"
 
 enum state {
   CLOSED_0 = 0,
@@ -53,21 +54,6 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
   *sport = ntohs(udph->source);
   *dport = ntohs(udph->dest);
   return 0;
-}
-
-static inline void swap_src_dst_mac(void *data) {
-  unsigned short *p = data;
-  unsigned short dst[3];
-
-  dst[0] = p[0];
-  dst[1] = p[1];
-  dst[2] = p[2];
-  p[0] = p[3];
-  p[1] = p[4];
-  p[2] = p[5];
-  p[3] = dst[0];
-  p[4] = dst[1];
-  p[5] = dst[2];
 }
 
 SEC("xdp_portknock")
