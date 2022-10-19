@@ -139,7 +139,7 @@ def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, 
         print(client_iface)
         sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
-def construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
+def construct_packet_with_metadata(sport, dports, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
     dport = dports[-1]
     num_padding = NUM_PORTS_IN_PAYLOAD - num_ports_in_md;
 
@@ -157,7 +157,7 @@ def construct_packet_with_metadata(sport, dports, client_iface, client_mac, clie
     # hexdump(packet)
     return packet
 
-def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
+def construct_packet_v2(sport, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
     dports_list = [[DPORT_ARM]]
     # if not FLGA_ARM:
     #     dports_list = construct_port_sequences(num_ports_in_md + 1)
@@ -166,8 +166,12 @@ def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, 
     # for dports in dports_list:
     #     print(dports)
     for dports in dports_list:
-        packet = construct_packet_with_metadata(sport, dports, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
+        packet = construct_packet_with_metadata(sport, dports, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
         packet_list.append(packet)
+    return packet_list
+
+def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
+    packet_list = construct_packet_v2(sport, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
     if not FLAG_LOOP:
         sendpfast(packet_list, iface=client_iface)
     else:
@@ -200,6 +204,8 @@ def portknock_construct_packets(function, version, src_ip, num_cores = 0):
     packet_list = []
     if version == "v1":
         packet_list = construct_packet_v1(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip)
+    elif version == "v2":
+        packet_list = construct_packet_v2(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip, num_cores-1)
     return packet_list
 
 if __name__ == "__main__":

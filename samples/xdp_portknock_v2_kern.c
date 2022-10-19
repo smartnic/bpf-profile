@@ -5,6 +5,7 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <bpf/bpf_helpers.h>
+#include "xdp_utils.h"
 
 enum state {
   CLOSED_0 = 0,
@@ -126,7 +127,9 @@ int xdp_prog(struct xdp_md *ctx) {
 
   *value = state;
 
-  return rc;
+  /* For all valid packets, bounce them back to the packet generator. */
+  swap_src_dst_mac(data);
+  return XDP_TX;
 }
 
 char _license[] SEC("license") = "GPL";

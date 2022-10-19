@@ -30,7 +30,7 @@ class STLS1(object):
             src_ip = f"10.10.1.{i+1}"
             print(f"create_stream: {src_ip}")
             if benchmark == "portknock":
-                base_pkts = portknock_construct_packets("loop", version, src_ip)
+                base_pkts = portknock_construct_packets("loop", version, src_ip, num_cores)
             assert(len(base_pkts) > 0)
             for base_pkt in base_pkts:
                 base_pkt_len = len(base_pkt)
