@@ -18,7 +18,7 @@ def percent_single_run(input_file, insn_ids):
         print(f"ERROR: no instruction selected. Return percent = 0")
         return 0
     insns_percent = 0.0 # the type of percent is float
-    insn_ids.sort()
+    # insn_ids.sort()
     print("insn_ids: ", insn_ids)
     if not exists(input_file):
         print(f"ERROR: no such file {input_file}. Return percent = 0")
