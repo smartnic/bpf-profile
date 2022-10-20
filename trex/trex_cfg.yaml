@@ -7,7 +7,7 @@
       default_gw: 10.10.2.1
   platform:
     master_thread_id: 0
-    latency_thread_id: 9
+    latency_thread_id: 14
     dual_if:
       - socket: 0
-        threads: [1,2,3,4,5,6,7,8]
+        threads: [1,2,3,4,5,6,7,8,9,10,11,12]

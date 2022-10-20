@@ -110,22 +110,21 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
     # wait until tcpreplay starts
     time.sleep(10)
 
-def run_packet_generator_trex(benchmark, version, core_list, client):
+def run_packet_generator_trex(benchmark, version, core_list, client, tx_rate):
     # start trex server
     client_cmd = f"sudo bash {TREX_PATH}start_trex_server.sh {TREX_PATH} >log_trex_server.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     time.sleep(30)
     # send packets for 10000 seconds
-    tx_rate = 1
     client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     time.sleep(5)
 
-def run_packet_generator(benchmark, version, core_list, client):
+def run_packet_generator(benchmark, version, core_list, client, tx_rate):
     if PKTGEN_input == PKTGEN_SCAPY:
         run_packet_generator_scapy(benchmark, version, core_list, client)
     elif PKTGEN_input == PKTGEN_TREX:
-        run_packet_generator_trex(benchmark, version, core_list, client)
+        run_packet_generator_trex(benchmark, version, core_list, client, tx_rate)
     else:
         print(f"ERROR: pktgen {PKTGEN_input} is not {PKTGEN_SCAPY} or {PKTGEN_TREX}")
 
@@ -145,7 +144,7 @@ def get_benchmark_version(prog_name):
             break
     return benchmark, version
 
-def run_test(prog_name, core_list, client, seconds, output_folder):
+def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = 0):
     # 1. print test name
     print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
     if exists("tmp"):
@@ -159,7 +158,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
 
     # 3. run packet generator
     benchmark, version = get_benchmark_version(prog_name)
-    run_packet_generator(benchmark, version, core_list, client, seconds)
+    run_packet_generator(benchmark, version, core_list, client, tx_rate)
 
     # 4. measure the xdp prorgam
     try:
@@ -200,14 +199,14 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
     run_cmd("sudo rm -rf tmp", wait=True)
     time.sleep(5)
 
-def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, run_id):
+def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, run_id, tx_rate):
     core_list = []
     for i in range(1, core_num_max + 1):
         core_list.append(i)
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
         run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
-        run_test(prog_name, core_list, CLIENT, duration, output_folder_i)
+        run_test(prog_name, core_list, CLIENT, duration, output_folder_i, tx_rate)
 
 def read_machine_info_from_file(input_file):
     client = None
@@ -261,9 +260,14 @@ if __name__ == "__main__":
     CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
     if CLIENT is None or SERVER_IFACE is None:
         sys.exit(0)
+
+    tx_rate_list = [1] # it won't be used by PKTGEN_SCAPY
+    if PKTGEN_input ==  PKTGEN_TREX:
+        tx_rate_list = [1, 5, 10, 20, 37]
     for run_id in range(0, args.num_runs):
         print(f"Run {run_id} starts......")
-        for version in version_name_list:
-            prog_name_prefix = f"{args.prog_name}_{version}"
-            output_folder_version = f"{args.output_folder}/{version}"
-            run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, run_id)
+        for tx_rate in tx_rate_list:
+            for version in version_name_list:
+                prog_name_prefix = f"{args.prog_name}_{version}"
+                output_folder_version = f"{args.output_folder}/{tx_rate}/{version}"
+                run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, run_id, tx_rate)
