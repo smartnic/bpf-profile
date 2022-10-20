@@ -39,6 +39,7 @@ CPU_AMD = "amd"
 PKTGEN_SCAPY = "scapy"
 PKTGEN_TREX = "trex"
 PKTGEN_input = ""
+TREX_PATH = f"{home}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
 
 def get_prog_tag():
     cmd = "bpftool prog show | grep xdp"
@@ -81,10 +82,12 @@ def clean_environment(client, prog_name):
     # todo
     kill_process_on_client("send_udp_packets_for_xl170.py", client)
     kill_process_on_client("tcpreplay", client)
+    kill_process_on_client("t-rex-64", client)
+    kill_process_on_client("run_trex.py", client)
     loader_cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
 
-def run_packet_generator(benchmark, version, core_list, client):
+def run_packet_generator_scapy(benchmark, version, core_list, client):
     # start packet generation
     for i in core_list:
         client_cmd = ""
@@ -106,6 +109,23 @@ def run_packet_generator(benchmark, version, core_list, client):
     # wait some seconds for the packet generation start sending packets
     # wait until tcpreplay starts
     time.sleep(10)
+
+def run_packet_generator_trex(benchmark, version, core_list, client, seconds):
+    # start trex server
+    client_cmd = f"sudo bash {TREX_PATH}start_trex_server.sh {TREX_PATH} >log_trex_server.txt 2>&1 &"
+    run_cmd_on_client(client_cmd, client)
+    time.sleep(30)
+    # start sending packets
+    client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} {seconds} 20 1 >log.txt 2>&1 &"
+    run_cmd_on_client(client_cmd, client)
+
+def run_packet_generator(benchmark, version, core_list, client, seconds):
+    if PKTGEN_input == PKTGEN_SCAPY:
+        run_packet_generator_scapy(benchmark, version, core_list, client)
+    elif PKTGEN_input == PKTGEN_TREX:
+        run_packet_generator_trex(benchmark, version, core_list, client, seconds)
+    else:
+        print(f"ERROR: pktgen {PKTGEN_input} is not {PKTGEN_SCAPY} or {PKTGEN_TREX}")
 
 def get_benchmark_version(prog_name):
     benchmark = None
@@ -137,7 +157,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder):
 
     # 3. run packet generator
     benchmark, version = get_benchmark_version(prog_name)
-    run_packet_generator(benchmark, version, core_list, client)
+    run_packet_generator(benchmark, version, core_list, client, seconds)
 
     # 4. measure the xdp prorgam
     try:
