@@ -82,7 +82,9 @@ def write_avg_latency(num_cores_min, num_cores_max, latency_matrix, write_mode, 
 
     stdev_list = []
     for x in latency_matrix:
-        sd = stdev(x)
+        sd = 0
+        if len(x) > 1:
+            sd = stdev(x)
         # print(f"stdev = {sd}")
         stdev_list.append(sd)
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_STDEV}"

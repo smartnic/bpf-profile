@@ -89,8 +89,10 @@ def write_avg_insn_latency(num_cores_min, num_cores_max, insn_latency_matrix, wr
 
     stdev_list = []
     for x in insn_latency_matrix:
-        sd = stdev(x)
-        print(f"stdev = {sd}")
+        sd = 0
+        if len(x) > 1:
+            sd = stdev(x)
+        # print(f"stdev = {sd}")
         stdev_list.append(sd)
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_STDEV}"
     print(f"output: {output_file}")
