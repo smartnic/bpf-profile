@@ -67,16 +67,20 @@ def run_cmd_on_core(cmd, core_id):
     cmd = f"nohup sudo -b taskset -c {str(core_id)} {cmd} >/dev/null 2>&1 &"
     run_cmd(cmd, wait=False)
 
+def run_cmd_on_client(client_cmd, client):
+    cmd = f"ssh -p 22 {client} \"nohup sudo sh -c '{client_cmd}'\""
+    run_cmd(cmd)
+
+def kill_process_on_client(process, client):
+    client_cmd = f"pkill -f {process} >/dev/null 2>&1 &"
+    run_cmd_on_client(client_cmd, client)
+
 def clean_environment(client, prog_name):
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     # stop packet generation
     # todo
-    client_cmd = f"pkill -f send_udp_packets_for_xl170.py >/dev/null 2>&1 &"
-    cmd = f"ssh -p 22 {client} \"nohup sudo sh -c '{client_cmd}'\""
-    run_cmd(cmd)
-    client_cmd = f"pkill tcpreplay >/dev/null 2>&1 &"
-    cmd = f"ssh -p 22 {client} \"nohup sudo sh -c '{client_cmd}'\""
-    run_cmd(cmd)
+    kill_process_on_client("send_udp_packets_for_xl170.py", client)
+    kill_process_on_client("tcpreplay", client)
     loader_cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
 
@@ -87,7 +91,7 @@ def run_packet_generator(benchmark, version, core_list, client):
         if benchmark == BENCHMARK_portknock:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"loop {version} {rss_para} {len(core_list)}"
-            client_cmd = f"sh -c 'sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &'"
+            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_hhd:
             paras = "v1"
             if SERVER_CPU != CPU_ARM:
@@ -95,11 +99,10 @@ def run_packet_generator(benchmark, version, core_list, client):
             else:
                 paras += f" {SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras += f" {len(core_list)}"
-            client_cmd = f"sh -c 'sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &'"
+            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &'"
         else:
-            client_cmd = f"sh -c 'sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &'"
-        cmd = f"ssh -p 22 {client} \"nohup sudo {client_cmd}\""
-        run_cmd(cmd)
+            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
+        run_cmd_on_client(client_cmd, client)
     # wait some seconds for the packet generation start sending packets
     # wait until tcpreplay starts
     time.sleep(10)
