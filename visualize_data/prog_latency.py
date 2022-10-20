@@ -87,7 +87,6 @@ def write_avg_latency(num_cores_min, num_cores_max, latency_matrix, write_mode, 
     for x in latency_matrix:
         sd = 0
         if len(x) > 1:
-            print(x)
             sd = stdev(x)
         # print(f"stdev = {sd}")
         stdev_list.append(sd)
