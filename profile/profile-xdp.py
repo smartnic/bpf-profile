@@ -110,20 +110,22 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
     # wait until tcpreplay starts
     time.sleep(10)
 
-def run_packet_generator_trex(benchmark, version, core_list, client, seconds):
+def run_packet_generator_trex(benchmark, version, core_list, client):
     # start trex server
     client_cmd = f"sudo bash {TREX_PATH}start_trex_server.sh {TREX_PATH} >log_trex_server.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     time.sleep(30)
-    # start sending packets
-    client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} {seconds} 20 1 >log.txt 2>&1 &"
+    # send packets for 10000 seconds
+    tx_rate = 1
+    client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
+    time.sleep(5)
 
-def run_packet_generator(benchmark, version, core_list, client, seconds):
+def run_packet_generator(benchmark, version, core_list, client):
     if PKTGEN_input == PKTGEN_SCAPY:
         run_packet_generator_scapy(benchmark, version, core_list, client)
     elif PKTGEN_input == PKTGEN_TREX:
-        run_packet_generator_trex(benchmark, version, core_list, client, seconds)
+        run_packet_generator_trex(benchmark, version, core_list, client)
     else:
         print(f"ERROR: pktgen {PKTGEN_input} is not {PKTGEN_SCAPY} or {PKTGEN_TREX}")
 
