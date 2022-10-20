@@ -93,13 +93,13 @@ def run_packet_generator(benchmark, version, core_list, client):
             paras = f"loop {version} {rss_para} {len(core_list)}"
             client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_hhd:
-            paras = "v1"
+            paras = version
             if SERVER_CPU != CPU_ARM:
                 paras += f" {SRC_MAC_PRE}{str(SRC_MAC_POST_START+i)}"
             else:
                 paras += f" {SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras += f" {len(core_list)}"
-            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &'"
+            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &"
         else:
             client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
         run_cmd_on_client(client_cmd, client)
