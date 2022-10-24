@@ -1,0 +1,8 @@
+client: earl02
+client_iface: ens3f0
+client_mac: f8:f2:1e:b2:65:70
+client_ip: 10.240.1.2
+server_iface: ens4f0
+server_mac: f8:f2:1e:b2:43:00
+server_ip: 10.240.1.1
+server_cpu: intel
