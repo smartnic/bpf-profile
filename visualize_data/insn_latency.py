@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 INSN_FILE_NAME = "perf.txt" # input file. instruction level raw data from perf
-PROG_LATENCY_FILE_NAME_EACH_RUN = "latency.csv"
+AVG_PROG_LATENCY_FILE_NAME = "avg_latency.csv"
 LATENCY_FILE_NAME = "avg_insn_latency.csv"
 LATENCY_FILE_NAME_STDEV = "avg_insn_latency_stdev.csv"
 LATENCY_FILE_NAME_EACH_RUN = "insn_latency.csv"
@@ -151,7 +151,7 @@ def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, prog
 # estimated insn latency = percent * program latency
 def insn_latency_each_run(num_runs, num_cores_min, num_cores_max, percent_matrix, input_folder, version_id):
     insn_latency_matrix = []
-    input_file = f"{input_folder}/{PROG_LATENCY_FILE_NAME_EACH_RUN}"
+    input_file = f"{input_folder}/{AVG_PROG_LATENCY_FILE_NAME}"
     # read program latency from input_file
     latency_matrix = read_data_from_csv_file(input_file)
     cur_id = 0
@@ -161,8 +161,8 @@ def insn_latency_each_run(num_runs, num_cores_min, num_cores_max, percent_matrix
         for percent in percent_list: # different runs
             insn_latency = percent * latency_list[cur_id] / 100
             insn_latency_list.append(insn_latency)
-            cur_id += 1
         insn_latency_matrix.append(insn_latency_list)
+        cur_id += 1
     if (cur_id != len(latency_list)):
         print("ERROR: program latency_list size does not match percent size")
     return insn_latency_matrix
