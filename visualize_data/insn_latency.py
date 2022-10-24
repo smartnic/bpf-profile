@@ -18,7 +18,7 @@ def percent_single_run(input_file, insn_ids):
         print(f"ERROR: no instruction selected. Return percent = 0")
         return 0
     insns_percent = 0.0 # the type of percent is float
-    insn_ids.sort()
+    # insn_ids.sort()
     print("insn_ids: ", insn_ids)
     if not exists(input_file):
         print(f"ERROR: no such file {input_file}. Return percent = 0")
@@ -89,8 +89,10 @@ def write_avg_insn_latency(num_cores_min, num_cores_max, insn_latency_matrix, wr
 
     stdev_list = []
     for x in insn_latency_matrix:
-        sd = stdev(x)
-        print(f"stdev = {sd}")
+        sd = 0
+        if len(x) > 1:
+            sd = stdev(x)
+        # print(f"stdev = {sd}")
         stdev_list.append(sd)
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_STDEV}"
     print(f"output: {output_file}")
