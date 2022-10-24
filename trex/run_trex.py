@@ -30,7 +30,7 @@ if __name__ == "__main__":
         while (True):
             stats = c.get_stats()
             print(stats)
-            time.sleep(2)
+            time.sleep(1000)
     except STLError as e:
         print(e)
 
