@@ -130,6 +130,14 @@ def run_packet_generator(benchmark, version, core_list, client, tx_rate):
     else:
         print(f"ERROR: pktgen {PKTGEN_input} is not {PKTGEN_SCAPY} or {PKTGEN_TREX}")
 
+def start_trex_measure(client, output_path):
+    client_cmd = f"sudo python3 {TREX_PATH}trex_measure_start.py -o {TREX_PATH} -trex_stats {output_path} >log_trex_measure_start.txt 2>&1 &"
+    run_cmd_on_client(client_cmd, client)
+
+def stop_trex_measure(client):
+    client_cmd = f"sudo python3 {TREX_PATH}trex_measure_stop.py -o {TREX_PATH} >log_trex_measure_stop.txt 2>&1 &"
+    run_cmd_on_client(client_cmd, client)
+
 def get_benchmark_version(prog_name):
     benchmark = None
     version = None
@@ -189,8 +197,10 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = 0):
     # 4.3 use kernel stats to measure overall latency (nanoseconds)
     if not DISABLE_prog_latency_ns:
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=1", wait=True)
+        start_trex_measure(client, output_folder)
         time.sleep(seconds)
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=0", wait=True)
+        stop_trex_measure(client)
         run_cmd("sudo bpftool prog show | grep \"xdp.*run_time_ns\" > tmp/prog_ns.txt", wait=True)
 
     # 5. clean environment
