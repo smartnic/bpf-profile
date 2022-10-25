@@ -7,18 +7,36 @@ import os
 
 MEASUREMENT_START_FILE = "measure_start.txt"
 MEASUREMENT_STOP_FILE = "measure_stop.txt"
+MEASUREMENT_OUTPUT_FILE = "trex_stats.txt"
 
 def read_action_from_file(input_file):
     if not exists(input_file):
-        return False
+        return False, None
+    output_path = None
+    f = open(input_file, "r")
+    for line in f:
+        line = line.split()
+        if len(line) < 1:
+            continue
+        output_path = line[0]
+        break
+    f.close()
     os.remove(input_file)
-    return True
+    if output_path is None:
+        print(f"ERROR: no output path in {input_file}. Return False, None")
+        return False, None
+    return True, output_path
 
 def start_measure():
-    return read_action_from_file(MEASUREMENT_START_FILE)
+    action, output_path = read_action_from_file(MEASUREMENT_START_FILE)
+    if action:
+        if not exists(output_path):
+            os.system(f"sudo mkdir -p {output_path}")
+    return action, f"{output_path}/{MEASUREMENT_OUTPUT_FILE}"
 
 def stop_measure():
-    return read_action_from_file(MEASUREMENT_STOP_FILE)
+    action, _ = read_action_from_file(MEASUREMENT_STOP_FILE)
+    return action
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about Data')
@@ -48,16 +66,19 @@ if __name__ == "__main__":
         # otherwise, not able to send packets (cannot pass the start check)
         c.start(ports = 0, duration = args.time, mult=f"{rate_to_trex}mpps", force=True)
         time.sleep(1)
-        print(f"Start: {rate}")
-        expected_actual_rate = (rate-rate*0.005) * pow(10,6)
-        print(f"Expected actual rate: {expected_actual_rate}")
 
         while True:
+            time.sleep(0.5)
             # 1. check whether to start measuring
-            while not start_measure():
+            action, output_file = start_measure()
+            while not action:
+                action, output_file = start_measure()
                 time.sleep(0.5)
 
             # 2. get statistics and store in a file every 0.5 second
+            expected_actual_rate = (rate-rate*0.01) * pow(10,6)
+            print("Start measurement")
+            print(f"Expected actual rate: {expected_actual_rate}")
             rx_pps = []
             tx_pps = []
             min_l = []
@@ -66,6 +87,7 @@ if __name__ == "__main__":
             count = 1
             while True:
                 if stop_measure():
+                    print("Stop measurement")
                     break
                 stats = c.get_stats()
                 if stats[tx_port]["tx_pps"] >= expected_actual_rate:
@@ -75,7 +97,6 @@ if __name__ == "__main__":
                     min_l.append(latency_stats["total_min"])
                     max_l.append(latency_stats["total_max"])
                     avg_l.append(latency_stats["average"])
-                    output_file = "tmp.csv"
                     write_mode = 'w'
                     f = open(output_file, write_mode)
                     writer = csv.writer(f)
