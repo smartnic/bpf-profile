@@ -49,6 +49,7 @@ if __name__ == "__main__":
 
     c = STLClient(server='127.0.0.1')
     rate = args.rate
+    # increase the tx rate a little bit so that the actual tx rate would be close to what we expect
     rate_to_trex = rate * 1.003
     print("rate_to_trex:", rate_to_trex)
     try:
