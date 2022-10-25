@@ -22,10 +22,9 @@ def read_action_from_file(input_file):
         output_path = line[0]
         break
     f.close()
-    os.remove(input_file)
     if output_path is None:
-        print(f"ERROR: no output path in {input_file}. Return False, None")
         return False, None
+    os.remove(input_file)
     return True, output_path
 
 def start_measure():
