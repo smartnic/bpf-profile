@@ -85,7 +85,7 @@ if __name__ == "__main__":
             min_l_list = []
             avg_l_list = []
             max_l_list = []
-            count = 1
+            count = 0
             while True:
                 if stop_measure():
                     print("Stop measurement")
