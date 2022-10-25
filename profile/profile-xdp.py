@@ -111,8 +111,6 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
     time.sleep(10)
 
 def run_packet_generator_trex(benchmark, version, core_list, client, tx_rate):
-    # increase the tx rate a little bit so that the actual tx rate would be close to what we expect
-    tx_rate *= 1.003
     # start trex server
     client_cmd = f"sudo bash {TREX_PATH}start_trex_server.sh {TREX_PATH} >log_trex_server.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
