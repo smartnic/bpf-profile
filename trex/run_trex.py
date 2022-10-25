@@ -105,20 +105,20 @@ if __name__ == "__main__":
             print("rx_pps_list: ", rx_pps_list)
             print("tx_pps_list: ", tx_pps_list)
             rx_pps = np.mean(rx_pps_list)
-            rx_pps = np.mean(tx_pps_list)
+            tx_pps = np.mean(tx_pps_list)
             diff = np.mean(np.abs(np.subtract(rx_pps_list, tx_pps_list)))
             max_l = np.mean(max_l_list)
             min_l = np.mean(min_l_list)
             avg_l = np.mean(avg_l_list)
             print(f"rx = {rx_pps}")
-            print(f"tx = {rx_pps}")
+            print(f"tx = {tx_pps}")
             print(f"diff = {diff}")
             print(f"maxL = {max_l}")
             print(f"minL = {min_l}")
             print(f"avgL = {avg_l}")
             f = open(output_file, 'w')
             writer = csv.writer(f)
-            lst = [count, rx_pps, rx_pps, diff, max_l, min_l, avg_l]
+            lst = [count, rx_pps, tx_pps, diff, max_l, min_l, avg_l]
             writer.writerow(lst)
             f.close()
     except STLError as e:
