@@ -64,7 +64,6 @@ if __name__ == "__main__":
             avg_l = []
             max_l = []
             count = 1
-            start = time.time()
             while True:
                 if stop_measure():
                     break
