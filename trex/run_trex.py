@@ -4,6 +4,7 @@ import argparse
 import csv
 from os.path import exists
 import os
+import numpy as np
 
 MEASUREMENT_START_FILE = "measure_start.txt"
 MEASUREMENT_STOP_FILE = "measure_stop.txt"
@@ -79,11 +80,11 @@ if __name__ == "__main__":
             expected_actual_rate = (rate-rate*0.01) * pow(10,6)
             print("Start measurement")
             print(f"Expected actual rate: {expected_actual_rate}")
-            rx_pps = []
-            tx_pps = []
-            min_l = []
-            avg_l = []
-            max_l = []
+            rx_pps_list = []
+            tx_pps_list = []
+            min_l_list = []
+            avg_l_list = []
+            max_l_list = []
             count = 1
             while True:
                 if stop_measure():
@@ -91,27 +92,35 @@ if __name__ == "__main__":
                     break
                 stats = c.get_stats()
                 if stats[tx_port]["tx_pps"] >= expected_actual_rate:
-                    rx_pps.append(stats[rx_port]["rx_pps"])
-                    tx_pps.append(stats[tx_port]["tx_pps"])
+                    rx_pps_list.append(stats[rx_port]["rx_pps"])
+                    tx_pps_list.append(stats[tx_port]["tx_pps"])
                     latency_stats = stats["latency"][2]["latency"]
-                    min_l.append(latency_stats["total_min"])
-                    max_l.append(latency_stats["total_max"])
-                    avg_l.append(latency_stats["average"])
-                    write_mode = 'w'
-                    f = open(output_file, write_mode)
-                    writer = csv.writer(f)
-                    lst = [rx_pps, tx_pps, latency_stats, min_l, max_l, avg_l]
-                    writer.writerow(rx_pps)
-                    writer.writerow(tx_pps)
-                    writer.writerow(latency_stats)
-                    writer.writerow(min_l)
-                    writer.writerow(avg_l)
-                    f.close()
-                    print(count)
-                    print(rx_pps)
-                    print(tx_pps)
+                    min_l_list.append(latency_stats["total_min"])
+                    max_l_list.append(latency_stats["total_max"])
+                    avg_l_list.append(latency_stats["average"])
+                    # print(rx_pps)
+                    # print(tx_pps)
                     count += 1
                     time.sleep(0.5)
+            print("rx_pps_list: ", rx_pps_list)
+            print("tx_pps_list: ", tx_pps_list)
+            rx_pps = np.mean(rx_pps_list)
+            rx_pps = np.mean(tx_pps_list)
+            diff = np.mean(np.abs(np.subtract(rx_pps_list, tx_pps_list)))
+            max_l = np.mean(max_l_list)
+            min_l = np.mean(min_l_list)
+            avg_l = np.mean(avg_l_list)
+            print(f"rx = {rx_pps}")
+            print(f"tx = {rx_pps}")
+            print(f"diff = {diff}")
+            print(f"maxL = {max_l}")
+            print(f"minL = {min_l}")
+            print(f"avgL = {avg_l}")
+            f = open(output_file, 'w')
+            writer = csv.writer(f)
+            lst = [count, rx_pps, rx_pps, diff, max_l, min_l, avg_l]
+            writer.writerow(lst)
+            f.close()
     except STLError as e:
         print(e)
 
