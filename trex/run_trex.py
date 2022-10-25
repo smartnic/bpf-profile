@@ -70,13 +70,13 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(0.5)
-            # 1. check whether to start measuring
+            # 1. check whether to start measuring every 0.5 second
             action, output_file = start_measure()
             while not action:
                 action, output_file = start_measure()
                 time.sleep(0.5)
 
-            # 2. get statistics and store in a file every 0.5 second
+            # 2. get statistics every 0.5 second
             expected_actual_rate = (rate-rate*0.01) * pow(10,6)
             print("Start measurement")
             print(f"Expected actual rate: {expected_actual_rate}")
@@ -87,6 +87,7 @@ if __name__ == "__main__":
             max_l_list = []
             count = 0
             while True:
+                # 3. Check whether to stop measuring
                 if stop_measure():
                     print("Stop measurement")
                     break
@@ -102,6 +103,7 @@ if __name__ == "__main__":
                     # print(tx_pps)
                     count += 1
                     time.sleep(0.5)
+            # 4. Store statistics in the file
             print("rx_pps_list: ", rx_pps_list)
             print("tx_pps_list: ", tx_pps_list)
             rx_pps = np.mean(rx_pps_list)
