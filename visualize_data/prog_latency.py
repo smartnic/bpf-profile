@@ -141,7 +141,7 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name
         print(f"version name: {version_name}")
         plt.plot(x, avg_latency_list[i], label=version_name_show_list[i])
         plt.errorbar(x, avg_latency_list[i], yerr=stdev_list[i], fmt='o', capsize=6)
-    plt.legend(loc='lower right')
+    plt.legend()
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_FIG}"
     print(f"output: {output_file}")
     plt.savefig(output_file)
