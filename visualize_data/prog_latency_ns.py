@@ -111,7 +111,8 @@ def read_data_from_csv_file(input_file):
     f.close()
     return data
 
-def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list, output_folder):
+def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list,
+    version_name_show_list, output_folder):
     # read Standard Deviation from csv file
     input_file = f"{input_folder}/{LATENCY_FILE_NAME_STDEV}"
     stdev_list = read_data_from_csv_file(input_file)
@@ -135,14 +136,15 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name
     # plot a curve for each version
     for i, version_name in enumerate(version_name_list):
         print(f"version name: {version_name}")
-        plt.plot(x, avg_latency_list[i], label=version_name)
+        plt.plot(x, avg_latency_list[i], label=version_name_show_list[i])
         plt.errorbar(x, avg_latency_list[i], yerr=stdev_list[i], fmt='o', capsize=6)
     plt.legend(loc='lower right')
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_FIG}"
     print(f"output: {output_file}")
     plt.savefig(output_file)
 
-def visualize_prog_avg_latency_ns(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
+def visualize_prog_avg_latency_ns(prog_name, version_name_list, version_name_show_list, num_runs,
+    num_cores_min, num_cores_max, input_folder, output_folder):
     if not exists(output_folder):
         os.system(f"sudo mkdir -p {output_folder}")
     first_flag = True
@@ -159,7 +161,8 @@ def visualize_prog_avg_latency_ns(prog_name, version_name_list, num_runs, num_co
         write_latency_each_run(num_runs, num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder)
         write_avg_latency(num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder)
 
-    plot_progs_avg_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, output_folder)
+    plot_progs_avg_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, version_name_show_list,
+        output_folder)
 
 if __name__ == "__main__":
     input_folder = "/mydata/test3/xdpex1"
@@ -168,5 +171,7 @@ if __name__ == "__main__":
     num_cores_max = 8
     num_runs = 5
     prog_name = "xdpex1"
-    version_name_list = ["v2"]
-    visualize_prog_avg_latency_ns(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
+    version_name_list = ["v1", "v2"]
+    version_name_show_list = ["shared state", "local state"]
+    visualize_prog_avg_latency_ns(prog_name, version_name_list, version_name_show_list,
+        num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
