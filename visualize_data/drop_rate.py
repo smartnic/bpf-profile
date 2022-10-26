@@ -103,7 +103,7 @@ def read_data_from_csv_file(input_file):
         if head_flag is True:
             head_flag = False
             continue
-        line_new = [float(x) for x in line]
+        line_new = [round(float(x), 2) for x in line]
         data.append(line_new)
     f.close()
     return data
