@@ -35,10 +35,10 @@ def rx_rate_single_run(input_file):
         return 0
     return rx_rate
 
-def rx_rate_multiple_run(num_runs, input_folder):
+def rx_rate_multiple_run(num_runs, input_folder, trex_stats_v):
     rx_rate_list = []
     for i in range(num_runs):
-        input_file = f"{input_folder}/{i}/{PROG_FILE_NAME}"
+        input_file = f"{input_folder}/{i}/{trex_stats_v}/{PROG_FILE_NAME}"
         print(f"processing {input_file}")
         rx_rate = rx_rate_single_run(input_file)
         # print(f"{i}: {rx_rate}")
@@ -142,24 +142,26 @@ def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name
     plt.savefig(output_file)
 
 def visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max,
-    input_folder, output_folder):
-    if not exists(output_folder):
-        os.system(f"sudo mkdir -p {output_folder}")
-    first_flag = True
-    for version_name in version_name_list:
-        rx_rate_matrix = []
-        for i in range(num_cores_min, num_cores_max + 1):
-            rx_rate_list = rx_rate_multiple_run(num_runs, f"{input_folder}/{version_name}/{i}")
-            rx_rate_matrix.append(rx_rate_list)
-        if first_flag is True:
-            write_mode = "w"
-            first_flag = False
-        else:
-            write_mode = "a+"
-        write_rx_rate_each_run(num_runs, num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder)
-        write_avg_rx_rate(num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder)
+    input_folder, trex_stats_versions, output_folder):
+    for trex_stats_v in trex_stats_versions:
+        output_folder_v = f"{output_folder}/{trex_stats_v}"
+        if not exists(output_folder_v):
+            os.system(f"sudo mkdir -p {output_folder_v}")
+        first_flag = True
+        for version_name in version_name_list:
+            rx_rate_matrix = []
+            for i in range(num_cores_min, num_cores_max + 1):
+                rx_rate_list = rx_rate_multiple_run(num_runs, f"{input_folder}/{version_name}/{i}", trex_stats_v)
+                rx_rate_matrix.append(rx_rate_list)
+            if first_flag is True:
+                write_mode = "w"
+                first_flag = False
+            else:
+                write_mode = "a+"
+            write_rx_rate_each_run(num_runs, num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder_v)
+            write_avg_rx_rate(num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder_v)
 
-    plot_progs_avg_rx_rate(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, output_folder)
+        plot_progs_avg_rx_rate(num_cores_min, num_cores_max, output_folder_v, prog_name, version_name_list, output_folder_v)
 
 if __name__ == "__main__":
     input_folder = "../test1/10"
@@ -169,5 +171,6 @@ if __name__ == "__main__":
     num_runs = 1
     prog_name = "xdp_portknock"
     version_name_list = ["v1", "v2"]
+    trex_stats_versions = ["", "prog_ns", "prog", "perf"]
     visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max,
-        input_folder, output_folder)
+        input_folder, trex_stats_versions, output_folder)
