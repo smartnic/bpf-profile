@@ -28,6 +28,8 @@ SERVER_CPU = ""
 DISABLE_prog_latency = False
 DISABLE_prog_latency_ns = False
 DISABLE_insn_latency = False
+DISABLE_trex_measure = False
+DISABLE_trex_measure_parallel = False
 BENCHMARK_portknock = "portknock"
 BENCHMARK_hhd = "hhd"
 BENCHMARK_xdpex1 = "xdpex1"
@@ -118,7 +120,7 @@ def run_packet_generator_trex(benchmark, version, core_list, client, tx_rate):
     # send packets for 10000 seconds
     client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
-    time.sleep(5)
+    time.sleep(30)
 
 def run_packet_generator(benchmark, version, core_list, client, tx_rate):
     if PKTGEN_input == PKTGEN_SCAPY:
@@ -178,6 +180,8 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = 0):
 
     # 4.1 use perf to do instruction level sampling
     if not DISABLE_insn_latency:
+        if not DISABLE_trex_measure_parallel:
+            start_trex_measure(client, f"{output_folder}/perf/")
         tmp_out_file = "tmp/" + prog_name + "_perf.data"
         core_list_str = ",".join([str(x) for x in core_list])
         cmd = "sudo ./perf record -F 25250 --cpu " + core_list_str + " -o " + tmp_out_file + " sleep " + str(seconds)
@@ -185,21 +189,35 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = 0):
         cmd = "sudo ./perf annotate -l -P bpf_prog_" + tag + "_xdp_prog" + " -i " + tmp_out_file + " > tmp/perf.txt"
         run_cmd(cmd, wait=True)
         run_cmd("sudo rm -rf " + tmp_out_file, wait=True)
+        if not DISABLE_trex_measure_parallel:
+            stop_trex_measure(client)
 
     # 4.2 use bpftool to get overall latency (cycles)
     # todo: remove "llc_misses" since not able to create this event on AMD machines
     if not DISABLE_prog_latency:
+        if not DISABLE_trex_measure_parallel:
+            start_trex_measure(client, f"{output_folder}/prog/")
         cmd = "sudo bpftool prog profile tag " + tag + " duration " + str(seconds) + " cycles instructions > tmp/prog.txt"
         run_cmd(cmd, wait=True)
+        if not DISABLE_trex_measure_parallel:
+            stop_trex_measure(client)
 
     # 4.3 use kernel stats to measure overall latency (nanoseconds)
     if not DISABLE_prog_latency_ns:
+        if not DISABLE_trex_measure_parallel:
+            start_trex_measure(client, f"{output_folder}/prog_ns/")
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=1", wait=True)
-        start_trex_measure(client, output_folder)
         time.sleep(seconds)
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=0", wait=True)
-        stop_trex_measure(client)
+        if not DISABLE_trex_measure_parallel:
+            stop_trex_measure(client)
         run_cmd("sudo bpftool prog show | grep \"xdp.*run_time_ns\" > tmp/prog_ns.txt", wait=True)
+
+    # 4.4 run trex measurement on the packet generator
+    if not DISABLE_trex_measure:
+        start_trex_measure(client, f"{output_folder}/no_profile/")
+        time.sleep(seconds)
+        stop_trex_measure(client)
 
     # 5. clean environment
     clean_environment(client, prog_name)
@@ -254,6 +272,8 @@ if __name__ == "__main__":
     parser.add_argument('--disable_prog_latency', action='store_true', help='Disable prog latency measurement', required=False)
     parser.add_argument('--disable_prog_latency_ns', action='store_true', help='Disable prog latency (nanoseconds, use kernel stats) measurement', required=False)
     parser.add_argument('--disable_insn_latency', action='store_true', help='Disable insn latency measurement', required=False)
+    parser.add_argument('--disable_trex_measure_parallel', action='store_true', help='Disable trex measurement while measuring other metrics: round-trip latency and throughput', required=False)
+    parser.add_argument('--disable_trex_measure', action='store_true', help='Disable trex measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
     args = parser.parse_args()
     version_name_list = args.versions.split(",")
@@ -261,6 +281,8 @@ if __name__ == "__main__":
     DISABLE_prog_latency = args.disable_prog_latency
     DISABLE_prog_latency_ns = args.disable_prog_latency_ns
     DISABLE_insn_latency = args.disable_insn_latency
+    DISABLE_trex_measure_parallel = args.disable_trex_measure_parallel
+    DISABLE_trex_measure = args.disable_trex_measure
     if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency:
         sys.exit(0)
     PKTGEN_input = args.pktgen
