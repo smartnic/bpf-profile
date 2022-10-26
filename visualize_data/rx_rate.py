@@ -110,7 +110,8 @@ def read_data_from_csv_file(input_file):
     f.close()
     return data
 
-def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list, output_folder):
+def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list,
+    output_folder, trex_stats_version):
     # read Standard Deviation from csv file
     input_file = f"{input_folder}/{RX_RATE_FILE_NAME_STDEV}"
     stdev_list = read_data_from_csv_file(input_file)
@@ -126,7 +127,7 @@ def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name
 
     # plot the figure with error bar
     plt.figure()
-    plt.title(prog_name)
+    plt.title(f"{prog_name}  {trex_stats_version}")
     plt.xlabel("Number of cores")
     plt.ylabel("Average rx rate (Mpps)")
     plt.grid()
@@ -161,7 +162,8 @@ def visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, num_runs, num_co
             write_rx_rate_each_run(num_runs, num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder_v)
             write_avg_rx_rate(num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder_v)
 
-        plot_progs_avg_rx_rate(num_cores_min, num_cores_max, output_folder_v, prog_name, version_name_list, output_folder_v)
+        plot_progs_avg_rx_rate(num_cores_min, num_cores_max, output_folder_v, prog_name, version_name_list,
+            output_folder_v, trex_stats_v)
 
 if __name__ == "__main__":
     input_folder = "../test1/10"
