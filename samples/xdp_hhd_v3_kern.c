@@ -9,6 +9,7 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <bpf/bpf_helpers.h>
+#include "xdp_utils.h"
 
 #define MAX_NUM_FLOWS 256
 #define MAX_FLOW_BYTES (1 << 10)
@@ -67,6 +68,7 @@ int xdp_prog(struct xdp_md *ctx) {
   struct flow_key *flow_tmp;
   u16 h_proto;
   u64 nh_off;
+  int rc = XDP_DROP;
   u64 bytes, md_size;
   struct metadata_elem *md_elem;
 
@@ -128,9 +130,12 @@ int xdp_prog(struct xdp_md *ctx) {
   }
 
   if (bytes < MAX_FLOW_BYTES) {
-    return XDP_PASS;
+    rc = XDP_PASS;
   }
-  return XDP_DROP;
+
+  /* For all valid packets, bounce them back to the packet generator. */
+  swap_src_dst_mac(data);
+  return XDP_TX;
 }
 
 char _license[] SEC("license") = "GPL";
