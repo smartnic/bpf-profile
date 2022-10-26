@@ -25,14 +25,10 @@ struct flow_key {
   u16 dst_port;
 };
 
-struct hash_elem {
-  u64 bytes;
-};
-
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
   __type(key, struct flow_key);
-  __type(value, struct hash_elem);
+  __type(value, u64);
   __uint(max_entries, MAX_NUM_FLOWS);
 } my_map SEC(".maps");
 
@@ -54,7 +50,7 @@ int xdp_prog(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth = data;
   struct iphdr *iph;
-  struct hash_elem *value;
+  u64 *value;
   struct flow_key flow = {
     .protocol = 0,
     .src_ip = 0,
@@ -112,8 +108,8 @@ int xdp_prog(struct xdp_md *ctx) {
 
   value = bpf_map_lookup_elem(&my_map, &flow);
   if (value) {
-    bytes += value->bytes;
-    value->bytes = bytes;
+    bytes += *value;
+    *value = bytes;
   } else {
     bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
   }
