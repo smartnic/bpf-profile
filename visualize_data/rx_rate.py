@@ -110,7 +110,7 @@ def read_data_from_csv_file(input_file):
     f.close()
     return data
 
-def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list,
+def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list, version_name_show_list,
     output_folder, trex_stats_version):
     # read Standard Deviation from csv file
     input_file = f"{input_folder}/{RX_RATE_FILE_NAME_STDEV}"
@@ -135,15 +135,15 @@ def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name
     # plot a curve for each version
     for i, version_name in enumerate(version_name_list):
         print(f"version name: {version_name}")
-        plt.plot(x, avg_rx_rate_list[i], label=version_name)
+        plt.plot(x, avg_rx_rate_list[i], label=version_name_show_list[i])
         plt.errorbar(x, avg_rx_rate_list[i], yerr=stdev_list[i], fmt='o', capsize=6)
     plt.legend(loc='lower right')
     output_file = f"{output_folder}/{RX_RATE_FILE_NAME_FIG}"
     print(f"output: {output_file}")
     plt.savefig(output_file)
 
-def visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max,
-    input_folder, trex_stats_versions, output_folder):
+def visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, version_name_show_list,
+    num_runs, num_cores_min, num_cores_max, input_folder, trex_stats_versions, output_folder):
     for trex_stats_v in trex_stats_versions:
         output_folder_v = f"{output_folder}/{trex_stats_v}"
         if not exists(output_folder_v):
@@ -162,7 +162,7 @@ def visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, num_runs, num_co
             write_rx_rate_each_run(num_runs, num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder_v)
             write_avg_rx_rate(num_cores_min, num_cores_max, rx_rate_matrix, write_mode, version_name, output_folder_v)
 
-        plot_progs_avg_rx_rate(num_cores_min, num_cores_max, output_folder_v, prog_name, version_name_list,
+        plot_progs_avg_rx_rate(num_cores_min, num_cores_max, output_folder_v, prog_name, version_name_list, version_name_show_list,
             output_folder_v, trex_stats_v)
 
 if __name__ == "__main__":
@@ -173,6 +173,7 @@ if __name__ == "__main__":
     num_runs = 1
     prog_name = "xdp_portknock"
     version_name_list = ["v1", "v2"]
+    version_name_show_list = ["shared state", "local state"]
     trex_stats_versions = ["", "prog_ns", "prog", "perf"]
-    visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, num_runs, num_cores_min, num_cores_max,
-        input_folder, trex_stats_versions, output_folder)
+    visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, version_name_show_list,
+        num_runs, num_cores_min, num_cores_max, input_folder, trex_stats_versions, output_folder)
