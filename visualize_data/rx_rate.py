@@ -174,6 +174,6 @@ if __name__ == "__main__":
     prog_name = "xdp_portknock"
     version_name_list = ["v1", "v2"]
     version_name_show_list = ["shared state", "local state"]
-    trex_stats_versions = ["", "prog_ns", "prog", "perf"]
+    trex_stats_versions = ["no_profile", "prog_ns", "prog", "perf"]
     visualize_prog_avg_rx_rate_ns(prog_name, version_name_list, version_name_show_list,
         num_runs, num_cores_min, num_cores_max, input_folder, trex_stats_versions, output_folder)
