@@ -29,8 +29,8 @@ def drop_rate_single_run(input_file):
         print(f"drop_rate: {drop_rate}")
     f.close()
     if drop_rate == float("inf"):
-        print(f"ERROR: no drop_rate in {input_file}. Return drop_rate = 0")
-        return 0
+        print(f"ERROR: no drop_rate in {input_file}. Return drop_rate = 100")
+        return 100
     return drop_rate
 
 def drop_rate_multiple_run(num_runs, input_folder, trex_stats_v):
