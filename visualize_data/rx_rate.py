@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # x-axis: # of cores; y-axis: rx rate
-# rx/tx rate in the input file is pps
 PROG_FILE_NAME = "trex_stats.txt"
 RX_RATE_FILE_NAME = "avg_rx_rate.csv"
 RX_RATE_FILE_NAME_STDEV = "avg_rx_rate_stdev.csv"
@@ -14,6 +13,7 @@ RX_RATE_FILE_NAME_EACH_RUN = "rx_rate.csv"
 RX_RATE_FILE_NAME_FIG = "avg_rx_rate.pdf"
 
 # data in the input file: count,rx_pps,tx_pps,diff,max_l,min_l,avg_l
+# rx/tx rate in the input file is pps
 def rx_rate_single_run(input_file):
     rx_rate = 0
     if not exists(input_file):
