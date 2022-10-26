@@ -22,11 +22,11 @@ def rx_rate_single_run(input_file):
     f = open(input_file, "r")
     for line in f:
         line = line.strip().split(',')
-        print(f"{len(line)}, line: {line}")
+        # print(f"{len(line)}, line: {line}")
         if len(line) < 7:
             continue
         rx_rate = float(line[1]) / pow(10,6)
-        print(f"rx_rate: {rx_rate}")
+        # print(f"rx_rate: {rx_rate}")
         if rx_rate != 0:
             break
     f.close()

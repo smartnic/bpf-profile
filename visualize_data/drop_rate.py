@@ -22,11 +22,11 @@ def drop_rate_single_run(input_file):
     f = open(input_file, "r")
     for line in f:
         line = line.strip().split(',')
-        print(f"{len(line)}, line: {line}")
+        # print(f"{len(line)}, line: {line}")
         if len(line) < 7:
             continue
         drop_rate = float(line[3]) / pow(10,6)
-        print(f"drop_rate: {drop_rate}")
+        # print(f"drop_rate: {drop_rate}")
     f.close()
     if drop_rate == float("inf"):
         print(f"ERROR: no drop_rate in {input_file}. Return drop_rate = 100")

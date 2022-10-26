@@ -22,11 +22,11 @@ def latency_single_run(input_file):
     f = open(input_file, "r")
     for line in f:
         line = line.strip().split(',')
-        print(f"{len(line)}, line: {line}")
+        # print(f"{len(line)}, line: {line}")
         if len(line) < 7:
             continue
         latency = float(line[6])
-        print(f"latency: {latency}")
+        # print(f"latency: {latency}")
         if latency != 0:
             break
     f.close()
