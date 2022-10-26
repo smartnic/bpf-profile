@@ -129,7 +129,7 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name
     plt.figure()
     plt.title(f"{prog_name}  {trex_stats_version}")
     plt.xlabel("Number of cores")
-    plt.ylabel("Average rx rate (Mpps)")
+    plt.ylabel("Average roundtrip latency (us)")
     plt.grid()
     x = list(range(num_cores_min, num_cores_max + 1)) # different number of cores
     # plot a curve for each version
