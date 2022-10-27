@@ -6,7 +6,6 @@ from os.path import expanduser
 
 home = expanduser("~")
 CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
-FLGA_ARM = False
 
 SPORT_ARM = 53
 DPORT_ARM = 12
@@ -100,34 +99,24 @@ def send_udp_packets(version, num_pkts_in_md, sport, dport, client_iface, client
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify version, src mac address (intel/amd) / src ip address (arm), and number of cores.")
+        print("Please specify version, src ip, and number of cores.")
         sys.exit(0)
 
     version = sys.argv[1]
     if version not in ["v1", "v2", "v3"]:
         print(f"Version {version} is not v1, v2, or v3")
         sys.exit(0)
-    src_mac = sys.argv[2]
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])
     num_pkts_in_md = num_cores - 1
     # print(version, src_mac, src_ip, num_cores)
 
-    server_cpu = read_machine_info_from_file("server_cpu")
-    if server_cpu == CPU_ARM:
-        FLGA_ARM = True
-
     client_iface = read_machine_info_from_file("client_iface")
-    client_mac = src_mac  # use a fake mac for RSS
-    if FLGA_ARM:
-        client_mac = read_machine_info_from_file("client_mac")
-    client_ip = read_machine_info_from_file("client_ip")
-    if FLGA_ARM:
-        client_ip = src_ip # use a fake ip for RSS
+    client_mac = read_machine_info_from_file("client_mac")
+    client_ip = src_ip # use a fake ip for RSS
     server_mac = read_machine_info_from_file("server_mac")
     server_ip = read_machine_info_from_file("server_ip")
     print(client_iface, client_mac, client_ip, server_mac, server_ip)
-    # sport and dport do not matter for intel/amd machines, so set them as what ARM machines requires
     sport = SPORT_ARM
     dport = DPORT_ARM
     send_udp_packets(version, num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
