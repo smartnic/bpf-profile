@@ -117,6 +117,17 @@ def set_up_arguments(num_cores, src_ip):
     SERVER_ip = read_machine_info_from_file("server_ip")
     SERVER_port = DPORT_ARM
 
+def hhd_construct_packets(version, src_ip, num_cores = 0):
+    set_up_arguments(num_cores, src_ip)
+    packet = ""
+    if version == "v1":
+        packet = construct_packet_v1(CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    elif version == "v2":
+        packet = construct_packet_v2(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    elif version == "v3":
+        packet = construct_packet_v3(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    return [packet]
+
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         print("Please specify version, src ip, and number of cores.")
