@@ -9,7 +9,7 @@ import numpy as np
 PROG_FILE_NAME = "trex_stats.txt"
 LATENCY_FILE_NAME = "avg_avg_roundtrip_latency.csv"
 LATENCY_FILE_NAME_STDEV = "avg_avg_roundtrip_latency_stdev.csv"
-LATENCY_FILE_NAME_EACH_RUN = "avg_roundtrip_latencycsv"
+LATENCY_FILE_NAME_EACH_RUN = "avg_roundtrip_latency.csv"
 LATENCY_FILE_NAME_FIG = "avg_avg_roundtrip_latency.pdf"
 
 # data in the input file: count,rx_pps,tx_pps,diff,max_l,min_l,avg_l
