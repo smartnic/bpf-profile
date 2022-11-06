@@ -23,7 +23,6 @@ CONFIG_file_xl170 = "config.xl170"
 LOADER_NAME = ""
 CLIENT=""
 SERVER_IFACE = ""
-SERVER_CPU = ""
 
 DISABLE_prog_latency = False
 DISABLE_prog_latency_ns = False
@@ -98,12 +97,8 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
             paras = f"loop {version} {rss_para} {len(core_list)}"
             client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_hhd:
-            paras = version
-            if SERVER_CPU != CPU_ARM:
-                paras += f" {SRC_MAC_PRE}{str(SRC_MAC_POST_START+i)}"
-            else:
-                paras += f" {SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
-            paras += f" {len(core_list)}"
+            rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
+            paras = f"{version} {rss_para} {len(core_list)}"
             client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &"
         else:
             client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
@@ -239,10 +234,8 @@ def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, 
 def read_machine_info_from_file(input_file):
     client = None
     server_iface = None
-    server_cpu = None
     client_keyword = "client"
     server_iface_keyword = "server_iface"
-    server_cpu_keyword = "server_cpu"
     if not exists(input_file):
         print(f"ERROR: no such file {input_file}. Return client: None, server_iface: None")
         return None, None
@@ -255,10 +248,8 @@ def read_machine_info_from_file(input_file):
             client = line[1].strip()
         elif line[0] == server_iface_keyword:
             server_iface = line[1].strip()
-        elif line[0] == server_cpu_keyword:
-            server_cpu = line[1].strip()
     f.close()
-    return client, server_iface, server_cpu
+    return client, server_iface
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about data')
@@ -289,7 +280,7 @@ if __name__ == "__main__":
     if PKTGEN_input != PKTGEN_SCAPY and PKTGEN_input != PKTGEN_TREX:
         sys.exit(0)
     # read client and server_iface from config.xl170
-    CLIENT, SERVER_IFACE, SERVER_CPU = read_machine_info_from_file(CONFIG_file_xl170)
+    CLIENT, SERVER_IFACE = read_machine_info_from_file(CONFIG_file_xl170)
     if CLIENT is None or SERVER_IFACE is None:
         sys.exit(0)
 
