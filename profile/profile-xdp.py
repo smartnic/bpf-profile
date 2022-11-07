@@ -27,6 +27,7 @@ SERVER_IFACE = ""
 DISABLE_prog_latency = False
 DISABLE_prog_latency_ns = False
 DISABLE_insn_latency = False
+DISABLE_pcm = False
 DISABLE_trex_measure = False
 DISABLE_trex_measure_parallel = False
 BENCHMARK_portknock = "portknock"
@@ -208,7 +209,17 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'
             stop_trex_measure(client)
         run_cmd("sudo bpftool prog show | grep \"xdp.*run_time_ns\" > tmp/prog_ns.txt", wait=True)
 
-    # 4.4 run trex measurement on the packet generator
+    # 4.4 use pcm to measure performance counters
+    if not DISABLE_pcm:
+        if not DISABLE_trex_measure_parallel:
+            start_trex_measure(client, f"{output_folder}/pcm/")
+        run_cmd(f"sudo nohup pcm {seconds} -i=1 -csv=tmp/pcm.csv &", wait=False)
+        run_cmd(f"sudo nohup pcm-memory {seconds} -i=1 -csv=tmp/pcm_memory.csv &", wait=False)
+        time.sleep(seconds + 2)
+        if not DISABLE_trex_measure_parallel:
+            stop_trex_measure(client)
+
+    # 4.5 run trex measurement on the packet generator
     if not DISABLE_trex_measure:
         start_trex_measure(client, f"{output_folder}/no_profile/")
         time.sleep(seconds)
@@ -263,6 +274,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_prog_latency', action='store_true', help='Disable prog latency measurement', required=False)
     parser.add_argument('--disable_prog_latency_ns', action='store_true', help='Disable prog latency (nanoseconds, use kernel stats) measurement', required=False)
     parser.add_argument('--disable_insn_latency', action='store_true', help='Disable insn latency measurement', required=False)
+    parser.add_argument('--disable_pcm', action='store_true', help='Disable pcm measurement', required=False)
     parser.add_argument('--disable_trex_measure_parallel', action='store_true', help='Disable trex measurement while measuring other metrics: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_trex_measure', action='store_true', help='Disable trex measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
@@ -273,9 +285,10 @@ if __name__ == "__main__":
     DISABLE_prog_latency = args.disable_prog_latency
     DISABLE_prog_latency_ns = args.disable_prog_latency_ns
     DISABLE_insn_latency = args.disable_insn_latency
+    DISABLE_pcm = args.disable_pcm
     DISABLE_trex_measure_parallel = args.disable_trex_measure_parallel
     DISABLE_trex_measure = args.disable_trex_measure
-    if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency:
+    if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_trex_measure:
         sys.exit(0)
     PKTGEN_input = args.pktgen
     if PKTGEN_input != PKTGEN_SCAPY and PKTGEN_input != PKTGEN_TREX:
