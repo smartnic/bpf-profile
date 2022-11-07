@@ -5,7 +5,7 @@ rm -rf $dir
 mkdir $dir
 cd $dir
 # copy BPF benchmarks
-cp ~/bpf-profile/samples/build .
+cp ~/bpf-profile/samples/build/* .
 # copy profile tools
 cp ~/perf .
 # copy machine config
