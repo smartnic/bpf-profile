@@ -143,7 +143,7 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name
     print(f"output: {output_file}")
     plt.savefig(output_file)
 
-def visualize_prog_avg_latency_ns(prog_name, version_name_list, version_name_show_list,
+def visualize_prog_avg_roundtrip_latency(prog_name, version_name_list, version_name_show_list,
     num_runs, num_cores_min, num_cores_max, input_folder, trex_stats_versions, output_folder):
     for trex_stats_v in trex_stats_versions:
         output_folder_v = f"{output_folder}/{trex_stats_v}"
@@ -176,5 +176,5 @@ if __name__ == "__main__":
     version_name_list = ["v1", "v2"]
     version_name_show_list = ["shared state", "local state"]
     trex_stats_versions = ["no_profile", "prog_ns", "prog", "perf"]
-    visualize_prog_avg_latency_ns(prog_name, version_name_list, version_name_show_list,
+    visualize_prog_avg_roundtrip_latency(prog_name, version_name_list, version_name_show_list,
         num_runs, num_cores_min, num_cores_max, input_folder, trex_stats_versions, output_folder)
