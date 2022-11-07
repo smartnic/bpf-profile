@@ -24,14 +24,7 @@ sudo sh install_server.sh 2
 sudo sh install_server.sh 3
 ```
 
-#### c. Setup RSS, IRQ, CPU frequency
-Replace `ens1f1np1` with the interface on your machine.
-```
-cd ~/bpf-profile/setup
-sudo bash setup_server.sh ens1f1np1
-```
-
-#### 4. Check whether the installation is successful
+#### c. Check whether the installation is successful
 
 ```
 sh install_server.sh verify
@@ -54,6 +47,13 @@ perf version 5.16.0
 ......Check bpftool version......
 bpftool v5.16.0
 features: libbfd, skeletons
+```
+
+#### d. Setup RSS, IRQ, CPU frequency
+Replace `ens1f1np1` with the interface on your machine.
+```
+cd ~/bpf-profile/setup
+sudo bash setup_server.sh ens1f1np1
 ```
 
 #### 5. Update machine config file 
