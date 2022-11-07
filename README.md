@@ -134,6 +134,6 @@ cd ~; sh ~/bpf-profile/experiment_prepare.sh
 #### d. Run experiments on node-0
 ```
 cd ~/experiment
-nohup sudo sh -c 'python3 -u profile-xdp.py -o /mydata/xdp_hhd/ -b xdp_hhd -v v1,v2,v3 -l xdpex1 -r 1 --nc_max 2 -d 30 --pktgen trex 1>log.txt 2>err.txt &'
+nohup sudo sh -c 'python3 -u profile-xdp.py -o /mydata/xdp_portknock/ -b xdp_portknock -v v1,v2 -l xdpex1 -r 1 --nc_max 2 -d 30 --pktgen trex --tx_rate_list 1,11.5 1>log.txt 2>err.txt &'
 ```
 You could run `python3 profile-xdp.py -h` for the argument description.

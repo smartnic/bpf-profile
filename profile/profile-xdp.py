@@ -149,7 +149,7 @@ def get_benchmark_version(prog_name):
             break
     return benchmark, version
 
-def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = 0):
+def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'):
     # 1. print test name
     print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
     if exists("tmp"):
@@ -266,6 +266,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_trex_measure_parallel', action='store_true', help='Disable trex measurement while measuring other metrics: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_trex_measure', action='store_true', help='Disable trex measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
+    parser.add_argument('--tx_rate_list', dest="tx_rate_list", default=[1], help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     args = parser.parse_args()
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name
@@ -284,9 +285,7 @@ if __name__ == "__main__":
     if CLIENT is None or SERVER_IFACE is None:
         sys.exit(0)
 
-    tx_rate_list = [1] # it won't be used by PKTGEN_SCAPY
-    if PKTGEN_input ==  PKTGEN_TREX:
-        tx_rate_list = [1, 5, 10, 20, 37]
+    tx_rate_list = args.tx_rate_list.split(',') # it won't be used by PKTGEN_SCAPY
     for run_id in range(0, args.num_runs):
         print(f"Run {run_id} starts......")
         for tx_rate in tx_rate_list:
