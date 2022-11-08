@@ -48,20 +48,20 @@ cd bpf-profile/setup; sudo sh install_client.sh
 ```
 
 ##### Set up configurations on server
-`ens1f1np` is an interface on the server, which can be used to receive packets from the client. It might be different. You could use `ifconfig` to find the interface name on your machine.
+`ens1f1np1` is an interface on the server, which can be used to receive packets from the client. It might be different. You could use `ifconfig` to find the interface name on your machine.
 
 ````
 cd bpf-profile/setup
-sudo bash setup_server.sh ens1f1np
+sudo bash setup_server.sh ens1f1np1
 ````
 
 ### An example of profiling a BPF program
 In this example, we will (1) use `bpftool` to measure the latency of an XDP program and (2) use `perf` to profile the XDP program at the instruction level.
 
-Run the following command to load an XDP program on the server. `ens1f1np` is an interface on the server, which can be used to receive packets from the client. It might be different. You could use `ifconfig` to find the interface name on your machine. Please do not use the interface which is used for you using ssh to access the server. Otherwise, the connection will be broken.
+Run the following command to load an XDP program on the server. `ens1f1np1` is an interface on the server, which can be used to receive packets from the client. It might be different. You could use `ifconfig` to find the interface name on your machine. Please do not use the interface which is used for you using ssh to access the server. Otherwise, the connection will be broken.
 ```
 cd ~/linux-5.16/samples/bpf
-sudo ./xdp1 -N ens1f1np
+sudo ./xdp1 -N ens1f1np1
 ```
 
 Run the following command on the client to send packets from the client to the server. You might need to change the interface name, MAC addresses, and IP addresses in the [config file](https://github.com/smartnic/bpf-profile/blob/main/profile/config.xl170).

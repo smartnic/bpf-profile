@@ -6,13 +6,21 @@ from os.path import expanduser
 
 home = expanduser("~")
 CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
-FLGA_ARM = False
 
 SPORT_ARM = 53
 DPORT_ARM = 12
 CPU_ARM = "arm"
 CPU_INTEL = "intel"
 CPU_AMD = "amd"
+
+CLIENT_iface = ''
+CLIENT_mac = ''
+CLIENT_ip = ''
+CLIENT_port = 2000
+SERVER_mac = ''
+SERVER_ip = ''
+SERVER_port = 2000
+NUM_cores = 0
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -97,37 +105,43 @@ def send_udp_packets(version, num_pkts_in_md, sport, dport, client_iface, client
     packets = 100 * packet
     sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
+# src_ip is used for RSS
+def set_up_arguments(num_cores, src_ip):
+    global CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
+    NUM_cores = num_cores
+    CLIENT_iface = read_machine_info_from_file("client_iface")
+    CLIENT_mac = read_machine_info_from_file("client_mac")
+    CLIENT_ip = src_ip
+    CLIENT_port = SPORT_ARM
+    SERVER_mac = read_machine_info_from_file("server_mac")
+    SERVER_ip = read_machine_info_from_file("server_ip")
+    SERVER_port = DPORT_ARM
+
+def hhd_construct_packets(version, src_ip, num_cores = 0):
+    set_up_arguments(num_cores, src_ip)
+    packet = ""
+    if version == "v1":
+        packet = construct_packet_v1(CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    elif version == "v2":
+        packet = construct_packet_v2(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    elif version == "v3":
+        packet = construct_packet_v3(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    return [packet]
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify version, src mac address (intel/amd) / src ip address (arm), and number of cores.")
+        print("Please specify version, src ip, and number of cores.")
         sys.exit(0)
 
     version = sys.argv[1]
     if version not in ["v1", "v2", "v3"]:
         print(f"Version {version} is not v1, v2, or v3")
         sys.exit(0)
-    src_mac = sys.argv[2]
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])
-    num_pkts_in_md = num_cores - 1
+
+    set_up_arguments(num_cores, src_ip)
+    num_pkts_in_md = NUM_cores - 1
     # print(version, src_mac, src_ip, num_cores)
 
-    server_cpu = read_machine_info_from_file("server_cpu")
-    if server_cpu == CPU_ARM:
-        FLGA_ARM = True
-
-    client_iface = read_machine_info_from_file("client_iface")
-    client_mac = src_mac  # use a fake mac for RSS
-    if FLGA_ARM:
-        client_mac = read_machine_info_from_file("client_mac")
-    client_ip = read_machine_info_from_file("client_ip")
-    if FLGA_ARM:
-        client_ip = src_ip # use a fake ip for RSS
-    server_mac = read_machine_info_from_file("server_mac")
-    server_ip = read_machine_info_from_file("server_ip")
-    print(client_iface, client_mac, client_ip, server_mac, server_ip)
-    # sport and dport do not matter for intel/amd machines, so set them as what ARM machines requires
-    sport = SPORT_ARM
-    dport = DPORT_ARM
-    send_udp_packets(version, num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
+    send_udp_packets(version, num_pkts_in_md, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)

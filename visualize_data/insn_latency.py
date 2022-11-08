@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 INSN_FILE_NAME = "perf.txt" # input file. instruction level raw data from perf
-PROG_LATENCY_FILE_NAME_EACH_RUN = "latency.csv"
+AVG_PROG_LATENCY_FILE_NAME = "avg_latency.csv"
 LATENCY_FILE_NAME = "avg_insn_latency.csv"
 LATENCY_FILE_NAME_STDEV = "avg_insn_latency_stdev.csv"
 LATENCY_FILE_NAME_EACH_RUN = "insn_latency.csv"
@@ -118,7 +118,8 @@ def read_data_from_csv_file(input_file):
     f.close()
     return data
 
-def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list, output_folder):
+def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list,
+    version_name_show_list, output_folder):
     # read Standard Deviation from csv file
     input_file = f"{input_folder}/{LATENCY_FILE_NAME_STDEV}"
     stdev_list = read_data_from_csv_file(input_file)
@@ -141,9 +142,9 @@ def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, prog
     x = list(range(num_cores_min, num_cores_max + 1)) # different number of cores
     # plot a curve for each version
     for i, version_name in enumerate(version_name_list):
-        plt.plot(x, avg_latency_list[i], label=version_name)
+        plt.plot(x, avg_latency_list[i], label=version_name_show_list[i])
         plt.errorbar(x, avg_latency_list[i], yerr=stdev_list[i], fmt='o', capsize=6)
-    plt.legend(loc='lower right')
+    plt.legend()
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_FIG}"
     print(f"output: {output_file}")
     plt.savefig(output_file)
@@ -151,7 +152,7 @@ def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, prog
 # estimated insn latency = percent * program latency
 def insn_latency_each_run(num_runs, num_cores_min, num_cores_max, percent_matrix, input_folder, version_id):
     insn_latency_matrix = []
-    input_file = f"{input_folder}/{PROG_LATENCY_FILE_NAME_EACH_RUN}"
+    input_file = f"{input_folder}/{AVG_PROG_LATENCY_FILE_NAME}"
     # read program latency from input_file
     latency_matrix = read_data_from_csv_file(input_file)
     cur_id = 0
@@ -161,14 +162,15 @@ def insn_latency_each_run(num_runs, num_cores_min, num_cores_max, percent_matrix
         for percent in percent_list: # different runs
             insn_latency = percent * latency_list[cur_id] / 100
             insn_latency_list.append(insn_latency)
-            cur_id += 1
         insn_latency_matrix.append(insn_latency_list)
+        cur_id += 1
     if (cur_id != len(latency_list)):
         print("ERROR: program latency_list size does not match percent size")
     return insn_latency_matrix
 
 
-def visualize_insn_avg_latency(prog_name, version_name_list, insn_ids, num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
+def visualize_insn_avg_latency(prog_name, version_name_list, version_name_show_list, insn_ids, num_runs,
+    num_cores_min, num_cores_max, input_folder, output_folder):
     if not exists(output_folder):
         os.system(f"sudo mkdir -p {output_folder}")
     first_flag = True
@@ -194,7 +196,8 @@ def visualize_insn_avg_latency(prog_name, version_name_list, insn_ids, num_runs,
         write_avg_insn_latency(num_cores_min, num_cores_max, insn_latency_matrix, write_mode, 
                                version_name, output_folder)
 
-    plot_progs_avg_insn_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, output_folder)
+    plot_progs_avg_insn_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, version_name_show_list,
+        output_folder)
 
 if __name__ == "__main__":
     input_folder = "/mydata/test3/xdpex1"
@@ -203,7 +206,8 @@ if __name__ == "__main__":
     num_cores_max = 8 # from 1 to 8
     num_runs = 5
     prog_name = "xdpex1"
-    version_name_list = ["v2"]
+    version_name_list = ["v1", "v2"]
+    version_name_show_list = ["shared state", "local state"]
     insn_ids_version = [["84", "88", "8b"],
                         ["92", "96", "99"],
                         ["99", "9d", "a0"],
@@ -218,4 +222,5 @@ if __name__ == "__main__":
     for i in range(len(version_name_list)):
         insn_ids.append(insn_ids_version)
     print(insn_ids)
-    visualize_insn_avg_latency(prog_name, version_name_list, insn_ids, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
+    visualize_insn_avg_latency(prog_name, version_name_list, version_name_show_list,
+        insn_ids, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)

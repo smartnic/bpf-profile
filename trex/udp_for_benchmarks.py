@@ -1,6 +1,7 @@
 # Modified from trex, to also vary UDP dport when running multiple streams
 from trex_stl_lib.api import *
 from send_udp_packets_portknock import portknock_construct_packets
+from send_udp_packets_hhd import hhd_construct_packets
 # Tunable example
 #
 #trex>profile -f stl/udp_for_benchmarks.py
@@ -31,6 +32,8 @@ class STLS1(object):
             print(f"create_stream: {src_ip}")
             if benchmark == "portknock":
                 base_pkts = portknock_construct_packets("loop", version, src_ip, num_cores)
+            elif benchmark == "hhd":
+                base_pkts = hhd_construct_packets(version, src_ip, num_cores)
             assert(len(base_pkts) > 0)
             for base_pkt in base_pkts:
                 base_pkt_len = len(base_pkt)

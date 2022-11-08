@@ -8,6 +8,7 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <bpf/bpf_helpers.h>
+#include "xdp_utils.h"
 
 #define MAX_NUM_FLOWS 256
 #define MAX_FLOW_BYTES (1 << 10)
@@ -21,15 +22,10 @@ struct flow_key {
   u16 dst_port;
 };
 
-struct hash_elem {
-  u64 bytes;
-  struct bpf_spin_lock lock;
-};
-
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, struct flow_key);
-  __type(value, struct hash_elem);
+  __type(value, u64);
   __uint(max_entries, MAX_NUM_FLOWS);
 } my_map SEC(".maps");
 
@@ -51,7 +47,7 @@ int xdp_prog(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth = data;
   struct iphdr *iph;
-  struct hash_elem *value;
+  u64 *value, bytes_before;
   struct flow_key flow = {
     .protocol = 0,
     .src_ip = 0,
@@ -61,6 +57,7 @@ int xdp_prog(struct xdp_md *ctx) {
   };
   u16 h_proto;
   u64 nh_off;
+  int rc = XDP_DROP;
 
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
@@ -93,17 +90,18 @@ int xdp_prog(struct xdp_md *ctx) {
   u64 bytes = data_end - data;
   value = bpf_map_lookup_elem(&my_map, &flow);
   if (value) {
-    bpf_spin_lock(&value->lock);
-    bytes += value->bytes;
-    value->bytes = bytes;
-    bpf_spin_unlock(&value->lock);
+    bytes_before = __sync_fetch_and_add(value, bytes);
+    bytes += bytes_before;
   } else {
     bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
   }
   if (bytes < MAX_FLOW_BYTES) {
-    return XDP_PASS;
+    rc = XDP_PASS;
   }
-  return XDP_DROP;
+
+  /* For all valid packets, bounce them back to the packet generator. */
+  swap_src_dst_mac(data);
+  return XDP_TX;
 }
 
 char _license[] SEC("license") = "GPL";

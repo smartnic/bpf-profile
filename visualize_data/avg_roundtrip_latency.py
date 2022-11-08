@@ -5,44 +5,40 @@ from statistics import stdev
 import matplotlib.pyplot as plt
 import numpy as np
 
-PROG_FILE_NAME = "prog.txt" # input file. program level raw data from bpftool
-LATENCY_FILE_NAME = "avg_latency.csv"
-LATENCY_FILE_NAME_STDEV = "avg_latency_stdev.csv"
-LATENCY_FILE_NAME_EACH_RUN = "latency.csv"
-LATENCY_FILE_NAME_FIG = "avg_latency.pdf"
+# x-axis: # of cores; y-axis: avg latency
+PROG_FILE_NAME = "trex_stats.txt"
+LATENCY_FILE_NAME = "avg_avg_roundtrip_latency.csv"
+LATENCY_FILE_NAME_STDEV = "avg_avg_roundtrip_latency_stdev.csv"
+LATENCY_FILE_NAME_EACH_RUN = "avg_roundtrip_latency.csv"
+LATENCY_FILE_NAME_FIG = "avg_avg_roundtrip_latency.pdf"
 
+# data in the input file: count,rx_pps,tx_pps,diff,max_l,min_l,avg_l
+# rx/tx rate in the input file is pps
 def latency_single_run(input_file):
-    run_cnt_str = "run_cnt"
-    cycles_str = "cycles"
-    run_cnt = 0
-    cycles = 0
+    latency = 0
     if not exists(input_file):
         print(f"ERROR: no such file {input_file}. Return latency = 0")
         return 0
     f = open(input_file, "r")
     for line in f:
-        line = line.strip().split()
-        if len(line) < 2:
+        line = line.strip().split(',')
+        # print(f"{len(line)}, line: {line}")
+        if len(line) < 7:
             continue
-        if line[1] == run_cnt_str:
-            run_cnt = int(line[0])
-        elif line[1] == cycles_str:
-            cycles = int(line[0])
-        if run_cnt != 0 and cycles != 0:
+        latency = float(line[6])
+        # print(f"latency: {latency}")
+        if latency != 0:
             break
     f.close()
-    if run_cnt == 0:
-        print(f"ERROR: no run_cnt in {input_file}. Return latency = 0")
+    if latency == 0:
+        print(f"ERROR: no latency in {input_file}. Return latency = 0")
         return 0
-    if cycles == 0:
-        print(f"ERROR: no cycles in {input_file}. Return latency = 0")
-        return 0
-    return (cycles / run_cnt)
+    return latency
 
-def latency_multiple_run(num_runs, input_folder):
+def latency_multiple_run(num_runs, input_folder, trex_stats_v):
     latency_list = []
     for i in range(num_runs):
-        input_file = f"{input_folder}/{i}/{PROG_FILE_NAME}"
+        input_file = f"{input_folder}/{i}/{trex_stats_v}/{PROG_FILE_NAME}"
         print(f"processing {input_file}")
         latency = latency_single_run(input_file)
         # print(f"{i}: {latency}")
@@ -109,13 +105,13 @@ def read_data_from_csv_file(input_file):
         if head_flag is True:
             head_flag = False
             continue
-        line_new = [float(x) for x in line]
+        line_new = [round(float(x), 2) for x in line]
         data.append(line_new)
     f.close()
     return data
 
-def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list,
-    version_name_show_list, output_folder):
+def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name, version_name_list, version_name_show_list,
+    output_folder, trex_stats_version):
     # read Standard Deviation from csv file
     input_file = f"{input_folder}/{LATENCY_FILE_NAME_STDEV}"
     stdev_list = read_data_from_csv_file(input_file)
@@ -131,9 +127,9 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name
 
     # plot the figure with error bar
     plt.figure()
-    plt.title(prog_name)
+    plt.title(f"{prog_name}  {trex_stats_version}")
     plt.xlabel("Number of cores")
-    plt.ylabel("Average latency (cycles)")
+    plt.ylabel("Average roundtrip latency (us)")
     plt.grid()
     x = list(range(num_cores_min, num_cores_max + 1)) # different number of cores
     # plot a curve for each version
@@ -142,39 +138,43 @@ def plot_progs_avg_latency(num_cores_min, num_cores_max, input_folder, prog_name
         plt.plot(x, avg_latency_list[i], label=version_name_show_list[i])
         plt.errorbar(x, avg_latency_list[i], yerr=stdev_list[i], fmt='o', capsize=6)
     plt.legend()
+    # plt.legend(loc='lower right')
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_FIG}"
     print(f"output: {output_file}")
     plt.savefig(output_file)
 
-def visualize_prog_avg_latency(prog_name, version_name_list, version_name_show_list, num_runs,
-    num_cores_min, num_cores_max, input_folder, output_folder):
-    if not exists(output_folder):
-        os.system(f"sudo mkdir -p {output_folder}")
-    first_flag = True
-    for version_name in version_name_list:
-        latency_matrix = []
-        for i in range(num_cores_min, num_cores_max + 1):
-            latency_list = latency_multiple_run(num_runs, f"{input_folder}/{version_name}/{i}")
-            latency_matrix.append(latency_list)
-        if first_flag is True:
-            write_mode = "w"
-            first_flag = False
-        else:
-            write_mode = "a+"
-        write_latency_each_run(num_runs, num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder)
-        write_avg_latency(num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder)
+def visualize_prog_avg_roundtrip_latency(prog_name, version_name_list, version_name_show_list,
+    num_runs, num_cores_min, num_cores_max, input_folder, trex_stats_versions, output_folder):
+    for trex_stats_v in trex_stats_versions:
+        output_folder_v = f"{output_folder}/{trex_stats_v}"
+        if not exists(output_folder_v):
+            os.system(f"sudo mkdir -p {output_folder_v}")
+        first_flag = True
+        for version_name in version_name_list:
+            latency_matrix = []
+            for i in range(num_cores_min, num_cores_max + 1):
+                latency_list = latency_multiple_run(num_runs, f"{input_folder}/{version_name}/{i}", trex_stats_v)
+                latency_matrix.append(latency_list)
+            if first_flag is True:
+                write_mode = "w"
+                first_flag = False
+            else:
+                write_mode = "a+"
+            write_latency_each_run(num_runs, num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder_v)
+            write_avg_latency(num_cores_min, num_cores_max, latency_matrix, write_mode, version_name, output_folder_v)
 
-    plot_progs_avg_latency(num_cores_min, num_cores_max, output_folder, prog_name, version_name_list, version_name_show_list,
-        output_folder)
+        plot_progs_avg_latency(num_cores_min, num_cores_max, output_folder_v, prog_name, version_name_list, version_name_show_list,
+            output_folder_v, trex_stats_v)
 
 if __name__ == "__main__":
-    input_folder = "/mydata/test3/xdpex1"
-    output_folder = "/mydata/test3/xdpex1/analyze_v2"
+    input_folder = "../test1/10"
+    output_folder = "../test1/10/graph"
     num_cores_min = 1
     num_cores_max = 8
-    num_runs = 5
-    prog_name = "xdpex1"
+    num_runs = 1
+    prog_name = "xdp_portknock"
     version_name_list = ["v1", "v2"]
     version_name_show_list = ["shared state", "local state"]
-    visualize_prog_avg_latency(prog_name, version_name_list, version_name_show_list,
-        num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
+    trex_stats_versions = ["no_profile", "prog_ns", "prog", "perf"]
+    visualize_prog_avg_roundtrip_latency(prog_name, version_name_list, version_name_show_list,
+        num_runs, num_cores_min, num_cores_max, input_folder, trex_stats_versions, output_folder)

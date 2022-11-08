@@ -1,2 +1,7 @@
 profile/generated_pcaps
 .vscode
+*.csv
+*.pdf
+*.txt
+.DS_Store
+__pycache__
