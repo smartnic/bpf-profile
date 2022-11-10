@@ -10,6 +10,20 @@ PCM_OUTPUT = "avg_pcm_ipc.csv"
 PCM_OUTPUT_STDEV = "avg_ipc_stdev.csv"
 PCM_OUTPUT_EACH_RUN = "pcm_ipc.csv"
 PCM_OUTPUT_FIG = "pcm_ipc.pdf"
+DURATION = 30 # measurement time (second)
+
+def metric_normalize(metric_keyword, x):
+    x = float(x)
+    if metric_keyword == "L3MISS":
+        return (x * 1000 / DURATION)
+    elif metric_keyword == "L2MISS":
+        return (x / DURATION)
+    elif metric_keyword == "L3OCC":
+        return (x / 1000)
+    elif metric_keyword == "LMB":
+        return (x / DURATION)
+    else:
+        return x
 
 # metric value is the AVERAGE metric value of all valid cores
 def metric_single_run(input_file, core_list, metric_keyword):
@@ -22,7 +36,6 @@ def metric_single_run(input_file, core_list, metric_keyword):
     for c in core_list:
         core_keyword_list.append(f"Core{c} (Socket 0)")
     id_list_metric = []
-    id_list_core_metric  = []
     line_count = 0
     line_0 = None
     for line in f:
@@ -38,7 +51,7 @@ def metric_single_run(input_file, core_list, metric_keyword):
         elif line_count == 2:
             metric = 0
             for i in id_list_metric:
-                metric += float(line[i])
+                metric += metric_normalize(metric_keyword, line[i])
             break
         line_count += 1
     f.close()
@@ -176,29 +189,34 @@ def visualize_prog_avg_metric(metric_keyword, metric_show, prog_name, version_na
     plot_progs_avg_metric(metric_show, num_cores_min, num_cores_max, output_folder, prog_name, version_name_list,
         version_name_show_list, output_folder)
 
-def visualize_pcm_core_metrics(metric_list, metric_show_list, prog_name, version_name_list, 
+def visualize_pcm_core_metrics(duration, metric_list, metric_show_list, prog_name, version_name_list, 
     version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
-    global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG
+    global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG, DURATION
     for i, metric in enumerate(metric_list):
         PCM_OUTPUT = f"avg_pcm_{metric}.csv"
         PCM_OUTPUT_STDEV = f"avg_{metric}_stdev.csv"
         PCM_OUTPUT_EACH_RUN = f"pcm_{metric}.csv"
         PCM_OUTPUT_FIG = f"pcm_{metric}.pdf"
+        DURATION = duration
         visualize_prog_avg_metric(metric, metric_show_list[i], prog_name, version_name_list,
             version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
 
 
 if __name__ == "__main__":
     for x in ['1', '5', '10', '20', '37']:
-        input_folder = f"../../pcm/xdp_portknock_xl170_5runs_71ac472/dut/{x}/"
-        output_folder = f"../../pcm/xdp_portknock_xl170_5runs_71ac472/dut/graph/{x}/"
+        input_folder = f"../../pcm/xdp_portknock_xl170_3runs_60s_71ac472/dut/{x}/"
+        output_folder = f"../../pcm/xdp_portknock_xl170_3runs_60s_71ac472/dut/graph/{x}/"
         num_cores_min = 1
         num_cores_max = 8
-        num_runs = 5
+        num_runs = 3
         prog_name = "xdp_portknock"
         version_name_list = ["v1", "v2"]
         version_name_show_list = ["shared state", "local state"]
-        metric_show_list = ["IPC", "L2MPI", "L2MISS", "L2HIT", "L3OCC", "L3MISS", "L3HIT", "LMB"]
+        metric_show_list = ["IPC", "L2MPI", "L2MISS (MMisses/s)", "L2HIT (ratio)",
+                            "L3OCC (MB)", "L3MISS (KMisses/s)", "L3HIT (ratio)", "LMB (MB/s)"]
+        for i, x in enumerate(metric_show_list):
+            metric_show_list[i] = f"{x} per core"
         metric_list = ["IPC", "L2MPI", "L2MISS", "L2HIT", "L3OCC", "L3MISS", "L3HIT", "LMB"]
-        visualize_pcm_core_metrics(metric_list, metric_show_list, prog_name, version_name_list,
+        duration = 60
+        visualize_pcm_core_metrics(duration, metric_list, metric_show_list, prog_name, version_name_list,
             version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
