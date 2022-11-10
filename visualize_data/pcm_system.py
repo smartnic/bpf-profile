@@ -178,7 +178,7 @@ def visualize_pcm_system_metrics(duration, metric_list, metric_show_list, prog_n
     global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG, DURATION
     for i, metric in enumerate(metric_list):
         PCM_OUTPUT = f"avg_pcm_system_{metric}.csv"
-        PCM_OUTPUT_STDEV = f"avg_system_{metric}_stdev.csv"
+        PCM_OUTPUT_STDEV = f"avg_pcm_system_{metric}_stdev.csv"
         PCM_OUTPUT_EACH_RUN = f"pcm_system_{metric}.csv"
         PCM_OUTPUT_FIG = f"pcm_system_{metric}.pdf"
         DURATION = duration

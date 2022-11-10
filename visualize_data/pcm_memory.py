@@ -177,7 +177,7 @@ def visualize_pcm_memory_metrics(metric_list, metric_show_list, prog_name, versi
     global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG
     for i, metric in enumerate(metric_list):
         PCM_OUTPUT = f"avg_pcm_memory_system_{metric}.csv"
-        PCM_OUTPUT_STDEV = f"avg_memory_system_{metric}_stdev.csv"
+        PCM_OUTPUT_STDEV = f"avg_pcm_memory_system_{metric}_stdev.csv"
         PCM_OUTPUT_EACH_RUN = f"pcm_memory_system_{metric}.csv"
         PCM_OUTPUT_FIG = f"pcm_memory_system_{metric}.pdf"
         visualize_prog_avg_metric(metric, metric_show_list[i], prog_name, version_name_list,

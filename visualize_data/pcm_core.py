@@ -194,7 +194,7 @@ def visualize_pcm_core_metrics(duration, metric_list, metric_show_list, prog_nam
     global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG, DURATION
     for i, metric in enumerate(metric_list):
         PCM_OUTPUT = f"avg_pcm_{metric}.csv"
-        PCM_OUTPUT_STDEV = f"avg_{metric}_stdev.csv"
+        PCM_OUTPUT_STDEV = f"avg_pcm_{metric}_stdev.csv"
         PCM_OUTPUT_EACH_RUN = f"pcm_{metric}.csv"
         PCM_OUTPUT_FIG = f"pcm_{metric}.pdf"
         DURATION = duration
