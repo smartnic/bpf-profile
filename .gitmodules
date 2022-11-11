@@ -1,3 +1,5 @@
 [submodule "samples/conntrack-ebpf"]
 	path = samples/conntrack-ebpf
 	url = https://github.com/sebymiano/conntrack-ebpf.git
+	branch = local-state
+	ignore = untracked
