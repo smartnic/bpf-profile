@@ -56,13 +56,13 @@ cd ~/bpf-profile/setup
 sudo bash setup_server.sh ens1f1np1
 ```
 
-#### 5. Update machine config file 
+#### e. Update machine config file 
 
 Update machine config file `bpf-profile/profile/config.xl170` on node-0 with the information on your experiment machines. You could use `ifconfig` to figure out the MAC and IP addresses.
 
 ## 2. Client (Packet generator) node-1
 
-#### a. clone repository and update machine config file
+#### a. Clone repository and update machine config file
 ```
 cd ~; git clone https://github.com/smartnic/bpf-profile.git
 ```
