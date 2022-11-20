@@ -22,7 +22,7 @@ def metric_normalize(metric_keyword, data_list):
     elif metric_keyword == "L3OCC":
         result = sum(data_list) / 1000
     elif metric_keyword == "IPC":
-        result = sum(data_list)
+        result = mean(data_list)
     elif metric_keyword == "LMB":
         result = mean(data_list) / DURATION
     else:
@@ -193,9 +193,12 @@ def visualize_prog_avg_metric(metric_keyword, metric_show, prog_name, version_na
     plot_progs_avg_metric(metric_show, num_cores_min, num_cores_max, output_folder, prog_name, version_name_list,
         version_name_show_list, output_folder)
 
-def visualize_pcm_core_metrics(duration, metric_list, metric_show_list, prog_name, version_name_list, 
-    version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
+def visualize_pcm_core_metrics(duration, prog_name, version_name_list, version_name_show_list,
+    num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
     global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG, DURATION
+    metric_show_list = ["IPC", "L2MPI", "L2MISS (MMisses/s)", "L2HIT (ratio)",
+                        "L3OCC (MB)", "L3MISS (KMisses/s)", "L3HIT (ratio)", "LMB (MB/s)"]
+    metric_list = ["IPC", "L2MPI", "L2MISS", "L2HIT", "L3OCC", "L3MISS", "L3HIT", "LMB"]
     for i, metric in enumerate(metric_list):
         PCM_OUTPUT = f"avg_pcm_{metric}.csv"
         PCM_OUTPUT_STDEV = f"avg_pcm_{metric}_stdev.csv"
@@ -216,9 +219,6 @@ if __name__ == "__main__":
         prog_name = "xdp_portknock"
         version_name_list = ["v1", "v2"]
         version_name_show_list = ["shared state", "local state"]
-        metric_show_list = ["IPC", "L2MPI", "L2MISS (MMisses/s)", "L2HIT (ratio)",
-                            "L3OCC (MB)", "L3MISS (KMisses/s)", "L3HIT (ratio)", "LMB (MB/s)"]
-        metric_list = ["IPC", "L2MPI", "L2MISS", "L2HIT", "L3OCC", "L3MISS", "L3HIT", "LMB"]
         duration = 30
-        visualize_pcm_core_metrics(duration, metric_list, metric_show_list, prog_name, version_name_list,
-            version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
+        visualize_pcm_core_metrics(duration, prog_name, version_name_list, version_name_show_list,
+            num_runs, num_cores_min, num_cores_max, input_folder, output_folder)

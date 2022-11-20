@@ -173,9 +173,11 @@ def visualize_prog_avg_metric(metric_keyword, metric_show, prog_name, version_na
     plot_progs_avg_metric(metric_show, num_cores_min, num_cores_max, output_folder, prog_name, version_name_list,
         version_name_show_list, output_folder)
 
-def visualize_pcm_system_metrics(duration, metric_list, metric_show_list, prog_name, version_name_list, 
-    version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
+def visualize_pcm_system_metrics(duration, prog_name, version_name_list, version_name_show_list,
+    num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
     global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG, DURATION
+    metric_show_list = ["READ (MB/s)", "WRITE (MB/s)"]
+    metric_list = ["READ", "WRITE"]
     for i, metric in enumerate(metric_list):
         PCM_OUTPUT = f"avg_pcm_system_{metric}.csv"
         PCM_OUTPUT_STDEV = f"avg_pcm_system_{metric}_stdev.csv"
@@ -187,17 +189,15 @@ def visualize_pcm_system_metrics(duration, metric_list, metric_show_list, prog_n
 
 
 if __name__ == "__main__":
-    for x in ['1', '5', '10', '20', '37']:
-        input_folder = f"../../pcm/xdp_portknock_xl170_3runs_60s_71ac472/dut/{x}/"
-        output_folder = f"../../pcm/xdp_portknock_xl170_3runs_60s_71ac472/dut/graph/{x}/"
+    for x in ['1', '5', '20', '37']:
+        input_folder = f"../../pcm/xdp_portknock_pcm/disable_hyperthreading/multi_metrics/dut/{x}/"
+        output_folder = f"../../pcm/xdp_portknock_pcm/disable_hyperthreading/multi_metrics/dut/graph/{x}/"
         num_cores_min = 1
         num_cores_max = 8
         num_runs = 3
         prog_name = "xdp_portknock"
         version_name_list = ["v1", "v2"]
         version_name_show_list = ["shared state", "local state"]
-        metric_show_list = ["READ (MB/s)", "WRITE (MB/s)"]
-        metric_list = ["READ", "WRITE"]
-        duration = 60
-        visualize_pcm_system_metrics(duration, metric_list, metric_show_list, prog_name, version_name_list,
-            version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
+        duration = 30
+        visualize_pcm_system_metrics(duration, prog_name, version_name_list, version_name_show_list,
+            num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
