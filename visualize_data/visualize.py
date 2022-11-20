@@ -49,6 +49,7 @@ if __name__ == "__main__":
     parser.add_argument('--nc_min', dest="num_cores_min", type=int, help='Minimum number of cores (greater than 1)', required=False)
     parser.add_argument('--nc_max', dest="num_cores_max", type=int, help='Maximum number of cores (greater than 1)', required=True)
     parser.add_argument('--config', dest="config_file", type=str, help='The path of config file which contains version names, insn ids', required=True)
+    parser.add_argument('--tx_rate_list', dest="tx_rate_list", default=[1], help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     parser.add_argument('--prog_latency', action='store_true', help='Visualize prog latency data', required=False)
     parser.add_argument('--prog_latency_ns', action='store_true', help='Visualize prog latency (ns) data', required=False)
     parser.add_argument('--insn_latency', action='store_true', help='Visualize insn latency data', required=False)
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     print("version name show list: ", version_name_show_list)
     print("insn_ids: ", insn_ids)
 
-    tx_rate_list = ["1", "5", "20", "37"]
+    tx_rate_list = args.tx_rate_list.split(',')
     for tx in tx_rate_list:
         input_folder = f"{args.input_folder}/{tx}"
         output_folder = f"{args.output_folder}/{tx}"
