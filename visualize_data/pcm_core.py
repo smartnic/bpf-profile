@@ -2,6 +2,7 @@ from os.path import exists
 import os
 import csv
 from statistics import stdev
+from statistics import mean
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -12,22 +13,25 @@ PCM_OUTPUT_EACH_RUN = "pcm_ipc.csv"
 PCM_OUTPUT_FIG = "pcm_ipc.pdf"
 DURATION = 30 # measurement time (second)
 
-def metric_normalize(metric_keyword, x):
-    x = float(x)
+def metric_normalize(metric_keyword, data_list):
+    result = 0
     if metric_keyword == "L3MISS":
-        return (x * 1000 / DURATION)
+        result = sum(data_list) * 1000 / DURATION
     elif metric_keyword == "L2MISS":
-        return (x / DURATION)
+        result = sum(data_list) / DURATION
     elif metric_keyword == "L3OCC":
-        return (x / 1000)
+        result = sum(data_list) / 1000
+    elif metric_keyword == "IPC":
+        result = sum(data_list)
     elif metric_keyword == "LMB":
-        return (x / DURATION)
+        result = mean(data_list) / DURATION
     else:
-        return x
+        result = mean(data_list)
+    return result
 
 # metric value is the AVERAGE metric value of all valid cores
 def metric_single_run(input_file, core_list, metric_keyword):
-    metric = 0
+    data_list = []
     if not exists(input_file):
         print(f"ERROR: no such file {input_file}. Return metric = 0")
         return 0
@@ -51,11 +55,11 @@ def metric_single_run(input_file, core_list, metric_keyword):
         elif line_count == 2:
             metric = 0
             for i in id_list_metric:
-                metric += metric_normalize(metric_keyword, line[i])
+                data_list.append(float(line[i]))
             break
         line_count += 1
     f.close()
-    metric /= len(core_list)
+    metric = metric_normalize(metric_keyword, data_list)
     return metric
 
 def metric_multiple_run(num_runs, input_folder, core_list, metric_keyword):
@@ -203,9 +207,9 @@ def visualize_pcm_core_metrics(duration, metric_list, metric_show_list, prog_nam
 
 
 if __name__ == "__main__":
-    for x in ['1', '5', '10', '20', '37']:
-        input_folder = f"../../pcm/xdp_portknock_xl170_3runs_60s_71ac472/dut/{x}/"
-        output_folder = f"../../pcm/xdp_portknock_xl170_3runs_60s_71ac472/dut/graph/{x}/"
+    for x in ['1', '5', '20', '37']:
+        input_folder = f"../../pcm/xdp_portknock_pcm/disable_hyperthreading/multi_metrics/dut/{x}/"
+        output_folder = f"../../pcm/xdp_portknock_pcm/disable_hyperthreading/multi_metrics/dut/graph/{x}/"
         num_cores_min = 1
         num_cores_max = 8
         num_runs = 3
@@ -214,9 +218,7 @@ if __name__ == "__main__":
         version_name_show_list = ["shared state", "local state"]
         metric_show_list = ["IPC", "L2MPI", "L2MISS (MMisses/s)", "L2HIT (ratio)",
                             "L3OCC (MB)", "L3MISS (KMisses/s)", "L3HIT (ratio)", "LMB (MB/s)"]
-        for i, x in enumerate(metric_show_list):
-            metric_show_list[i] = f"{x} per core"
         metric_list = ["IPC", "L2MPI", "L2MISS", "L2HIT", "L3OCC", "L3MISS", "L3HIT", "LMB"]
-        duration = 60
+        duration = 30
         visualize_pcm_core_metrics(duration, metric_list, metric_show_list, prog_name, version_name_list,
             version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
