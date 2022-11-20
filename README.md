@@ -134,6 +134,12 @@ cd ~; sh ~/bpf-profile/experiment_prepare.sh
 #### d. Run experiments on node-0
 ```
 cd ~/experiment
-nohup sudo sh -c 'python3 -u profile-xdp.py -o /mydata/xdp_portknock/ -b xdp_portknock -v v1,v2 -l xdpex1 -r 1 --nc_max 2 -d 30 --pktgen trex --tx_rate_list 1,11.5 1>log.txt 2>err.txt &'
+nohup sudo sh -c 'python3 -u profile-xdp.py -o /mydata/xdp_portknock/ -b xdp_portknock -v v1,v2 -l xdpex1 -r 1 --nc_max 2 -d 30 --pktgen trex --tx_rate_list 1,11.5 --disable_insn_latency 1>log.txt 2>err.txt &'
 ```
 You could run `python3 profile-xdp.py -h` for the argument description.
+
+If you want to measure insn_latency (i.e., insn_latency is not disabled), before running the experiments, you need to enable hyperthreading on node-0 by running
+```
+sudo bash ~/bpf-profile/setup/toggle_hyperthreading.sh
+```
+
