@@ -283,7 +283,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_trex_measure_parallel', action='store_true', help='Disable trex measurement while measuring other metrics: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_trex_measure', action='store_true', help='Disable trex measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
-    parser.add_argument('--tx_rate_list', dest="tx_rate_list", default=[1], help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
+    parser.add_argument('--tx_rate_list', dest="tx_rate_list", default="1", help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     args = parser.parse_args()
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name
