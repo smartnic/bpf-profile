@@ -84,7 +84,7 @@ def construct_packet_v3(num_pkts_in_md, sport, dport, client_iface, client_mac, 
 
     dports_bytes = b''
     size = 100
-    for i in range(0, 7):
+    for i in range(num_pkts_in_md):
         dports_bytes += flow1_bytes
         dports_bytes += size.to_bytes(4, 'little')
 

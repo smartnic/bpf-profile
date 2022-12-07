@@ -116,7 +116,7 @@ def run_packet_generator_trex(benchmark, version, core_list, client, tx_rate):
     # send packets for 10000 seconds
     client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
-    time.sleep(30)
+    time.sleep(120)
 
 def run_packet_generator(benchmark, version, core_list, client, tx_rate):
     if PKTGEN_input == PKTGEN_SCAPY:
@@ -187,6 +187,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'
         run_cmd("sudo rm -rf " + tmp_out_file, wait=True)
         if not DISABLE_trex_measure_parallel:
             stop_trex_measure(client)
+        time.sleep(20)
 
     # 4.2 use bpftool to get overall latency (cycles)
     # todo: remove "llc_misses" since not able to create this event on AMD machines
@@ -197,6 +198,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'
         run_cmd(cmd, wait=True)
         if not DISABLE_trex_measure_parallel:
             stop_trex_measure(client)
+        time.sleep(20)
 
     # 4.3 use kernel stats to measure overall latency (nanoseconds)
     if not DISABLE_prog_latency_ns:
@@ -208,6 +210,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'
         if not DISABLE_trex_measure_parallel:
             stop_trex_measure(client)
         run_cmd("sudo bpftool prog show | grep \"xdp.*run_time_ns\" > tmp/prog_ns.txt", wait=True)
+        time.sleep(20)
 
     # 4.4 use pcm to measure performance counters
     if not DISABLE_pcm:
@@ -218,12 +221,14 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'
         time.sleep(seconds + 2)
         if not DISABLE_trex_measure_parallel:
             stop_trex_measure(client)
+        time.sleep(20)
 
     # 4.5 run trex measurement on the packet generator
     if not DISABLE_trex_measure:
         start_trex_measure(client, f"{output_folder}/no_profile/")
         time.sleep(seconds)
         stop_trex_measure(client)
+        time.sleep(5)
 
     # 5. clean environment
     clean_environment(client, prog_name)
@@ -278,7 +283,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_trex_measure_parallel', action='store_true', help='Disable trex measurement while measuring other metrics: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_trex_measure', action='store_true', help='Disable trex measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
-    parser.add_argument('--tx_rate_list', dest="tx_rate_list", default=[1], help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
+    parser.add_argument('--tx_rate_list', dest="tx_rate_list", default="1", help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     args = parser.parse_args()
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name

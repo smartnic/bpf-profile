@@ -2,72 +2,55 @@ from os.path import exists
 import os
 import csv
 from statistics import stdev
-from statistics import mean
 import matplotlib.pyplot as plt
 import numpy as np
 
-PROG_FILE_NAME = "pcm.csv" # input file. program level raw data from bpftool
-PCM_OUTPUT = "avg_pcm_ipc.csv"
-PCM_OUTPUT_STDEV = "avg_ipc_stdev.csv"
-PCM_OUTPUT_EACH_RUN = "pcm_ipc.csv"
-PCM_OUTPUT_FIG = "pcm_ipc.pdf"
+PROG_FILE_NAME = "pcm_pcie.csv" # input file. program level raw data from bpftool
+PCM_OUTPUT = "avg_pcm_pcie_read.csv"
+PCM_OUTPUT_STDEV = "avg_pcm_pcie_read_stdev.csv"
+PCM_OUTPUT_EACH_RUN = "pcm_pcie_read.csv"
+PCM_OUTPUT_FIG = "pcm_pcie_read.pdf"
 DURATION = 30 # measurement time (second)
 
-def metric_normalize(metric_keyword, data_list):
-    result = 0
-    if metric_keyword == "L3MISS":
-        result = sum(data_list) * 1000 / DURATION
-    elif metric_keyword == "L2MISS":
-        result = sum(data_list) / DURATION
-    elif metric_keyword == "L3OCC":
-        result = sum(data_list) / 1000
-    elif metric_keyword == "IPC":
-        result = mean(data_list)
-    elif metric_keyword == "LMB":
-        result = mean(data_list) / DURATION
-    else:
-        result = mean(data_list)
-    return result
+METRIC_TYPE_NAME_LIST = ["Total", "Miss", "Hit"]
+METRIC_TYPE_LINEID_LIST = [1, 2, 3]
+
+METRIC_TYPE_NAME = "Total"
+METRIC_TYPE_LINEID = 1
 
 # metric value is the AVERAGE metric value of all valid cores
-def metric_single_run(input_file, core_list, metric_keyword):
-    data_list = []
+def metric_single_run(input_file, metric_keyword):
+    metric = 0
     if not exists(input_file):
         print(f"ERROR: no such file {input_file}. Return metric = 0")
         return 0
     f = open(input_file, "r")
-    core_keyword_list = []
-    for c in core_list:
-        core_keyword_list.append(f"Core{c} (Socket 0)")
-    id_list_metric = []
     line_count = 0
-    line_0 = None
+    index = -1
     for line in f:
-        line = line.strip().split(',')
+        line = line.replace(f"({METRIC_TYPE_NAME})", "").strip().split(',')
         line = [x.strip() for x in line]
         if line_count == 0:
-            line_0 = line
-        elif line_count == 1:
             for i, x in enumerate(line):
-                if x == metric_keyword and line_0[i] in core_keyword_list:
-                    # print(i, line_0[i], x)
-                    id_list_metric.append(i)
-        elif line_count == 2:
-            metric = 0
-            for i in id_list_metric:
-                data_list.append(float(line[i]))
-            break
+                if x == metric_keyword:
+                    index = i
+                    break
+            if index == -1:
+                print(f"ERROR: {metric_keyword} in {input_file}. Return metric = 0")
+                break
+        elif line_count == METRIC_TYPE_LINEID:
+            metric = int(line[index])
         line_count += 1
     f.close()
-    metric = metric_normalize(metric_keyword, data_list)
-    return metric
+    metric_mb = metric / 1000000
+    return (metric_mb / DURATION)
 
-def metric_multiple_run(num_runs, input_folder, core_list, metric_keyword):
+def metric_multiple_run(num_runs, input_folder, metric_keyword):
     metric_list = []
     for i in range(num_runs):
         input_file = f"{input_folder}/{i}/{PROG_FILE_NAME}"
         print(f"processing {input_file}")
-        metric = metric_single_run(input_file, core_list, metric_keyword)
+        metric = metric_single_run(input_file, metric_keyword)
         # print(f"{i}: {metric}")
         metric_list.append(metric)
 
@@ -156,7 +139,7 @@ def plot_progs_avg_metric(metric_show, num_cores_min, num_cores_max, input_folde
     plt.figure()
     plt.title(prog_name)
     plt.xlabel("Number of cores")
-    plt.ylabel(f"Average {metric_show}")
+    plt.ylabel(f"Average {metric_show} {METRIC_TYPE_NAME}")
     plt.grid()
     x = list(range(num_cores_min, num_cores_max + 1)) # different number of cores
     # plot a curve for each version
@@ -171,16 +154,14 @@ def plot_progs_avg_metric(metric_show, num_cores_min, num_cores_max, input_folde
 
 def visualize_prog_avg_metric(metric_keyword, metric_show, prog_name, version_name_list, version_name_show_list, num_runs,
     num_cores_min, num_cores_max, input_folder, output_folder):
-    print(f"Visualizing {metric_keyword}")
+    print(f"Visualizing {metric_keyword} {METRIC_TYPE_NAME}")
     if not exists(output_folder):
         os.system(f"sudo mkdir -p {output_folder}")
     first_flag = True
     for version_name in version_name_list:
         metric_matrix = []
         for i in range(num_cores_min, num_cores_max + 1):
-            core_list = list(range(1, i + 1))
-            metric_list = metric_multiple_run(num_runs, f"{input_folder}/{version_name}/{i}", 
-                core_list, metric_keyword)
+            metric_list = metric_multiple_run(num_runs, f"{input_folder}/{version_name}/{i}", metric_keyword)
             metric_matrix.append(metric_list)
         if first_flag is True:
             write_mode = "w"
@@ -193,26 +174,29 @@ def visualize_prog_avg_metric(metric_keyword, metric_show, prog_name, version_na
     plot_progs_avg_metric(metric_show, num_cores_min, num_cores_max, output_folder, prog_name, version_name_list,
         version_name_show_list, output_folder)
 
-def visualize_pcm_core_metrics(duration, prog_name, version_name_list, version_name_show_list,
+def visualize_pcm_pcie_metrics(duration, prog_name, version_name_list, version_name_show_list,
     num_runs, num_cores_min, num_cores_max, input_folder, output_folder):
     global PCM_OUTPUT, PCM_OUTPUT_STDEV, PCM_OUTPUT_EACH_RUN, PCM_OUTPUT_FIG, DURATION
-    metric_show_list = ["IPC", "L2MPI", "L2MISS (MMisses/s)", "L2HIT (ratio)",
-                        "L3OCC (MB)", "L3MISS (KMisses/s)", "L3HIT (ratio)", "LMB (MB/s)"]
-    metric_list = ["IPC", "L2MPI", "L2MISS", "L2HIT", "L3OCC", "L3MISS", "L3HIT", "LMB"]
-    for i, metric in enumerate(metric_list):
-        PCM_OUTPUT = f"avg_pcm_{metric}.csv"
-        PCM_OUTPUT_STDEV = f"avg_pcm_{metric}_stdev.csv"
-        PCM_OUTPUT_EACH_RUN = f"pcm_{metric}.csv"
-        PCM_OUTPUT_FIG = f"pcm_{metric}.pdf"
-        DURATION = duration
-        visualize_prog_avg_metric(metric, metric_show_list[i], prog_name, version_name_list,
-            version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
+    global METRIC_TYPE_NAME, METRIC_TYPE_LINEID
+    metric_show_list = ["PCIe Rd (MB/s)", "PCIe Wr (MB/s)"]
+    metric_list = ["PCIe Rd (B)", "PCIe Wr (B)"]
+    for index in range(len(METRIC_TYPE_NAME_LIST)):
+        METRIC_TYPE_NAME = METRIC_TYPE_NAME_LIST[index]
+        METRIC_TYPE_LINEID = METRIC_TYPE_LINEID_LIST[index]
+        for i, metric in enumerate(metric_list):
+            PCM_OUTPUT = f"avg_pcm_pcie_{metric}_{METRIC_TYPE_NAME}.csv"
+            PCM_OUTPUT_STDEV = f"avg_pcm_pcie_{metric}_{METRIC_TYPE_NAME}_stdev.csv"
+            PCM_OUTPUT_EACH_RUN = f"pcm_pcie_{metric}_{METRIC_TYPE_NAME}.csv"
+            PCM_OUTPUT_FIG = f"pcm_pcie_{metric}_{METRIC_TYPE_NAME}.pdf"
+            DURATION = duration
+            visualize_prog_avg_metric(metric, metric_show_list[i], prog_name, version_name_list,
+                version_name_show_list, num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
 
 
 if __name__ == "__main__":
     for x in ['1', '5', '20', '37']:
-        input_folder = f"../../pcm/xdp_portknock_pcm/disable_hyperthreading/multi_metrics/dut/{x}/"
-        output_folder = f"../../pcm/xdp_portknock_pcm/disable_hyperthreading/multi_metrics/dut/graph/{x}/"
+        input_folder = f"../../pcm/xdp_portknock_pcm/enabled_hyperthreading/duration_30s/dut/{x}/"
+        output_folder = f"../../pcm/xdp_portknock_pcm/enabled_hyperthreading/duration_30s/graph/{x}/"
         num_cores_min = 1
         num_cores_max = 8
         num_runs = 3
@@ -220,5 +204,5 @@ if __name__ == "__main__":
         version_name_list = ["v1", "v2"]
         version_name_show_list = ["shared state", "local state"]
         duration = 30
-        visualize_pcm_core_metrics(duration, prog_name, version_name_list, version_name_show_list,
+        visualize_pcm_pcie_metrics(duration, prog_name, version_name_list, version_name_show_list,
             num_runs, num_cores_min, num_cores_max, input_folder, output_folder)
