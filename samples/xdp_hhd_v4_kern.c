@@ -35,8 +35,8 @@ struct map_value {
    use map update to insert a new element
 */
 struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, struct flow_key);
+  __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+  __type(key, int);
   __type(value, struct map_value);
   __uint(max_entries, 1);
 } my_map SEC(".maps");
@@ -102,7 +102,8 @@ int xdp_prog(struct xdp_md *ctx) {
 
   /* Calculate packet length */
   u64 bytes = data_end - data;
-  value = bpf_map_lookup_elem(&my_map, &flow);
+  int index = 1;
+  value = bpf_map_lookup_elem(&my_map, &index);
   if (value) {
     for (int i = 0; i < NUM_PKTS; i++) {
       elem = &value->elem_list[i];
@@ -120,7 +121,7 @@ int xdp_prog(struct xdp_md *ctx) {
   } else {
     struct element elem_list[MAX_NUM_FLOWS];
     memset(elem_list, 0, sizeof(struct element) * MAX_NUM_FLOWS);
-    bpf_map_update_elem(&my_map, &flow, &elem_list, BPF_NOEXIST);
+    bpf_map_update_elem(&my_map, &index, &elem_list, BPF_NOEXIST);
   }
   if (bytes < MAX_FLOW_BYTES) {
     rc = XDP_PASS;
