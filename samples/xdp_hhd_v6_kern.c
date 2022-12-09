@@ -38,7 +38,7 @@ struct vecmap {
 };
 
 struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
   __type(key, int);
   __type(value, struct vecmap);
   __uint(max_entries, 1);
@@ -165,6 +165,12 @@ int xdp_prog(struct xdp_md *ctx) {
 
   int index = 0;
   value = bpf_map_lookup_elem(&my_map, &index);
+  if (!value) {
+    struct vecmap vec_map;
+    memset(&vec_map, 0, sizeof(struct vecmap));
+    bpf_map_update_elem(&my_map, &index, &vec_map, BPF_NOEXIST);
+    value = bpf_map_lookup_elem(&my_map, &index);
+  }
   if (value) {
     u64 *flow_size_ptr;
     /* Process latest (n-1) packets using metadata */
