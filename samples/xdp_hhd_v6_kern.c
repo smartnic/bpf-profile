@@ -56,14 +56,45 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
   return 0;
 }
 
-void map_insert(struct vecmap* map, struct flow_key* flow, u64 size) {
+
+#define update_map_i(i) \
+  map->elem_list[i].flow.protocol = flow->protocol; \
+  map->elem_list[i].flow.src_ip = flow->src_ip & 0xf8ffffff; \
+  map->elem_list[i].flow.dst_ip = flow->dst_ip; \
+  map->elem_list[i].flow.src_port = flow->src_port; \
+  map->elem_list[i].flow.dst_port = flow->dst_port; \
+  map->elem_list[i].size = size;
+
+int map_insert(struct vecmap* map, struct flow_key* flow, u64 size) {
+  if (!map) {
+    return RET_ERR;
+  }
+  if (!flow) {
+    return RET_ERR;
+  }
   /* todo: Need to figure out why (map->num % MAX_NUM_FLOWS) failed in compiling */
   int index = map->num;
   if (index >= 0 && index < MAX_NUM_FLOWS) {
-    map->elem_list[index].flow = *flow;
-    map->elem_list[index].size = size;
     map->num += 1;
   }
+  if (index == 0) {
+    update_map_i(0)
+  } else if (index == 1) {
+    update_map_i(1)
+  } else if (index == 2) {
+    update_map_i(2)
+  } else if (index == 3) {
+    update_map_i(3)
+  } else if (index == 4) {
+    update_map_i(4)
+  } else if (index == 5) {
+    update_map_i(5)
+  } else if (index == 6) {
+    update_map_i(6)
+  } else if (index == 7) {
+    update_map_i(7)
+  }
+  return 0;
 }
 
 u64* map_lookup(struct vecmap* map, struct flow_key* flow) {
@@ -153,7 +184,7 @@ int xdp_prog(struct xdp_md *ctx) {
       if (flow_size_ptr) {
         *flow_size_ptr += pkt_size;
       } else {
-        // map_insert(value, md_flow, pkt_size);
+        map_insert(value, md_flow, pkt_size);
       }
       nh_off += sizeof(struct metadata_elem);
     }
