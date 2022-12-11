@@ -153,7 +153,7 @@ int xdp_prog(struct xdp_md *ctx) {
       if (flow_size_ptr) {
         *flow_size_ptr += pkt_size;
       } else {
-        // map_insert(value, md_flow, pkt_size);
+        map_insert(value, md_flow, pkt_size);
       }
       nh_off += sizeof(struct metadata_elem);
     }
