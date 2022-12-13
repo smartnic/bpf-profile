@@ -10,6 +10,7 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
+/* limitation: MAX_NUM_FLOWS should be the power of 2. */
 #define MAX_NUM_FLOWS 8
 #define MAX_FLOW_BYTES (1 << 10)
 #define RET_ERR -1
@@ -57,14 +58,17 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
 }
 
 static __always_inline void map_insert(struct vecmap* map, struct flow_key* flow, u64 size) {
-  /* todo: Need to figure out why (map->num % MAX_NUM_FLOWS) failed in compiling */
-  int index = map->num;
+  /* limitation: MAX_NUM_FLOWS should be the power of 2. */
+  int index = map->num & (MAX_NUM_FLOWS - 1);
   if (index >= 0 && index < MAX_NUM_FLOWS) {
     map->elem_list[index].flow = *flow;
     map->elem_list[index].size = size;
   }
-  /* limitation: MAX_NUM_FLOWS should be the power of 2. */
-  map->num = (index + 1) & MAX_NUM_FLOWS;
+
+  map->num += 1;
+  if (map->num >= MAX_NUM_FLOWS) {
+    map->num = MAX_NUM_FLOWS - 1;
+  }
 }
 
 static __always_inline u64* map_lookup(struct vecmap* map, struct flow_key* flow) {
