@@ -60,9 +60,9 @@ static __always_inline void map_insert(struct vecmap* map, struct flow_key* flow
   /* todo: Need to figure out why (map->num % MAX_NUM_FLOWS) failed in compiling */
   int index = map->num;
   if (index >= 0 && index < MAX_NUM_FLOWS) {
+    map->elem_list[index].flow = *flow;
     map->elem_list[index].size = size;
   }
-  // map->elem_list[index].flow = *flow;
   // map->num += 1;
 }
 
