@@ -63,7 +63,8 @@ static __always_inline void map_insert(struct vecmap* map, struct flow_key* flow
     map->elem_list[index].flow = *flow;
     map->elem_list[index].size = size;
   }
-  // map->num += 1;
+  /* limitation: MAX_NUM_FLOWS should be the power of 2. */
+  map->num = (index + 1) & MAX_NUM_FLOWS;
 }
 
 static __always_inline u64* map_lookup(struct vecmap* map, struct flow_key* flow) {
