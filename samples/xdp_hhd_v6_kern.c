@@ -15,12 +15,12 @@
 #define RET_ERR -1
 
 struct flow_key {
-  u8 protocol;
   __be32 src_ip;
   __be32 dst_ip;
   u16 src_port;
   u16 dst_port;
-};
+  u8 protocol;
+} __attribute__((packed));
 
 struct metadata_elem {
   struct flow_key flow;
@@ -56,17 +56,17 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
   return 0;
 }
 
-void map_insert(struct vecmap* map, struct flow_key* flow, u64 size) {
+static __always_inline void map_insert(struct vecmap* map, struct flow_key* flow, u64 size) {
   /* todo: Need to figure out why (map->num % MAX_NUM_FLOWS) failed in compiling */
   int index = map->num;
   if (index >= 0 && index < MAX_NUM_FLOWS) {
-    map->elem_list[index].flow = *flow;
     map->elem_list[index].size = size;
-    map->num += 1;
   }
+  // map->elem_list[index].flow = *flow;
+  // map->num += 1;
 }
 
-u64* map_lookup(struct vecmap* map, struct flow_key* flow) {
+static __always_inline u64* map_lookup(struct vecmap* map, struct flow_key* flow) {
   struct vecmap_elem *elem_list = map->elem_list;
   for (int i = 0; i < map->num && i < MAX_NUM_FLOWS; i++) {
     /* 0xf8ffffff is used to zero out the least significant 3 bits as
