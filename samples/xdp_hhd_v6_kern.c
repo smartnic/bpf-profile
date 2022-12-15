@@ -10,8 +10,11 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
-/* limitation: MAX_NUM_FLOWS should be the power of 2. */
-#define MAX_NUM_FLOWS 8
+/* limitation: MAX_NUM_FLOWS should be the power of 2 - 1.
+  1. 7 is the maximum number due to the complexity issue in verifier.
+  2. 1023 is the maximum number due to the limitation of memory allocation.
+*/
+#define MAX_NUM_FLOWS 7
 #define MAX_FLOW_BYTES (1 << 10)
 #define RET_ERR -1
 
@@ -33,9 +36,10 @@ struct vecmap_elem {
   u64 size;
 };
 
+/* A sorted (increasing) array */
 struct vecmap {
-  int num;
-  struct vecmap_elem elem_list[MAX_NUM_FLOWS];
+  int size;
+  struct vecmap_elem elem_list[MAX_NUM_FLOWS + 1];
 };
 
 struct {
@@ -45,8 +49,8 @@ struct {
   __uint(max_entries, 1);
 } my_map SEC(".maps");
 
-static inline int parse_udp(void *data, u64 nh_off, void *data_end,
-                            u16 *sport, u16 *dport) {
+static __always_inline int parse_udp(void *data, u64 nh_off, void *data_end,
+                                     u16 *sport, u16 *dport) {
   struct udphdr *udph = data + nh_off;
 
   if (udph + 1 > data_end)
@@ -57,32 +61,108 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
   return 0;
 }
 
+static __always_inline bool map_key_greater(struct flow_key* flow1, struct flow_key* flow2) {
+  if (flow1->protocol > flow2->protocol) {
+    return true;
+  }
+  if (flow1->src_ip > flow2->src_ip) {
+    return true;
+  }
+  if (flow1->dst_ip > flow2->dst_ip) {
+    return true;
+  }
+  if (flow1->src_port > flow2->src_port) {
+    return true;
+  }
+  if (flow1->dst_port > flow2->dst_port) {
+    return true;
+  }
+  return false;
+}
+
 static __always_inline void map_insert(struct vecmap* map, struct flow_key* flow, u64 size) {
-  /* limitation: MAX_NUM_FLOWS should be the power of 2. */
-  int index = map->num & (MAX_NUM_FLOWS - 1);
-  if (index >= 0 && index < MAX_NUM_FLOWS) {
-    map->elem_list[index].flow = *flow;
-    map->elem_list[index].size = size;
+  // Find the position to insert the element
+  int map_size = map->size & MAX_NUM_FLOWS;
+  int index = map_size;
+  for (int i = 0; i < map_size && i < MAX_NUM_FLOWS; i++) {
+    bool greater = map_key_greater(&(map->elem_list[i].flow), flow);
+    if (greater) {
+      index = i;
+      break;
+    }
   }
 
-  map->num += 1;
-  if (map->num >= MAX_NUM_FLOWS) {
-    map->num = MAX_NUM_FLOWS - 1;
+  index &= MAX_NUM_FLOWS;
+  int j = 0;
+  // Shift the elements one space to the right
+  /* `for (int i = map->size; i > index; i--)` cannot pass the verifier. */
+  for (int i = MAX_NUM_FLOWS - 1; i > 0; i--) {
+    if (i > index && i <= map->size) {
+      map->elem_list[i].flow = map->elem_list[i - 1].flow;
+      map->elem_list[i].size = map->elem_list[i - 1].size;
+    }
   }
+  // if (index >= 0 && index < MAX_NUM_FLOWS) {
+  map->elem_list[index].flow = *flow;
+  map->elem_list[index].size = size;
+  // }
+  map->size += 1;
+  if (map->size > MAX_NUM_FLOWS) {
+    map->size &= MAX_NUM_FLOWS;
+  }
+}
+
+#define GT 0
+#define EQ 1
+#define LT 2
+static __always_inline int map_key_comp(struct flow_key* flow1,
+                                        struct flow_key* flow2) {
+  if (flow1->protocol > flow2->protocol) {
+    return GT;
+  } else if (flow1->protocol < flow2->protocol) {
+    return LT;
+  }
+  if (flow1->src_ip > flow2->src_ip) {
+    return GT;
+  } else if (flow1->src_ip < flow2->src_ip) {
+    return LT;
+  }
+  if (flow1->dst_ip > flow2->dst_ip) {
+    return GT;
+  } else if (flow1->dst_ip < flow2->dst_ip) {
+    return LT;
+  }
+  if (flow1->src_port > flow2->src_port) {
+    return GT;
+  } else if (flow1->src_port < flow2->src_port) {
+    return LT;
+  }
+  if (flow1->dst_port > flow2->dst_port) {
+    return GT;
+  } else if (flow1->dst_port < flow2->dst_port) {
+    return LT;
+  }
+  return EQ;
 }
 
 static __always_inline u64* map_lookup(struct vecmap* map, struct flow_key* flow) {
   struct vecmap_elem *elem_list = map->elem_list;
-  for (int i = 0; i < map->num && i < MAX_NUM_FLOWS; i++) {
-    /* 0xf8ffffff is used to zero out the least significant 3 bits as
-       they are used for RSS (note: src_ip is be32) */
-    if (elem_list[i].flow.protocol == flow->protocol &&
-        elem_list[i].flow.src_ip == (flow->src_ip & 0xf8ffffff) &&
-        elem_list[i].flow.dst_ip == flow->dst_ip &&
-        elem_list[i].flow.src_port == flow->src_port &&
-        elem_list[i].flow.dst_port == flow->dst_port) {
-      u64 *size = &(elem_list[i].size);
-      return size;
+  /* Use binary search as map is a sorted array. */
+  int low = 0;
+  int high = (map->size - 1) & MAX_NUM_FLOWS;
+  int mid = 0;
+  for (int i = 0; i < MAX_NUM_FLOWS && mid < MAX_NUM_FLOWS; i++) {
+    mid = ((low + high) >> 1) & MAX_NUM_FLOWS;
+    int comp = map_key_comp(flow, &(elem_list[mid].flow));
+    if (comp == LT) {
+      high = mid - 1;
+    } else if (comp == GT) {
+      low = mid + 1;
+    } else {
+      return &(elem_list[mid].size);
+    }
+    if (low > high) {
+      return NULL;
     }
   }
   return NULL;
@@ -153,6 +233,7 @@ int xdp_prog(struct xdp_md *ctx) {
     for (int i = 0; i < NUM_PKTS - 1; i++) {
       md_elem = data + nh_off;
       md_flow = &md_elem->flow;
+      md_flow->src_ip &= 0xf8ffffff;
       flow_size_ptr = map_lookup(value, md_flow);
       pkt_size = md_elem->size;
       if (flow_size_ptr) {
