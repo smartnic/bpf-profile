@@ -10,11 +10,15 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
+static __always_inline void relax_verifier(void) {
+  volatile int __maybe_unused id = bpf_get_smp_processor_id();
+}
+
 /* limitation: MAX_NUM_FLOWS should be the power of 2 - 1.
-  1. 7 is the maximum number due to the complexity issue in verifier.
+  1. 15 is the maximum number due to the complexity issue in verifier.
   2. 1023 is the maximum number due to the limitation of memory allocation.
 */
-#define MAX_NUM_FLOWS 7
+#define MAX_NUM_FLOWS 15
 #define MAX_FLOW_BYTES (1 << 10)
 #define RET_ERR -1
 
@@ -234,7 +238,13 @@ int xdp_prog(struct xdp_md *ctx) {
       md_elem = data + nh_off;
       md_flow = &md_elem->flow;
       md_flow->src_ip &= 0xf8ffffff;
+#if NUM_PKTS == 4
       flow_size_ptr = map_lookup(value, md_flow);
+      relax_verifier();
+#else
+      relax_verifier();
+      flow_size_ptr = map_lookup(value, md_flow);
+#endif
       pkt_size = md_elem->size;
       if (flow_size_ptr) {
         *flow_size_ptr += pkt_size;
