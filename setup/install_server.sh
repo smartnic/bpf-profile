@@ -71,6 +71,9 @@ install_step3() {
     make prepare
     make headers_install
     make -j20 VMLINUX_BTF=/sys/kernel/btf/vmlinux -C samples/bpf
+
+    # install pcm
+    sudo apt-get install pcm
 }
 
 verify() {
@@ -82,6 +85,8 @@ verify() {
     ~/perf version
     echo "\n......Check bpftool version......"
     bpftool version
+    echo "\n......Check pcm is installed......"
+    sudo pcm version
 }
 
 if [ $# -ne 1 ]

@@ -47,6 +47,11 @@ perf version 5.16.0
 ......Check bpftool version......
 bpftool v5.16.0
 features: libbfd, skeletons
+
+......Check pcm is installed......
+
+ Processor Counter Monitor  (202201-1)
+ ......
 ```
 
 #### d. Setup RSS, IRQ, CPU frequency
