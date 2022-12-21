@@ -135,7 +135,7 @@ def plot_progs_avg_rx_rate(num_cores_min, num_cores_max, input_folder, prog_name
     # plot a curve for each version
     for i, version_name in enumerate(version_name_list):
         print(f"version name: {version_name}")
-        plt.plot(x, avg_rx_rate_list[i], label=version_name_show_list[i])
+        plt.plot(x, avg_rx_rate_list[i], label=version_name_show_list[i], linewidth=2.5)
         plt.errorbar(x, avg_rx_rate_list[i], yerr=stdev_list[i], fmt='o', capsize=6)
     plt.legend()
     # plt.legend(loc='lower right')

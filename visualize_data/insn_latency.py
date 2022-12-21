@@ -142,7 +142,7 @@ def plot_progs_avg_insn_latency(num_cores_min, num_cores_max, input_folder, prog
     x = list(range(num_cores_min, num_cores_max + 1)) # different number of cores
     # plot a curve for each version
     for i, version_name in enumerate(version_name_list):
-        plt.plot(x, avg_latency_list[i], label=version_name_show_list[i])
+        plt.plot(x, avg_latency_list[i], label=version_name_show_list[i], linewidth=2.5)
         plt.errorbar(x, avg_latency_list[i], yerr=stdev_list[i], fmt='o', capsize=6)
     plt.legend()
     output_file = f"{output_folder}/{LATENCY_FILE_NAME_FIG}"
