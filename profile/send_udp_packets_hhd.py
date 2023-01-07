@@ -157,7 +157,7 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
     elif version == "v3":
         packet = construct_packet_v3(num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
         packets.append(packet)
-    elif version == "v6" or version == "v7":
+    elif version == "v6" or version == "v7" or version == "v8":
         packets = construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
     # sendpfast(packet, iface=client_iface)
     # packets = 100 * packet
@@ -189,7 +189,7 @@ def hhd_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
     elif version == "v3":
         packet = construct_packet_v3(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
         packets.append(packet)
-    elif version == "v6" or version == "v7":
+    elif version == "v6" or version == "v7" or version == "v8":
         packets = construct_packets_v6(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     return packets
 
@@ -199,8 +199,8 @@ if __name__ == "__main__":
         sys.exit(0)
 
     version = sys.argv[1]
-    if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]:
-        print(f"Version {version} is not v1 - v7")
+    if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"]:
+        print(f"Version {version} is not v1 - v8")
         sys.exit(0)
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])
