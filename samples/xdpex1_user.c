@@ -90,7 +90,7 @@ struct vecmap_elem {
   uint64_t size;
 };
 
-#define MAX_NUM_FLOWS 31
+#define MAX_NUM_FLOWS 1023
 
 /* A sorted (increasing) array */
 struct vecmap {
