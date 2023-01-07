@@ -1,11 +1,11 @@
 #!/bin/sh
 
 home=~
-cp $home/bpf-profile/samples/*.c $home/linux-5.16/samples/bpf/
-cp $home/bpf-profile/samples/*.h $home/linux-5.16/samples/bpf/
-cp $home/bpf-profile/samples/Makefile $home/linux-5.16/samples/bpf/
-cp $home/bpf-profile/samples/postprocessing.sh $home/linux-5.16/samples/bpf/
-cd $home/linux-5.16/
+cp $home/bpf-profile/samples/*.c $home/linux-6.0/samples/bpf/
+cp $home/bpf-profile/samples/*.h $home/linux-6.0/samples/bpf/
+cp $home/bpf-profile/samples/Makefile $home/linux-6.0/samples/bpf/
+cp $home/bpf-profile/samples/postprocessing.sh $home/linux-6.0/samples/bpf/
+cd $home/linux-6.0/
 make -C tools clean
 make -C samples/bpf clean
 make clean
@@ -17,6 +17,6 @@ cd samples/bpf/
 bash postprocessing.sh
 rm -rf $home/bpf-profile/samples/build/ 
 mkdir -p $home/bpf-profile/samples/build/ 
-mv $home/linux-5.16/samples/bpf/*.o $home/bpf-profile/samples/build/
-mv $home/linux-5.16/samples/bpf/xdpex1 $home/bpf-profile/samples/build/
+mv $home/linux-6.0/samples/bpf/*.o $home/bpf-profile/samples/build/
+mv $home/linux-6.0/samples/bpf/xdpex1 $home/bpf-profile/samples/build/
 echo "output files are in bpf-profile/samples/build/"

@@ -21,6 +21,7 @@ SERVER_mac = ''
 SERVER_ip = ''
 SERVER_port = 2000
 NUM_cores = 0
+NUM_flows = 0
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -67,24 +68,27 @@ def convert_ipv4_str_to_int(ip):
 
 # metadata element: | pkt_i flow | pkt_i length |
 # struct flow_key {
-#   u8 protocol;
 #   __be32 src_ip;
 #   __be32 dst_ip;
 #   u16 src_port;
 #   u16 dst_port;
+#   u8 protocol;
 # };
 def construct_packet_v3(num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
     protocol = 17 # udp
     client_ip_int = convert_ipv4_str_to_int(client_ip)
     server_ip_int = convert_ipv4_str_to_int(server_ip)
-    flow1_bytes = b''
-    flow1_bytes += protocol.to_bytes(4, 'little')
-    flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
-    flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
 
     dports_bytes = b''
     size = 100
     for i in range(num_pkts_in_md):
+        client_ip_int += 9
+        print("client_ip_int: ", client_ip_int)
+        flow1_bytes = b''
+        # flow1_bytes += protocol.to_bytes(4, 'little')
+        flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
+        flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
+        flow1_bytes += protocol.to_bytes(4, 'little')
         dports_bytes += flow1_bytes
         dports_bytes += size.to_bytes(4, 'little')
 
@@ -92,23 +96,78 @@ def construct_packet_v3(num_pkts_in_md, sport, dport, client_iface, client_mac, 
     # hexdump(packet)
     return packet
 
-def send_udp_packets(version, num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
-    packet = ""
-    if version == "v1":
+# num_flows_in_md = # of flows - 1, 1 is the packet itself.
+def construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
+    protocol = 17 # udp
+    client_ip_int = convert_ipv4_str_to_int(client_ip)
+    server_ip_int = convert_ipv4_str_to_int(server_ip)
+
+    size = 100
+    packets = []
+    if num_pkts_in_md == 0:
+        dports_bytes = b''
+        strHex = "0x%0.8X" % client_ip_int
+        print(f"packet client_ip_int: {client_ip_int}, {strHex}")
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
+        packets.append(packet)
+        return packets
+
+    if num_flows_in_md == 0:
+        strHex = "0x%0.8X" % client_ip_int
+        print(f"packet client_ip_int: {client_ip_int}, {strHex}")
+        dports_bytes = b''
+        for i in range(num_pkts_in_md):
+            flow1_bytes = b''
+            # flow1_bytes += protocol.to_bytes(4, 'little')
+            flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
+            flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
+            flow1_bytes += protocol.to_bytes(4, 'little')
+            dports_bytes += flow1_bytes
+            dports_bytes += size.to_bytes(4, 'little')
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
+        packets.append(packet) 
+        return packets
+
+    for pkt_id in range(num_flows_in_md):
+        client_ip_int += 9
+        strHex = "0x%0.8X" % client_ip_int
+        print(f"packet {pkt_id} client_ip_int: {client_ip_int}, {strHex}")
+        dports_bytes = b''
+        for i in range(num_pkts_in_md):
+            flow1_bytes = b''
+            # flow1_bytes += protocol.to_bytes(4, 'little')
+            flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
+            flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
+            flow1_bytes += protocol.to_bytes(4, 'little')
+            dports_bytes += flow1_bytes
+            dports_bytes += size.to_bytes(4, 'little')
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
+        packets.append(packet)
+    # hexdump(packet)
+    return packets
+
+def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
+    packets = []
+    if version == "v1" or version == "v5" or version == "v4":
         packet = construct_packet_v1(sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
+        packets.append(packet)
     elif version == "v2":
         packet = construct_packet_v2(num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
+        packets.append(packet)
     elif version == "v3":
         packet = construct_packet_v3(num_pkts_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
-
+        packets.append(packet)
+    elif version == "v6" or version == "v7":
+        packets = construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
     # sendpfast(packet, iface=client_iface)
-    packets = 100 * packet
-    sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
+    # packets = 100 * packet
+    sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
 
 # src_ip is used for RSS
-def set_up_arguments(num_cores, src_ip):
-    global CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
+def set_up_arguments(num_cores, src_ip, num_flows):
+    global NUM_cores, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
     NUM_cores = num_cores
+    NUM_flows = num_flows
     CLIENT_iface = read_machine_info_from_file("client_iface")
     CLIENT_mac = read_machine_info_from_file("client_mac")
     CLIENT_ip = src_ip
@@ -117,31 +176,43 @@ def set_up_arguments(num_cores, src_ip):
     SERVER_ip = read_machine_info_from_file("server_ip")
     SERVER_port = DPORT_ARM
 
-def hhd_construct_packets(version, src_ip, num_cores = 0):
-    set_up_arguments(num_cores, src_ip)
+def hhd_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
+    set_up_arguments(num_cores, src_ip, num_flows)
+    packets = []
     packet = ""
-    if version == "v1":
+    if version == "v1" or version == "v5" or version == "v4":
         packet = construct_packet_v1(CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+        packets.append(packet)
     elif version == "v2":
         packet = construct_packet_v2(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+        packets.append(packet)
     elif version == "v3":
         packet = construct_packet_v3(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
-    return [packet]
+        packets.append(packet)
+    elif version == "v6" or version == "v7":
+        packets = construct_packets_v6(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    return packets
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify version, src ip, and number of cores.")
+        print("Please specify version, src ip, number of cores")
         sys.exit(0)
 
     version = sys.argv[1]
-    if version not in ["v1", "v2", "v3"]:
-        print(f"Version {version} is not v1, v2, or v3")
+    if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]:
+        print(f"Version {version} is not v1 - v7")
         sys.exit(0)
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])
+    num_flows = 1
+    if len(sys.argv) >= 5:
+        num_flows = int(sys.argv[4])
+    if num_flows <= 1:
+        num_flows = 1
 
-    set_up_arguments(num_cores, src_ip)
+    set_up_arguments(num_cores, src_ip, num_flows)
     num_pkts_in_md = NUM_cores - 1
+    num_flows_in_md = num_flows - 1
     # print(version, src_mac, src_ip, num_cores)
 
-    send_udp_packets(version, num_pkts_in_md, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    send_udp_packets(version, num_pkts_in_md, num_flows_in_md, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)

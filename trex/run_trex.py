@@ -45,6 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('-t', dest="time", type=int, help='How long(secs) you want to send packets', default=100)
     parser.add_argument('-r', dest="rate", type=float, help='Multiplier send rate in Mpps', default=1)
     parser.add_argument('-nc', dest="num_cores", type=int, help='Number of cores', required=True)
+    parser.add_argument('-nf', dest="num_flows", type=int, help='Number of flows', required=True)
     args = parser.parse_args()
 
     c = STLClient(server='127.0.0.1')
@@ -62,12 +63,13 @@ if __name__ == "__main__":
                     "stream_count": 1,
                     "benchmark": args.benchmark,
                     "version": args.version,
-                    "num_cores": args.num_cores})
+                    "num_cores": args.num_cores,
+                    "num_flows": args.num_flows})
         # Need to specify 'force', or add the destination mac address in /etc/trex_cfg.yaml
         # otherwise, not able to send packets (cannot pass the start check)
         c.start(ports = 0, duration = args.time, mult=f"{rate_to_trex}mpps", force=True)
         time.sleep(1)
-
+        # debug_count = 0
         while True:
             time.sleep(0.5)
             # 1. check whether to start measuring every 0.5 second
@@ -78,8 +80,10 @@ if __name__ == "__main__":
 
             # 2. get statistics every 0.5 second
             expected_actual_rate = (rate-rate*0.01) * pow(10,6)
+            if expected_actual_rate >= 37.2 * pow(10,6):
+               expected_actual_rate = 37 * pow(10,6)
             print("Start measurement")
-            print(f"Expected actual rate: {expected_actual_rate}")
+            print(f"Expected actual rate: {expected_actual_rate}, rate: {rate}")
             rx_pps_list = []
             tx_pps_list = []
             min_l_list = []
@@ -95,23 +99,32 @@ if __name__ == "__main__":
                 if stats[tx_port]["tx_pps"] >= expected_actual_rate:
                     rx_pps_list.append(stats[rx_port]["rx_pps"])
                     tx_pps_list.append(stats[tx_port]["tx_pps"])
-                    latency_stats = stats["latency"][2]["latency"]
-                    min_l_list.append(latency_stats["total_min"])
-                    max_l_list.append(latency_stats["total_max"])
-                    avg_l_list.append(latency_stats["average"])
-                    # print(rx_pps)
-                    # print(tx_pps)
+                    # latency_stats = stats["latency"][2]["latency"]
+                    # min_l_list.append(latency_stats["total_min"])
+                    # max_l_list.append(latency_stats["total_max"])
+                    # avg_l_list.append(latency_stats["average"])
+                    # print(rx_pps_list)
+                    # print(tx_pps_list)
                     count += 1
                     time.sleep(0.5)
+                # mode = 'a'
+                # debug_count += 1
+                # if debug_count == 1:
+                #     mode = 'w'
+                # f = open(f"{output_file}.debug", mode)
+                # writer = csv.writer(f)
+                # lst = [expected_actual_rate, stats[rx_port]["rx_pps"], stats[tx_port]["tx_pps"]]
+                # writer.writerow(lst)
+                # f.close()
             # 4. Store statistics in the file
             print("rx_pps_list: ", rx_pps_list)
             print("tx_pps_list: ", tx_pps_list)
             rx_pps = np.mean(rx_pps_list)
             tx_pps = np.mean(tx_pps_list)
             diff = np.mean(np.abs(np.subtract(rx_pps_list, tx_pps_list)))
-            max_l = np.mean(max_l_list)
-            min_l = np.mean(min_l_list)
-            avg_l = np.mean(avg_l_list)
+            max_l = 0
+            min_l = 0
+            avg_l = 0
             print(f"rx = {rx_pps}")
             print(f"tx = {tx_pps}")
             print(f"diff = {diff}")

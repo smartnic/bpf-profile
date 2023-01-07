@@ -33,20 +33,21 @@ Expected output
 ```
 ......Check OS version......
 No LSB modules are available.
-Distributor ID:	Ubuntu
-Description:	Ubuntu 22.04.1 LTS
-Release:	22.04
-Codename:	jammy
+Distributor ID: Ubuntu
+Description:    Ubuntu 22.04.1 LTS
+Release:    22.04
+Codename:   jammy
 
 ......Check kernel version......
-5.16.0-051600rc5-generic
+6.0.0-060000-generic
 
 ......Check perf version......
-perf version 5.16.0
+perf version
 
 ......Check bpftool version......
-bpftool v5.16.0
-features: libbfd, skeletons
+bpftool v7.0.0
+using libbpf v1.0
+features: libbfd, libbpf_strict, skeletons
 
 ......Check pcm is installed......
 
@@ -100,7 +101,7 @@ cd MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/; sudo ./t-rex-64 -i -c 10
 Wait about 10 seconds until TRex server starts, then open a new terminal to send packets.
 ```
 cd MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/
-sudo python3 run_trex.py -b portknock -v v1 -t 3600 -r 1 -nc 1
+sudo python3 run_trex.py -b portknock -v v1 -t 3600 -r 1 -nc 1 -nf 1
 ```
 TRex server will start sending packets with TX rate = 1Mpps. You could take a look at `Total-PPS` in the TRex server.
 
