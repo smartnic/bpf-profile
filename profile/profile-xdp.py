@@ -108,21 +108,21 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
     # wait until tcpreplay starts
     time.sleep(10)
 
-def run_packet_generator_trex(benchmark, version, core_list, client, tx_rate):
+def run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate):
     # start trex server
     client_cmd = f"sudo bash {TREX_PATH}start_trex_server.sh {TREX_PATH} >log_trex_server.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     time.sleep(30)
     # send packets for 10000 seconds
-    client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} >log.txt 2>&1 &"
+    client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} {num_flows} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     time.sleep(120)
 
-def run_packet_generator(benchmark, version, core_list, client, tx_rate):
+def run_packet_generator(benchmark, version, core_list, client, num_flows, tx_rate):
     if PKTGEN_input == PKTGEN_SCAPY:
         run_packet_generator_scapy(benchmark, version, core_list, client)
     elif PKTGEN_input == PKTGEN_TREX:
-        run_packet_generator_trex(benchmark, version, core_list, client, tx_rate)
+        run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate)
     else:
         print(f"ERROR: pktgen {PKTGEN_input} is not {PKTGEN_SCAPY} or {PKTGEN_TREX}")
 
@@ -143,14 +143,14 @@ def get_benchmark_version(prog_name):
         benchmark = BENCHMARK_hhd
     else:
         benchmark = BENCHMARK_xdpex1
-    versions = ["v1", "v2", "v3"]
+    versions = ["v1", "v2", "v3", "v4", "v5", "v6", "v7"]
     for v in versions:
         if v in prog_name:
             version = v
             break
     return benchmark, version
 
-def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'):
+def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx_rate = '0'):
     # 1. print test name
     print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
     if exists("tmp"):
@@ -164,7 +164,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'
 
     # 3. run packet generator
     benchmark, version = get_benchmark_version(prog_name)
-    run_packet_generator(benchmark, version, core_list, client, tx_rate)
+    run_packet_generator(benchmark, version, core_list, client, num_flows, tx_rate)
 
     # 4. measure the xdp prorgam
     try:
@@ -238,14 +238,14 @@ def run_test(prog_name, core_list, client, seconds, output_folder, tx_rate = '0'
     run_cmd("sudo rm -rf tmp", wait=True)
     time.sleep(5)
 
-def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, run_id, tx_rate):
+def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, run_id, num_flows, tx_rate):
     core_list = []
     for i in range(1, core_num_max + 1):
         core_list.append(i)
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
         run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
-        run_test(prog_name, core_list, CLIENT, duration, output_folder_i, tx_rate)
+        run_test(prog_name, core_list, CLIENT, duration, output_folder_i, num_flows, tx_rate)
 
 def read_machine_info_from_file(input_file):
     client = None
@@ -284,6 +284,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_trex_measure', action='store_true', help='Disable trex measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
     parser.add_argument('--tx_rate_list', dest="tx_rate_list", default="1", help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
+    parser.add_argument('--nf_list', dest="num_flows_list", default="1", help='Number of flows sent to each core, e.g., 1,3. The default list is [1].', required=False)
     args = parser.parse_args()
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name
@@ -304,10 +305,12 @@ if __name__ == "__main__":
         sys.exit(0)
 
     tx_rate_list = args.tx_rate_list.split(',') # it won't be used by PKTGEN_SCAPY
+    num_flows_list = args.num_flows_list.split(',') # it won't be used by PKTGEN_SCAPY
     for run_id in range(0, args.num_runs):
         print(f"Run {run_id} starts......")
-        for tx_rate in tx_rate_list:
-            for version in version_name_list:
-                prog_name_prefix = f"{args.prog_name}_{version}"
-                output_folder_version = f"{args.output_folder}/{tx_rate}/{version}"
-                run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, run_id, tx_rate)
+        for num_flows in num_flows_list:
+            for tx_rate in tx_rate_list:
+                for version in version_name_list:
+                    prog_name_prefix = f"{args.prog_name}_{version}"
+                    output_folder_version = f"{args.output_folder}/{num_flows}/{tx_rate}/{version}"
+                    run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, run_id, num_flows, tx_rate)

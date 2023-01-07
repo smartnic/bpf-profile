@@ -3,3 +3,4 @@
 *.txt
 .DS_Store
 __pycache__
+samples/build/

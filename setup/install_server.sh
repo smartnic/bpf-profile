@@ -24,10 +24,10 @@ install_step2() {
 
     # upgrade kernel
     mkdir tmp; cd tmp
-    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.16-rc5/amd64/linux-headers-5.16.0-051600rc5_5.16.0-051600rc5.202112121931_all.deb
-    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.16-rc5/amd64/linux-headers-5.16.0-051600rc5-generic_5.16.0-051600rc5.202112121931_amd64.deb
-    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.16-rc5/amd64/linux-modules-5.16.0-051600rc5-generic_5.16.0-051600rc5.202112121931_amd64.deb
-    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.16-rc5/amd64/linux-image-unsigned-5.16.0-051600rc5-generic_5.16.0-051600rc5.202112121931_amd64.deb
+    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v6.0/amd64/linux-headers-6.0.0-060000_6.0.0-060000.202210022231_all.deb
+    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v6.0/amd64/linux-headers-6.0.0-060000-generic_6.0.0-060000.202210022231_amd64.deb
+    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v6.0/amd64/linux-modules-6.0.0-060000-generic_6.0.0-060000.202210022231_amd64.deb
+    wget -c https://kernel.ubuntu.com/~kernel-ppa/mainline/v6.0/amd64/linux-image-unsigned-6.0.0-060000-generic_6.0.0-060000.202210022231_amd64.deb
     sudo dpkg -i *.deb
     sudo reboot
 }
@@ -47,12 +47,12 @@ install_step3() {
     sudo apt-get install python3-matplotlib
 
     # download linux source code
-    wget https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/snapshot/linux-5.16.tar.gz
-    tar -xvf linux-5.16.tar.gz
-    rm -rf linux-5.16.tar.gz
+    wget https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/snapshot/linux-6.0.tar.gz
+    tar -xvf linux-6.0.tar.gz
+    rm -rf linux-6.0.tar.gz
 
     # build perf
-    cd linux-5.16/tools/perf/
+    cd linux-6.0/tools/perf/
     make
     cp perf ../../../
 

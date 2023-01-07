@@ -11,7 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <libgen.h>
-#include <sys/resource.h>
 #include <net/if.h>
 
 #include "bpf_util.h"
@@ -26,12 +25,12 @@ static void int_exit(int sig)
 {
   __u32 curr_prog_id = 0;
 
-  if (bpf_get_link_xdp_id(ifindex, &curr_prog_id, xdp_flags)) {
-    printf("bpf_get_link_xdp_id failed\n");
+  if (bpf_xdp_query_id(ifindex, xdp_flags, &curr_prog_id)) {
+    printf("bpf_xdp_query_id failed\n");
     exit(1);
   }
   if (prog_id == curr_prog_id)
-    bpf_set_link_xdp_fd(ifindex, -1, xdp_flags);
+    bpf_xdp_detach(ifindex, xdp_flags, NULL);
   else if (!curr_prog_id)
     printf("couldn't find a prog id on a given interface\n");
   else
@@ -78,15 +77,48 @@ static void usage(const char *prog)
           prog);
 }
 
+struct flow_key {
+  uint32_t src_ip;
+  uint32_t dst_ip;
+  uint16_t src_port;
+  uint16_t dst_port;
+  uint8_t protocol;
+} __attribute__((packed));
+
+struct vecmap_elem {
+  struct flow_key flow;
+  uint64_t size;
+};
+
+#define MAX_NUM_FLOWS 31
+
+/* A sorted (increasing) array */
+struct vecmap {
+  int size;
+  struct vecmap_elem elem_list[MAX_NUM_FLOWS + 1];
+};
+
+static void init_maps(int map_fd)
+{
+  unsigned int nr_cpus = bpf_num_possible_cpus();
+  struct vecmap vec_map[nr_cpus];
+  for (int i = 0; i < nr_cpus; i++) {
+    memset(&(vec_map[i]), 0, sizeof(struct vecmap));
+    vec_map[i].size = 0;
+  }
+
+  __u32 key = 0;
+  int res = bpf_map_update_elem(map_fd, &key, vec_map, BPF_EXIST);
+  printf("init maps res: %d (0 means success).\n", res);
+}
+
 int main(int argc, char **argv)
 {
-  struct bpf_prog_load_attr prog_load_attr = {
-    .prog_type  = BPF_PROG_TYPE_XDP,
-  };
   struct bpf_prog_info info = {};
   __u32 info_len = sizeof(info);
   const char *optstr = "FSNI";
   int prog_fd, map_fd, opt;
+  struct bpf_program *prog;
   struct bpf_object *obj;
   struct bpf_map *map;
   char filename[256];
@@ -98,9 +130,7 @@ int main(int argc, char **argv)
       xdp_flags |= XDP_FLAGS_SKB_MODE;
       break;
     case 'N':
-      /* default, set below */
       ifindex = if_nametoindex(argv[optind]);
-      printf("parameter is:%s\n", argv[optind]);
       break;
     case 'F':
       xdp_flags &= ~XDP_FLAGS_UPDATE_IF_NOEXIST;
@@ -122,15 +152,27 @@ int main(int argc, char **argv)
     usage(basename(argv[0]));
     return 1;
   }
+
   if (!ifindex) {
     perror("if_nametoindex");
     return 1;
   }
-  printf("bpf_prog=%s\n", filename);
-  prog_load_attr.file = filename;
 
-  if (bpf_prog_load_xattr(&prog_load_attr, &obj, &prog_fd))
+  printf("bpf_prog=%s\n", filename);
+  // snprintf(filename, sizeof(filename), "%s_kern.o", argv[0]);
+  obj = bpf_object__open_file(filename, NULL);
+  if (libbpf_get_error(obj))
     return 1;
+
+  prog = bpf_object__next_program(obj, NULL);
+  bpf_program__set_type(prog, BPF_PROG_TYPE_XDP);
+
+  err = bpf_object__load(obj);
+  printf("program is loaded\n");
+  if (err)
+    return 1;
+
+  prog_fd = bpf_program__fd(prog);
 
   map = bpf_object__next_map(obj, NULL);
   if (!map) {
@@ -147,7 +189,7 @@ int main(int argc, char **argv)
   signal(SIGINT, int_exit);
   signal(SIGTERM, int_exit);
 
-  if (bpf_set_link_xdp_fd(ifindex, prog_fd, xdp_flags) < 0) {
+  if (bpf_xdp_attach(ifindex, prog_fd, xdp_flags, NULL) < 0) {
     printf("link set xdp fd failed\n");
     return 1;
   }
@@ -158,6 +200,9 @@ int main(int argc, char **argv)
     return err;
   }
   prog_id = info.id;
+
+  // poll_stats(map_fd, 1);
+  init_maps(map_fd);
   while (1) {}
 
   return 0;
