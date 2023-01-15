@@ -120,7 +120,6 @@ void map_insert(struct statemap* map, struct flow_key* flow, u64 size) {
         return;
       }
     } else if (table_number == SECOND_TABLE) {
-      hash = (((new_elem.flow.protocol + new_elem.flow.src_port + new_elem.flow.dst_port) / MAP_CAPACITY) % MAP_CAPACITY);
       hash = xxhash32(&(new_elem.flow), sizeof(struct flow_key), 0x2d31e987);
       index = (hash / MAP_CAPACITY) % MAP_CAPACITY;
       print_hash(table_number, hash, index);
