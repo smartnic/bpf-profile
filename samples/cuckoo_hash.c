@@ -6,9 +6,10 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "xxhash32.h"
 #define u64 uint64_t
 
-#define MAP_CAPACITY 11
+#define MAP_CAPACITY 1024
 
 #define FIRST_TABLE 0
 #define SECOND_TABLE 1
@@ -42,7 +43,7 @@ struct statemap {
 void print_map_elem(struct statemap_elem* elem) {
   struct flow_key flow = elem->flow;
   uint64_t size = elem->size;
-  printf("%d 0x%08x:%d -> 0x%08x:%d %lld\n", flow.protocol,
+  printf("%d 0x%08x:%d -> 0x%08x:%d %ld\n", flow.protocol,
          flow.src_ip, flow.src_port, flow.dst_ip, flow.dst_port,
          size);
 }
@@ -68,23 +69,23 @@ void print_map(struct statemap* map) {
 }
 
 int insert(struct statemap_elem* new_elem, struct hash_table* table, 
-           int hash, int* table_number) { 
-  struct statemap_elem* curr_elem = &(table->elem_list[hash]);
-  // if the element does not exist, insert the element into the slot
+           int index, int* table_number) { 
+  struct statemap_elem* curr_elem = &(table->elem_list[index]);
+  /* if the element does not exist, insert the element into the slot */
   if (!(curr_elem->is_filled)) {
     (table->size)++;
     memcpy(curr_elem, new_elem, sizeof(struct statemap_elem));
     return 1;
   }
-  // if the element already exist in the first table
-  //  store the old element to a tmp element
+  /* if the element already exist in the first table */
+  /*  store the old element to a tmp element */
   struct statemap_elem tmp_elem;
   memcpy(&tmp_elem, curr_elem, sizeof(struct statemap_elem));
-  //  replace the old element with the new element
+  /*  replace the old element with the new element */
   memcpy(curr_elem, new_elem, sizeof(struct statemap_elem));
-  //  assign tmp element to the table in the next round
+  /*  assign tmp element to the table in the next round */
   memcpy(new_elem, &tmp_elem, sizeof(struct statemap_elem));
-  //  reverse table_number
+  /*  reverse table_number */
   *table_number = !(*table_number);
   return 0;
 }
@@ -93,11 +94,16 @@ void sync_total_map_size(struct statemap* map) {
   map->size = map->table[0].size + map->table[1].size;
 }
 
+void print_hash(int table_number, uint32_t hash, uint32_t index) {
+ printf("at table: %d; actual key: %u; hash key: %u\n", table_number, hash, index);
+}
+
 void map_insert(struct statemap* map, struct flow_key* flow, u64 size) {
   /* Assume map capacity is large enough */
   struct statemap_elem new_elem;
   int table_number = FIRST_TABLE;
-  int hash, status;
+  uint32_t hash, index;
+  int status;
   struct hash_table* table;
   memset(&new_elem, 0, sizeof(struct statemap_elem));
   new_elem.flow = *(flow);
@@ -105,19 +111,20 @@ void map_insert(struct statemap* map, struct flow_key* flow, u64 size) {
   new_elem.is_filled = true;
   while (true) {
     if (table_number == FIRST_TABLE) {
-      hash = ((new_elem.flow.protocol + new_elem.flow.src_port + new_elem.flow.dst_port) % MAP_CAPACITY);
-      printf("at table: %d; actual key: %d; hash key: %d\n", 
-            table_number + 1, (new_elem.flow.protocol + new_elem.flow.src_port + new_elem.flow.dst_port), hash);
-      status = insert(&new_elem, &(map->table[0]), hash, &table_number);
+      hash = xxhash32(&(new_elem.flow), sizeof(struct flow_key), 0x2d31e867);
+      index = hash % MAP_CAPACITY;
+      print_hash(table_number, hash, index);
+      status = insert(&new_elem, &(map->table[0]), index, &table_number);
       if (status) {
         sync_total_map_size(map);
         return;
       }
     } else if (table_number == SECOND_TABLE) {
       hash = (((new_elem.flow.protocol + new_elem.flow.src_port + new_elem.flow.dst_port) / MAP_CAPACITY) % MAP_CAPACITY);
-      printf("at table: %d; actual key: %d; hash key: %d\n", 
-            table_number + 1, (new_elem.flow.protocol + new_elem.flow.src_port + new_elem.flow.dst_port), hash);
-      status = insert(&new_elem, &(map->table[1]), hash, &table_number);
+      hash = xxhash32(&(new_elem.flow), sizeof(struct flow_key), 0x2d31e987);
+      index = (hash / MAP_CAPACITY) % MAP_CAPACITY;
+      print_hash(table_number, hash, index);
+      status = insert(&new_elem, &(map->table[1]), index, &table_number);
       if (status) {
         sync_total_map_size(map);
         return;
@@ -169,7 +176,7 @@ int main() {
 
   uint64_t* size = map_lookup(&map, &flow1);
   if (size) {
-    printf("Lookup(map1, flow1) = %llu\n", *size); // *size should be equal to 128
+    printf("Lookup(map1, flow1) = %lu\n", *size); // *size should be equal to 128
   }
 
   /* test case 3: */
@@ -185,7 +192,7 @@ int main() {
   print_map(&map);
   size = map_lookup(&map, &flow2);
   if (size) {
-    printf("Lookup(map2, flow2) = %llu\n", *size); // *size should be equal to 64
+    printf("Lookup(map2, flow2) = %lu\n", *size); // *size should be equal to 64
   }
 
   /* test case 4: */
