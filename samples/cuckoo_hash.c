@@ -9,7 +9,7 @@
 #include "xxhash32.h"
 #define u64 uint64_t
 
-#define MAP_CAPACITY 11
+#define MAP_CAPACITY 1024
 #define NUMBER_OF_HASH_TABLES 2
 
 #define FIRST_TABLE 0
