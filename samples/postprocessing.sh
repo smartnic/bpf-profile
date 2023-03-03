@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_CORES=8
-BPF_PROGS="xdp_hhd_v1 xdp_hhd_v2 xdp_hhd_v3 xdp_hhd_v4 xdp_hhd_v5 xdp_hhd_v6 xdp_hhd_v7"
+BPF_PROGS="xdp_hhd_v1 xdp_hhd_v5 xdp_hhd_v8 xdp_hhd_v9 xdp_portknock_v1 xdp_portknock_v2 xdp_portknock_v3"
 rm -f *.o
 for prog in $BPF_PROGS
 do
