@@ -24,10 +24,12 @@ enum state {
 
 #define RET_ERR -1
 
+/* size: 46 bytes */
 struct metadata_elem {
-  struct ethhdr eth;
-  struct iphdr ip;
-  struct udphdr udp;
+  struct ethhdr eth; /* 14 bytes */
+  struct iphdr ip;   /* 20 bytes */
+  struct udphdr udp; /* 8 bytes */
+  u32 pkt_size;      /* 4 bytes */
 } __attribute__((packed));
 
 struct {
@@ -79,7 +81,7 @@ int xdp_prog(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth;
   u16 h_proto;
-  u64 nh_off, md_size;
+  u64 nh_off;
   int ipproto;
   u16 dport, sport;
   int rc = XDP_DROP;
@@ -88,9 +90,10 @@ int xdp_prog(struct xdp_md *ctx) {
   u16 cur_port;
 
   struct metadata_elem* md;
+  void* md_start = data;
+  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
   /* safety check of accessing metadata */
-  nh_off = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
-  if (data + nh_off > data_end) {
+  if (md_start + md_size > data_end) {
     return XDP_DROP;
   }
   value = bpf_map_lookup_elem(&port_state, &state_id);
@@ -101,14 +104,14 @@ int xdp_prog(struct xdp_md *ctx) {
   /* read metadata element */
   // bpf_printk("initial state: %d\n", state);
   for (int i = 0; i < NUM_PKTS - 1; i++) {
-    md = data + i * sizeof(struct metadata_elem);
+    md = md_start + i * sizeof(struct metadata_elem);
     cur_port = ntohs(md->udp.dest);
     state = get_new_state(state, cur_port);
     // bpf_printk("%d, dport: %d, state: %d\n", i, cur_port, state);
   }
-  *value = state;
+  // *value = state;
   /* update the start address of the assigned packet */
-  data = data + (NUM_PKTS - 1) * sizeof(struct metadata_elem);
+  data = data + md_size;
   eth = data;
 
   nh_off = sizeof(*eth);
@@ -133,11 +136,11 @@ int xdp_prog(struct xdp_md *ctx) {
     return rc;
   }
 
-  value = bpf_map_lookup_elem(&port_state, &state_id);
-  if (!value) {
-    return rc;
-  }
-  state = *value;
+  // value = bpf_map_lookup_elem(&port_state, &state_id);
+  // if (!value) {
+  //   return rc;
+  // }
+  // state = *value;
 
   // Process the assigned packet
   if (state == OPEN) {
@@ -147,6 +150,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
   *value = state;
 
+  // bpf_printk("bounce packet back\n");
   /* For all valid packets, bounce them back to the packet generator. */
   data = (void *)(long)ctx->data;
   nh_off = sizeof(*eth);
