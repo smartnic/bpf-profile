@@ -146,6 +146,22 @@ def construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
     # hexdump(packet)
     return packets
 
+def construct_packets_v9(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
+    if num_flows_in_md != 0:
+        print("ERROR: num flows cannot > 1")
+        sys.exit(0)
+    packet = None
+    size = 100
+    pkt_size_bytes = size.to_bytes(4, 'little')
+    for _ in range(num_pkts_in_md + 1):
+        if packet is None:
+            packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=pkt_size_bytes)
+        else:
+            packet = packet/Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=pkt_size_bytes)
+    return [packet]
+
+
+
 def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
     packets = []
     if version == "v1" or version == "v5" or version == "v4":
@@ -159,6 +175,8 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
         packets.append(packet)
     elif version == "v6" or version == "v7" or version == "v8":
         packets = construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
+    elif version == "v9":
+        packets = construct_packets_v9(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
     # sendpfast(packet, iface=client_iface)
     # packets = 100 * packet
     sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
@@ -191,6 +209,8 @@ def hhd_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
         packets.append(packet)
     elif version == "v6" or version == "v7" or version == "v8":
         packets = construct_packets_v6(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    elif version == "v9":
+        packets = construct_packets_v9(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     return packets
 
 if __name__ == "__main__":
@@ -199,8 +219,8 @@ if __name__ == "__main__":
         sys.exit(0)
 
     version = sys.argv[1]
-    if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"]:
-        print(f"Version {version} is not v1 - v8")
+    if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]:
+        print(f"Version {version} is not v1 - v9")
         sys.exit(0)
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])

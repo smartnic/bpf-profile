@@ -184,9 +184,51 @@ def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, 
         packets += packet_list[:r]
         sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
+# fixed header
+def construct_packet_with_metadata_v3(sport, dports, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
+    dport = dports[0]
+    packet = None
+    size = 100
+    pkt_size_bytes = size.to_bytes(4, 'little')
+    for _ in range(num_ports_in_md + 1):
+        if packet is None:
+            packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=pkt_size_bytes)
+        else:
+            packet = packet/Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=pkt_size_bytes)
+
+    # packet.show()
+    return packet
+
+def construct_packet_v3(sport, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
+    dports_list = [[DPORT_ARM]]
+    # if not FLGA_ARM:
+    #     dports_list = construct_port_sequences(num_ports_in_md + 1)
+    packet_list = []
+    # print(f"{len(dports_list)} sequences in packets: ")
+    # for dports in dports_list:
+    #     print(dports)
+    for dports in dports_list:
+        packet = construct_packet_with_metadata_v3(sport, dports, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
+        packet_list.append(packet)
+    return packet_list
+
+def send_udp_packets_v3(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
+    packet_list = construct_packet_v3(sport, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
+    if not FLAG_LOOP:
+        sendpfast(packet_list, iface=client_iface)
+    else:
+        n = 100
+        k = int(n / len(packet_list))
+        r = n % len(packet_list)
+        packets = []
+        for i in range(k):
+            packets += packet_list
+        packets += packet_list[:r]
+        sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
+
 # src_ip is used for RSS
 def set_up_arguments(function, num_cores, src_ip):
-    global FLAG_LOOP, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip
+    global FLAG_LOOP, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, NUM_cores
     NUM_cores = num_cores
     if function == "loop":
         FLAG_LOOP = True
@@ -206,6 +248,8 @@ def portknock_construct_packets(function, version, src_ip, num_cores = 0):
         packet_list = construct_packet_v1(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip)
     elif version == "v2":
         packet_list = construct_packet_v2(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip, num_cores-1)
+    elif version == "v3":
+        packet_list = construct_packet_v3(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip, num_cores-1)
     return packet_list
 
 if __name__ == "__main__":
@@ -219,14 +263,14 @@ if __name__ == "__main__":
         sys.exit(0)
 
     version = sys.argv[2]
-    if version != "v1" and version != "v2":
-        print(f"Version {version} is not v1 or v2")
+    if version != "v1" and version != "v2" and version != "v3":
+        print(f"Version {version} is not v1 or v2 or v3")
         sys.exit(0)
     num_cores = 0
     if version == "v2" and len(sys.argv) < 5:
         print("Please specify the number of cores")
         sys.exit(0)
-    if version == "v2":
+    if version == "v2" or version == "v3":
         num_cores = int(sys.argv[4])
 
     src_ip = sys.argv[3]
@@ -237,3 +281,5 @@ if __name__ == "__main__":
         send_udp_packets_v1(CLIENT_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     elif version == "v2":
         send_udp_packets_v2(CLIENT_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip, num_ports_in_md)
+    elif version == "v3":
+        send_udp_packets_v3(CLIENT_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip, num_ports_in_md)
