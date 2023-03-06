@@ -459,3 +459,14 @@ $(obj)/%.o: $(src)/%.c
 ifeq ($(DWARF2BTF),y)
 	$(BTF_PAHOLE) -J $@
 endif
+
+maps: cuckoo_hash
+
+cuckoo_hash:
+	gcc -g cuckoo_hash.c -o cuckoo_hash.out
+
+map:
+	gcc -g map.c -o map.out
+
+clean:
+	rm cuckoo_hash.out map.out
