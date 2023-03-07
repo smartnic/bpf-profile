@@ -16,7 +16,7 @@
 #define MAX_NUM_FLOWS 256
 /* (1 >> TOKEN_RATE) packets per nanosecond */
 #define TOKEN_RATE 10
-#define MAX_TOKEN 16
+#define MAX_TOKEN 16 /* MAX_TOKEN >= token_needed */
 #define RET_ERR -1
 
 struct flow_key {
@@ -106,15 +106,8 @@ int xdp_prog(struct xdp_md* ctx) {
   token = bpf_map_lookup_elem(&token_map, &flow);
   if (!token) {
     /* configure flow initial state in the map */
-    u32 token_new = MAX_TOKEN;
-    u32 token_remain = 0;
-    if (token_new < token_needed) {
-      rc = XDP_DROP;
-      token_remain = token_new;
-    } else {
-      rc = XDP_PASS;
-      token_remain = token_new - token_needed;
-    }
+    rc = XDP_PASS;
+    u32 token_remain = MAX_TOKEN - token_needed;
     struct token_elem elem;
     __builtin_memset(&elem, 0, sizeof(elem));
     elem.num = token_remain;
