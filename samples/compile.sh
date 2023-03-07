@@ -19,4 +19,5 @@ rm -rf $home/bpf-profile/samples/build/
 mkdir -p $home/bpf-profile/samples/build/ 
 mv $home/linux-6.0/samples/bpf/*.o $home/bpf-profile/samples/build/
 mv $home/linux-6.0/samples/bpf/xdpex1 $home/bpf-profile/samples/build/
+mv $home/linux-6.0/samples/bpf/xdp_ddos_mitigator $home/bpf-profile/samples/build/
 echo "output files are in bpf-profile/samples/build/"
