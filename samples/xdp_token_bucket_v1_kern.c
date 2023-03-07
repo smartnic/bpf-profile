@@ -102,7 +102,7 @@ int xdp_prog(struct xdp_md* ctx) {
 
   u64 cur_time = bpf_ktime_get_ns();
   u32 token_needed = 1;
-  bpf_printk("cur_time: %lld\n", cur_time);
+  // bpf_printk("cur_time: %lld\n", cur_time);
   token = bpf_map_lookup_elem(&token_map, &flow);
   if (!token) {
     /* configure flow initial state in the map */
