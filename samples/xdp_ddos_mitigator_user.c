@@ -60,7 +60,7 @@ static bool is_percpu_map(char* filename) {
 
 // * key (uint32_t): ipv4 address.
 // * value (u64): used for matched rules counters.
-static void init_blacklist(int map_fd, bool percpu_map)
+static void init_blocklist(int map_fd, bool percpu_map)
 {
   __u32 key = inet_addr("10.10.1.0");
   __u64 value = 0;
@@ -142,7 +142,7 @@ int main(int argc, char **argv)
 
   prog_fd = bpf_program__fd(prog);
 
-  const char* map_name = "srcblacklist";
+  const char* map_name = "srcblocklist";
   map = bpf_object__find_map_by_name(obj, map_name);
   if (!map) {
     printf("finding a map in obj file failed\n");
@@ -171,7 +171,7 @@ int main(int argc, char **argv)
   prog_id = info.id;
 
   percpu_map = is_percpu_map(filename);
-  init_blacklist(map_fd, percpu_map);
+  init_blocklist(map_fd, percpu_map);
   while (1) {}
 
   return 0;

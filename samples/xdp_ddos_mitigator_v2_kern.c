@@ -43,7 +43,7 @@ struct {
 // BPF_TABLE("percpu_array", int, u64, dropcnt, 1);
 
 /*
- * srcblacklist is used to lookup and filter pkts using ipv4 src addresses.
+ * srcblocklist is used to lookup and filter pkts using ipv4 src addresses.
  * key (uint32_t): ipv4 address.
  * value (u64): used for matched rules counters.
  */
@@ -53,13 +53,13 @@ struct {
   __type(key, uint32_t);
   __type(value, u64);
   __uint(max_entries, 1024);
-} srcblacklist SEC(".maps");
-// BPF_TABLE("percpu_hash", uint32_t, u64, srcblacklist, 1024);
+} srcblocklist SEC(".maps");
+// BPF_TABLE("percpu_hash", uint32_t, u64, srcblocklist, 1024);
 // TODO it should be u64 as value
 #endif
 
 /*
- * dstblacklist is used to lookup and filter pkts using ipv4 dst addresses.
+ * dstblocklist is used to lookup and filter pkts using ipv4 dst addresses.
  * key (uint32_t): ipv4 address.
  * value (u64): used for matched rules counters.
  */
@@ -69,8 +69,8 @@ struct {
   __type(key, uint32_t);
   __type(value, u64);
   __uint(max_entries, 1024);
-} dstblacklist SEC(".maps");
-// BPF_TABLE("percpu_hash", uint32_t, u64, dstblacklist, 1024);
+} dstblocklist SEC(".maps");
+// BPF_TABLE("percpu_hash", uint32_t, u64, dstblocklist, 1024);
 // TODO it should be u64 as value
 #endif
 
@@ -94,7 +94,7 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
   uint32_t src = iph->saddr & 0xf8ffffff;
 
   // bpf_printk("src: %04x\n", src);
-  u64 *cntsrc = bpf_map_lookup_elem(&srcblacklist, &src);
+  u64 *cntsrc = bpf_map_lookup_elem(&srcblocklist, &src);
   if (cntsrc) {
     *cntsrc += 1;
     return iph->protocol;
@@ -105,7 +105,7 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
 #if DST_MATCH
   uint32_t dst = iph->daddr & 0xf8ffffff;
 
-  u64 cntdst = bpf_map_lookup_elem(&dstblacklist, &dst);
+  u64 cntdst = bpf_map_lookup_elem(&dstblocklist, &dst);
   if (cntdst) {
     *cntdst += 1;
     return iph->protocol;
