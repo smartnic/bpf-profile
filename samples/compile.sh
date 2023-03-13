@@ -1,6 +1,6 @@
 #!/bin/sh
 
-home=~
+home=/data/local/qx51
 cp $home/bpf-profile/samples/*.c $home/linux-6.0/samples/bpf/
 cp $home/bpf-profile/samples/*.h $home/linux-6.0/samples/bpf/
 cp $home/bpf-profile/samples/Makefile $home/linux-6.0/samples/bpf/
@@ -20,4 +20,5 @@ mkdir -p $home/bpf-profile/samples/build/
 mv $home/linux-6.0/samples/bpf/*.o $home/bpf-profile/samples/build/
 mv $home/linux-6.0/samples/bpf/xdpex1 $home/bpf-profile/samples/build/
 mv $home/linux-6.0/samples/bpf/xdp_ddos_mitigator $home/bpf-profile/samples/build/
+mv $home/linux-6.0/samples/bpf/xdp_nat_dp $home/bpf-profile/samples/build/
 echo "output files are in bpf-profile/samples/build/"
