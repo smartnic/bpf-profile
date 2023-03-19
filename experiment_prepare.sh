@@ -1,14 +1,17 @@
 #!/bin/sh
 
 dir=experiment
+home="/data/local/qx51"
 rm -rf $dir
 mkdir $dir
 cd $dir
 # copy BPF benchmarks
-cp ~/bpf-profile/samples/build/* .
+cp $home/bpf-profile/samples/build/* .
 # copy profile tools
-cp ~/perf .
+cp $home/perf .
 # copy machine config
-cp ~/bpf-profile/profile/config.xl170 .
+cp $home/bpf-profile/profile/config.xl170 .
 # copy profile script
-cp ~/bpf-profile/profile/profile-xdp.py .
+cp $home/bpf-profile/profile/profile-xdp.py .
+cp $home/bpf-profile/profile/client.py .
+cp $home/bpf-profile/profile/socket_commands.py .

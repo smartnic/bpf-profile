@@ -7,8 +7,10 @@ import os
 import sys
 import time
 from os.path import expanduser
+from client import send_command
 
-home = expanduser("~")
+# client_home = expanduser("~")
+client_home = "/home/qx51"
 START_DPORT = 12
 START_SPORT = 53
 
@@ -41,7 +43,7 @@ CPU_AMD = "amd"
 PKTGEN_SCAPY = "scapy"
 PKTGEN_TREX = "trex"
 PKTGEN_input = ""
-TREX_PATH = f"{home}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
+TREX_PATH = f"{client_home}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
 
 def get_prog_tag():
     cmd = "bpftool prog show | grep xdp"
@@ -71,8 +73,11 @@ def run_cmd_on_core(cmd, core_id):
     run_cmd(cmd, wait=False)
 
 def run_cmd_on_client(client_cmd, client):
-    cmd = f"ssh -p 22 {client} \"nohup sudo sh -c '{client_cmd}'\""
-    run_cmd(cmd)
+    # cmd = f"ssh -p 22 {client} \"nohup sudo sh -c '{client_cmd}'\""
+    # run_cmd(cmd)
+    cmd = f"nohup sudo sh -c '{client_cmd}'"
+    res = send_command(cmd)
+    print(f"run_cmd_on_client: {res}")
 
 def kill_process_on_client(process, client):
     client_cmd = f"pkill -f {process} >/dev/null 2>&1 &"
@@ -96,13 +101,13 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
         if benchmark == BENCHMARK_portknock:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"loop {version} {rss_para} {len(core_list)}"
-            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_hhd:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"{version} {rss_para} {len(core_list)}"
-            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &"
         else:
-            client_cmd = f"sudo python3 -u {home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
         run_cmd_on_client(client_cmd, client)
     # wait some seconds for the packet generation start sending packets
     # wait until tcpreplay starts
@@ -150,7 +155,8 @@ def get_benchmark_version(prog_name):
             break
     return benchmark, version
 
-def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx_rate = '0'):
+def run_test(prog_name, core_list, client, seconds, output_folder,
+             output_folder_trex, num_flows, tx_rate = '0'):
     # 1. print test name
     print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
     if exists("tmp"):
@@ -177,7 +183,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx
     # 4.1 use perf to do instruction level sampling
     if not DISABLE_insn_latency:
         if not DISABLE_trex_measure_parallel:
-            start_trex_measure(client, f"{output_folder}/perf/")
+            start_trex_measure(client, f"{output_folder_trex}/perf/")
         tmp_out_file = "tmp/" + prog_name + "_perf.data"
         core_list_str = ",".join([str(x) for x in core_list])
         cmd = "sudo ./perf record -F 25250 --cpu " + core_list_str + " -o " + tmp_out_file + " sleep " + str(seconds)
@@ -193,7 +199,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx
     # todo: remove "llc_misses" since not able to create this event on AMD machines
     if not DISABLE_prog_latency:
         if not DISABLE_trex_measure_parallel:
-            start_trex_measure(client, f"{output_folder}/prog/")
+            start_trex_measure(client, f"{output_folder_trex}/prog/")
         cmd = "sudo bpftool prog profile tag " + tag + " duration " + str(seconds) + " cycles instructions > tmp/prog.txt"
         run_cmd(cmd, wait=True)
         if not DISABLE_trex_measure_parallel:
@@ -203,7 +209,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx
     # 4.3 use kernel stats to measure overall latency (nanoseconds)
     if not DISABLE_prog_latency_ns:
         if not DISABLE_trex_measure_parallel:
-            start_trex_measure(client, f"{output_folder}/prog_ns/")
+            start_trex_measure(client, f"{output_folder_trex}/prog_ns/")
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=1", wait=True)
         time.sleep(seconds)
         run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=0", wait=True)
@@ -215,7 +221,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx
     # 4.4 use pcm to measure performance counters
     if not DISABLE_pcm:
         if not DISABLE_trex_measure_parallel:
-            start_trex_measure(client, f"{output_folder}/pcm/")
+            start_trex_measure(client, f"{output_folder_trex}/pcm/")
         run_cmd(f"sudo nohup pcm {seconds} -i=1 -csv=tmp/pcm.csv &", wait=False)
         run_cmd(f"sudo nohup pcm-memory {seconds} -i=1 -csv=tmp/pcm_memory.csv &", wait=False)
         time.sleep(seconds + 2)
@@ -225,7 +231,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx
 
     # 4.5 run trex measurement on the packet generator
     if not DISABLE_trex_measure:
-        start_trex_measure(client, f"{output_folder}/no_profile/")
+        start_trex_measure(client, f"{output_folder_trex}/no_profile/")
         time.sleep(seconds)
         stop_trex_measure(client)
         time.sleep(5)
@@ -238,14 +244,17 @@ def run_test(prog_name, core_list, client, seconds, output_folder, num_flows, tx
     run_cmd("sudo rm -rf tmp", wait=True)
     time.sleep(5)
 
-def run_tests_versions(prog_name_prefix, core_num_max, duration, output_folder, run_id, num_flows, tx_rate):
+def run_tests_versions(prog_name_prefix, core_num_max, duration,
+                       output_folder, output_folder_trex, run_id, num_flows, tx_rate):
     core_list = []
     for i in range(1, core_num_max + 1):
         core_list.append(i)
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
         run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
-        run_test(prog_name, core_list, CLIENT, duration, output_folder_i, num_flows, tx_rate)
+        output_folder_i_trex = output_folder_trex + "/" + str(i) + "/" + str(run_id)
+        run_test(prog_name, core_list, CLIENT, duration, output_folder_i,
+            output_folder_i_trex, num_flows, tx_rate)
 
 def read_machine_info_from_file(input_file):
     client = None
@@ -269,7 +278,8 @@ def read_machine_info_from_file(input_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about data')
-    parser.add_argument('-o', dest="output_folder", type=str, help='Output path', required=True)
+    parser.add_argument('-o', dest="output_folder", type=str, help='Output path on DUT', required=True)
+    parser.add_argument('--o_trex', dest="output_folder_trex", type=str, default=None, help='Output path on trex machine, default is the same as output path on DUT', required=False)
     parser.add_argument('-b', dest="prog_name", type=str, help='Benchmark', required=True)
     parser.add_argument('-v', dest="versions", type=str, help='Version names for the benchmark', required=True)
     parser.add_argument('-l', dest="loader_name", type=str, help='Program used for loading benchmark', required=True)
@@ -286,6 +296,8 @@ if __name__ == "__main__":
     parser.add_argument('--tx_rate_list', dest="tx_rate_list", default="1", help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     parser.add_argument('--nf_list', dest="num_flows_list", default="1", help='Number of flows sent to each core, e.g., 1,3. The default list is [1].', required=False)
     args = parser.parse_args()
+    if args.output_folder_trex is None:
+        args.output_folder_trex = args.output_folder
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name
     DISABLE_prog_latency = args.disable_prog_latency
@@ -312,5 +324,7 @@ if __name__ == "__main__":
             for tx_rate in tx_rate_list:
                 for version in version_name_list:
                     prog_name_prefix = f"{args.prog_name}_{version}"
-                    output_folder_version = f"{args.output_folder}/{num_flows}/{tx_rate}/{version}"
-                    run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration, output_folder_version, run_id, num_flows, tx_rate)
+                    output_folder_version_dut = f"{args.output_folder}/{num_flows}/{tx_rate}/{version}"
+                    output_folder_version_trex = f"{args.output_folder_trex}/{num_flows}/{tx_rate}/{version}"
+                    run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration,
+                        output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate)

@@ -10,7 +10,8 @@ from scapy.all import*
 import sys
 from os.path import expanduser
 
-home = expanduser("~")
+#home = expanduser("~")
+home = "/home/qx51"
 SPORT_ARM = 53
 DPORT_ARM = 12
 CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
