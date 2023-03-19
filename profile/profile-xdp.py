@@ -34,6 +34,9 @@ DISABLE_trex_measure = False
 DISABLE_trex_measure_parallel = False
 BENCHMARK_portknock = "portknock"
 BENCHMARK_hhd = "hhd"
+BENCHMARK_ddos_mitigator = "ddos_mitigator"
+BENCHMARK_token_bucket = "token_bucket"
+BENCHMARK_nat_dp = "nat_dp"
 BENCHMARK_xdpex1 = "xdpex1"
 
 CPU_ARM = "arm"
@@ -106,6 +109,18 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"{version} {rss_para} {len(core_list)}"
             client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &"
+        elif benchmark == BENCHMARK_ddos_mitigator:
+            rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
+            paras = f"{version} {rss_para} {len(core_list)}"
+            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_ddos_mitigator.py {paras} >log.txt 2>&1 &"
+        elif benchmark == BENCHMARK_token_bucket:
+            rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
+            paras = f"{version} {rss_para} {len(core_list)}"
+            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_token_bucket.py {paras} >log.txt 2>&1 &"
+        elif benchmark == BENCHMARK_nat_dp:
+            rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
+            paras = f"{version} {rss_para} {len(core_list)}"
+            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_nat_dp.py {paras} >log.txt 2>&1 &"
         else:
             client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
         run_cmd_on_client(client_cmd, client)
@@ -146,6 +161,12 @@ def get_benchmark_version(prog_name):
         benchmark = BENCHMARK_portknock
     elif BENCHMARK_hhd in prog_name:
         benchmark = BENCHMARK_hhd
+    elif BENCHMARK_ddos_mitigator in prog_name:
+        benchmark = BENCHMARK_ddos_mitigator
+    elif BENCHMARK_token_bucket in prog_name:
+        benchmark = BENCHMARK_token_bucket
+    elif BENCHMARK_nat_dp in prog_name:
+        benchmark = BENCHMARK_nat_dp
     else:
         benchmark = BENCHMARK_xdpex1
     versions = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]

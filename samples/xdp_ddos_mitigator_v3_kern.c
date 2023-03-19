@@ -29,12 +29,13 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
-/* size: 46 bytes */
+/* size: 54 bytes */
 struct metadata_elem {
   struct ethhdr eth; /* 14 bytes */
   struct iphdr ip;   /* 20 bytes */
   struct udphdr udp; /* 8 bytes */
   u32 pkt_size;      /* 4 bytes */
+  u64 time;          /* 8 bytes */
 } __attribute__((packed));
 
 /*
