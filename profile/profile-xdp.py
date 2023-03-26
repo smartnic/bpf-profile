@@ -333,7 +333,7 @@ def run_tests_versions(prog_name_prefix, core_num_max, duration,
             output_folder_i_trex, num_flows, tx_rate)
 
 def run_mlffr_versions(prog_name_prefix, core_num_max, duration,
-                       output_folder, output_folder_trex, run_id, num_flows, tx_rate):
+                       output_folder, run_id, num_flows):
     if DISABLE_mlffr:
         return
     core_list = []
@@ -342,7 +342,6 @@ def run_mlffr_versions(prog_name_prefix, core_num_max, duration,
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
         run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
-        output_folder_i_trex = output_folder_trex + "/" + str(i) + "/" + str(run_id)
         measure_mlffr(prog_name, core_list, CLIENT, duration, output_folder_i, num_flows)
 
 def read_machine_info_from_file(input_file):
@@ -407,10 +406,11 @@ if __name__ == "__main__":
     if PKTGEN_input != PKTGEN_SCAPY and PKTGEN_input != PKTGEN_TREX:
         sys.exit(0)
     # read client and server_iface from config.xl170
-    CLIENT, SERVER_IFACE = read_machine_info_from_file(CONFIG_file_xl170)
-    if CLIENT is None or SERVER_IFACE is None:
+    CLIENT, SERVER_IFACE, CLIENT_DIR = read_machine_info_from_file(CONFIG_file_xl170)
+    if CLIENT is None or SERVER_IFACE is None or CLIENT_DIR is None:
         sys.exit(0)
 
+    TREX_PATH = f"{CLIENT_DIR}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
     tx_rate_list = args.tx_rate_list.split(',') # it won't be used by PKTGEN_SCAPY
     num_flows_list = args.num_flows_list.split(',') # it won't be used by PKTGEN_SCAPY
     for run_id in range(0, args.num_runs):
@@ -422,9 +422,8 @@ if __name__ == "__main__":
                 t_start_v = time.time()
                 prog_name_prefix = f"{args.prog_name}_{version}"
                 output_folder_version_dut = f"{args.output_folder}/{num_flows}/{version}"
-                output_folder_version_trex = f"{args.output_folder_trex}/{num_flows}/{version}"
-                run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration,
-                    output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate)
+                run_mlffr_versions(prog_name_prefix, args.num_cores_max, args.duration,
+                    output_folder_version_dut, run_id, num_flows)
                 time_cost_v = time.time() - t_start_v
                 print(f"Run {run_id} {version} mlffr ends. time_cost: {time_cost_v}")
             for tx_rate in tx_rate_list:

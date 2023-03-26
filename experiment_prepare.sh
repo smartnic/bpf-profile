@@ -5,9 +5,7 @@ config_file="bpf-profile/profile/config.xl170"
 home_keyword="server_dir"
 while read -r line
 do
-  echo "$line"
   if [[ "$line" == *"$home_keyword"* ]]; then
-    echo "$line"
     IFS=" " read name home <<< "$line"
     break
   fi

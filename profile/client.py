@@ -1,10 +1,32 @@
 import socket
 from socket_commands import *
+from os.path import exists
 
-IP = "172.16.90.134"  # The server's hostname or IP address
+CONFIG_file_xl170 = "config.xl170"
+IP = ""  # The server's hostname or IP address
 PORT = 65432  # The port used by the server
 
+def read_machine_info_from_file(keyword):
+    input_file = CONFIG_file_xl170
+    res = None
+    if not exists(input_file):
+        print(f"ERROR: no such file {input_file}. Stop process...")
+        sys.exit(0)
+    f = open(input_file, "r")
+    for line in f:
+        line = line.strip().split(":", 1)
+        if len(line) < 2:
+            continue
+        if line[0] == keyword:
+            res = line[1].strip()
+    f.close()
+    if res is None:
+        print(f"ERROR: no {keyword} in {input_file}. Stop process...")
+        sys.exit(0)
+    return res
+
 def send_command(cmd):
+    IP = read_machine_info_from_file("client_tcp_ip")
     print(f"send_command: {cmd}")
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((IP, PORT))
