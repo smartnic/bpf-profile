@@ -56,8 +56,8 @@ def measure_rx(rate, measure_time, benchmark, version, num_cores, num_flows):
         print(f"Expected actual rate: {expected_actual_rate} pps, rate: {rate} mpps")
 
         print("Wait for measurement......")
-        # time.sleep(max_wait_time)
-        time.sleep(10)
+        time.sleep(max_wait_time)
+        # time.sleep(10)
         # while True:
         #     time.sleep(1)
         #     wait_time = time.time() - t_wait_start
