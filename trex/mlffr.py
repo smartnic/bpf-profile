@@ -90,9 +90,6 @@ def measure_rx(rate, measure_time, benchmark, version, num_cores, num_flows):
                 break
             time.sleep(0.5)
             stats = c.get_stats()
-            print(f"\nbefore:\n{stats}")
-            stats = c.get_stats()
-            print(f"\nafter:\n{stats}")
             if tx_port not in stats:
                 continue
             if "tx_pps" not in stats[tx_port]:

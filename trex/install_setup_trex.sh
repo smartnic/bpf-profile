@@ -19,6 +19,7 @@ cp $home/bpf-profile/trex/trex_measure_stop.py .
 cp $home/bpf-profile/trex/mlffr.py .
 cp $home/bpf-profile/profile/server.py .
 cp $home/bpf-profile/profile/socket_commands.py .
+cp $home/bpf-profile/profile/config.xl170 .
 cp $home/bpf-profile/trex/udp_for_benchmarks.py stl/
 cp $home/bpf-profile/profile/config.py stl/
 cp $home/bpf-profile/profile/send_udp_packets*.py stl/
