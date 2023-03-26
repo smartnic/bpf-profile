@@ -17,5 +17,4 @@ cp $home/bpf-profile/trex/run_trex.py .
 cp $home/bpf-profile/trex/trex_measure_start.py .
 cp $home/bpf-profile/trex/trex_measure_stop.py .
 cp $home/bpf-profile/trex/udp_for_benchmarks.py stl/
-cp $home/bpf-profile/profile/send_udp_packets_portknock.py stl/
-cp $home/bpf-profile/profile/send_udp_packets_hhd.py stl/
+cp $home/bpf-profile/profile/send_udp_packets*.py stl/
