@@ -3,14 +3,13 @@ from os.path import exists
 from scapy.all import*
 import sys
 from os.path import expanduser
+from config import client_dir
 
-# home = expanduser("~")
-home = "/home/qx51"
-CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
+CONFIG_file_xl170 = f"{client_dir}/bpf-profile/profile/config.xl170"
 
 SPORT_ARM = 53
 DPORT_ARM = 12
-CPU_ARM = "arm"
+CPU_ARM = "arm" 
 CPU_INTEL = "intel"
 CPU_AMD = "amd"
 

@@ -9,12 +9,12 @@ from os.path import exists
 from scapy.all import*
 import sys
 from os.path import expanduser
+from config import *
 
-#home = expanduser("~")
-home = "/home/qx51"
 SPORT_ARM = 53
 DPORT_ARM = 12
-CONFIG_file_xl170 = f"{home}/bpf-profile/profile/config.xl170"
+
+CONFIG_file_xl170 = f"{client_dir}/bpf-profile/profile/config.xl170"
 # # DPORT_SEQ won't be used for arm machines
 # DPORT_SEQ = [100, 101, 102]
 PORT_START = 1

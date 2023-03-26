@@ -4,8 +4,8 @@ home=$1
 sudo pip3 install trex-stl-lib
 sudo pip3 install numpy
 sudo cp $home/bpf-profile/trex/trex_cfg.yaml /etc/trex_cfg.yaml
-sudo mkdir -p /root/bpf-profile/profile/
-sudo cp $home/bpf-profile/profile/config.xl170 /root/bpf-profile/profile/
+# sudo mkdir -p /root/bpf-profile/profile/
+# sudo cp $home/bpf-profile/profile/config.xl170 /root/bpf-profile/profile/
 wget --no-check-certificate --no-cache https://trex-tgn.cisco.com/trex/release/v2.87.tar.gz
 tar -xzvf v2.87.tar.gz
 mv v2.87 MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64
@@ -20,4 +20,5 @@ cp $home/bpf-profile/trex/mlffr.py .
 cp $home/bpf-profile/profile/server.py .
 cp $home/bpf-profile/profile/socket_commands.py .
 cp $home/bpf-profile/trex/udp_for_benchmarks.py stl/
+cp $home/bpf-profile/profile/config.py stl/
 cp $home/bpf-profile/profile/send_udp_packets*.py stl/
