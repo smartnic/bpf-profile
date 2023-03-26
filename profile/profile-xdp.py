@@ -8,6 +8,7 @@ import sys
 import time
 from os.path import expanduser
 from client import send_command
+from socket_commands import *
 
 CLIENT_DIR = ""
 START_DPORT = 12
@@ -31,6 +32,7 @@ DISABLE_insn_latency = False
 DISABLE_pcm = False
 DISABLE_trex_measure = False
 DISABLE_trex_measure_parallel = False
+DISABLE_mlffr = False
 BENCHMARK_portknock = "portknock"
 BENCHMARK_hhd = "hhd"
 BENCHMARK_ddos_mitigator = "ddos_mitigator"
@@ -80,6 +82,12 @@ def run_cmd_on_client(client_cmd, client):
     cmd = f"nohup sudo sh -c '{client_cmd}'"
     res = send_command(cmd)
     print(f"run_cmd_on_client: {res}")
+    return res
+
+def run_unmodified_cmd_on_client(client_cmd, client):
+    res = send_command(client_cmd)
+    print(f"run_cmd_on_client: {res}")
+    return res
 
 def kill_process_on_client(process, client):
     client_cmd = f"pkill -f {process} >/dev/null 2>&1 &"
@@ -127,11 +135,14 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
     # wait until tcpreplay starts
     time.sleep(10)
 
-def run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate):
-    # start trex server
+def start_trex_server(client):
     client_cmd = f"sudo bash {TREX_PATH}start_trex_server.sh {TREX_PATH} >log_trex_server.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     time.sleep(30)
+
+def run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate):
+    # start trex server
+    start_trex_server(client)
     # send packets for 10000 seconds
     client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} {num_flows} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
@@ -174,6 +185,49 @@ def get_benchmark_version(prog_name):
             version = v
             break
     return benchmark, version
+
+def measure_mlffr(prog_name, core_list, client, seconds, output_folder, num_flows):
+    if PKTGEN_input != PKTGEN_TREX:
+        print("ERROR: packet generator should be trex for measuring mlffr")
+        return
+    # 1. print test name
+    print("Test mlffr ",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
+    if exists("tmp"):
+        run_cmd("rm -rf tmp", wait=True)
+    run_cmd("mkdir tmp", wait=True)
+
+    # 2. attach xdp program
+    run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
+    cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
+    run_cmd_on_core(cmd, 0)
+
+    # 3. start trex server
+    start_trex_server(client)
+
+    # 4. send mlffr measurement command to the packet generator
+    benchmark, version = get_benchmark_version(prog_name)
+    num_cores = len(core_list)
+    measure_time = seconds
+    rate_high = 27.2
+    rate_low = 0
+    precision = 0.1
+    paras = f"{benchmark} {version} {num_cores} {num_flows} {measure_time} {rate_high} {rate_low} {precision}"
+    client_cmd = f"{CMD_MEASURE_MLFFR} {paras}"
+    mlffr = run_unmodified_cmd_on_client(client_cmd, client)
+    print(f"mlffr: {mlffr}")
+    fout = open("tmp/mlffr.txt", "w")
+    line = f"{mlffr}\n"
+    fout.write(line)
+    fout.close()
+
+    # 5. clean environment
+    clean_environment(client, prog_name)
+
+    # 6. move the files to the output folder
+    run_cmd("sudo mv tmp/* " + output_folder, wait=True)
+    run_cmd("sudo rm -rf tmp", wait=True)
+    time.sleep(5)
+
 
 def run_test(prog_name, core_list, client, seconds, output_folder,
              output_folder_trex, num_flows, tx_rate = '0'):
@@ -266,6 +320,8 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
 
 def run_tests_versions(prog_name_prefix, core_num_max, duration,
                        output_folder, output_folder_trex, run_id, num_flows, tx_rate):
+    if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_trex_measure:
+        return
     core_list = []
     for i in range(1, core_num_max + 1):
         core_list.append(i)
@@ -275,6 +331,19 @@ def run_tests_versions(prog_name_prefix, core_num_max, duration,
         output_folder_i_trex = output_folder_trex + "/" + str(i) + "/" + str(run_id)
         run_test(prog_name, core_list, CLIENT, duration, output_folder_i,
             output_folder_i_trex, num_flows, tx_rate)
+
+def run_mlffr_versions(prog_name_prefix, core_num_max, duration,
+                       output_folder, output_folder_trex, run_id, num_flows, tx_rate):
+    if DISABLE_mlffr:
+        return
+    core_list = []
+    for i in range(1, core_num_max + 1):
+        core_list.append(i)
+        prog_name = f"{prog_name_prefix}_p{i}"
+        output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
+        run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
+        output_folder_i_trex = output_folder_trex + "/" + str(i) + "/" + str(run_id)
+        measure_mlffr(prog_name, core_list, CLIENT, duration, output_folder_i, num_flows)
 
 def read_machine_info_from_file(input_file):
     client = None
@@ -316,6 +385,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_pcm', action='store_true', help='Disable pcm measurement', required=False)
     parser.add_argument('--disable_trex_measure_parallel', action='store_true', help='Disable trex measurement while measuring other metrics: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_trex_measure', action='store_true', help='Disable trex measurement: round-trip latency and throughput', required=False)
+    parser.add_argument('--disable_mlffr', action='store_true', help='Measure MLFFR', required=False)
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
     parser.add_argument('--tx_rate_list', dest="tx_rate_list", default="1", help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     parser.add_argument('--nf_list', dest="num_flows_list", default="1", help='Number of flows sent to each core, e.g., 1,3. The default list is [1].', required=False)
@@ -330,26 +400,42 @@ if __name__ == "__main__":
     DISABLE_pcm = args.disable_pcm
     DISABLE_trex_measure_parallel = args.disable_trex_measure_parallel
     DISABLE_trex_measure = args.disable_trex_measure
-    if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_trex_measure:
+    DISABLE_mlffr = args.disable_mlffr
+    if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_trex_measure and DISABLE_mlffr:
         sys.exit(0)
     PKTGEN_input = args.pktgen
     if PKTGEN_input != PKTGEN_SCAPY and PKTGEN_input != PKTGEN_TREX:
         sys.exit(0)
     # read client and server_iface from config.xl170
-    CLIENT, SERVER_IFACE, CLIENT_DIR = read_machine_info_from_file(CONFIG_file_xl170)
-    if CLIENT is None or SERVER_IFACE is None or CLIENT_DIR is None:
+    CLIENT, SERVER_IFACE = read_machine_info_from_file(CONFIG_file_xl170)
+    if CLIENT is None or SERVER_IFACE is None:
         sys.exit(0)
 
-    TREX_PATH = f"{CLIENT_DIR}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
     tx_rate_list = args.tx_rate_list.split(',') # it won't be used by PKTGEN_SCAPY
     num_flows_list = args.num_flows_list.split(',') # it won't be used by PKTGEN_SCAPY
     for run_id in range(0, args.num_runs):
         print(f"Run {run_id} starts......")
+        t_start = time.time()
         for num_flows in num_flows_list:
+            # mlffr should have a different loop, not reply on tx_rate_list
+            for version in version_name_list:
+                t_start_v = time.time()
+                prog_name_prefix = f"{args.prog_name}_{version}"
+                output_folder_version_dut = f"{args.output_folder}/{num_flows}/{version}"
+                output_folder_version_trex = f"{args.output_folder_trex}/{num_flows}/{version}"
+                run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration,
+                    output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate)
+                time_cost_v = time.time() - t_start_v
+                print(f"Run {run_id} {version} mlffr ends. time_cost: {time_cost_v}")
             for tx_rate in tx_rate_list:
                 for version in version_name_list:
+                    t_start_v = time.time()
                     prog_name_prefix = f"{args.prog_name}_{version}"
                     output_folder_version_dut = f"{args.output_folder}/{num_flows}/{tx_rate}/{version}"
                     output_folder_version_trex = f"{args.output_folder_trex}/{num_flows}/{tx_rate}/{version}"
                     run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration,
                         output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate)
+                    time_cost_v = time.time() - t_start_v
+                    print(f"Run {run_id} {version} test ends. time_cost: {time_cost_v}")
+        time_cost = time.time() - t_start
+        print(f"Run {run_id} ends. time_cost: {time_cost}")

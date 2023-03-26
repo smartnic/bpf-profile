@@ -10,10 +10,7 @@ def send_command(cmd):
         s.connect((IP, PORT))
         s.sendall(bytes(cmd, 'utf-8'))
         data = s.recv(1024).decode('utf-8')
-        if data == CMD_RECVD:
-            return True
-        else:
-            return False
+        return data
 
 if __name__ == "__main__":
     res = send_command(CMD_START_TREX)
