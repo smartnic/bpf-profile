@@ -6,3 +6,5 @@ server_iface: ens1f1np1
 server_mac: 9c:dc:71:5d:51:21
 server_ip: 10.10.1.2
 server_cpu: intel
+server_dir: /data/local/
+client_dir: /data/local/

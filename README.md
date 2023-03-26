@@ -129,12 +129,12 @@ ssh -p 22 root@hp047.utah.cloudlab.us
 
 #### b. Compile BPF benchmarks on node-0
 ```
-cd ~; sudo sh ~/bpf-profile/samples/compile.sh
+sudo bash bpf-profile/samples/compile.sh
 ```
 
 #### c. Preparations for experiments on node-0
 ```
-cd ~; sh ~/bpf-profile/experiment_prepare.sh
+bash bpf-profile/experiment_prepare.sh
 ```
 
 #### d. Run experiments on node-0

@@ -1,7 +1,20 @@
-#!/bin/sh
+#!/bin/bash
+
+home=""
+config_file="bpf-profile/profile/config.xl170"
+home_keyword="server_dir"
+while read -r line
+do
+  echo "$line"
+  if [[ "$line" == *"$home_keyword"* ]]; then
+    echo "$line"
+    IFS=" " read name home <<< "$line"
+    break
+  fi
+done < "$config_file"
+echo "server_dir is $home"
 
 dir=experiment
-home="/data/local/qx51"
 rm -rf $dir
 mkdir $dir
 cd $dir

@@ -9,8 +9,7 @@ import time
 from os.path import expanduser
 from client import send_command
 
-# client_home = expanduser("~")
-client_home = "/home/qx51"
+CLIENT_DIR = ""
 START_DPORT = 12
 START_SPORT = 53
 
@@ -46,7 +45,7 @@ CPU_AMD = "amd"
 PKTGEN_SCAPY = "scapy"
 PKTGEN_TREX = "trex"
 PKTGEN_input = ""
-TREX_PATH = f"{client_home}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
+TREX_PATH = None
 
 def get_prog_tag():
     cmd = "bpftool prog show | grep xdp"
@@ -104,25 +103,25 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
         if benchmark == BENCHMARK_portknock:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"loop {version} {rss_para} {len(core_list)}"
-            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {CLIENT_DIR}/bpf-profile/profile/send_udp_packets_portknock.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_hhd:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"{version} {rss_para} {len(core_list)}"
-            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {CLIENT_DIR}/bpf-profile/profile/send_udp_packets_hhd.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_ddos_mitigator:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"{version} {rss_para} {len(core_list)}"
-            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_ddos_mitigator.py {paras} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {CLIENT_DIR}/bpf-profile/profile/send_udp_packets_ddos_mitigator.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_token_bucket:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"{version} {rss_para} {len(core_list)}"
-            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_token_bucket.py {paras} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {CLIENT_DIR}/bpf-profile/profile/send_udp_packets_token_bucket.py {paras} >log.txt 2>&1 &"
         elif benchmark == BENCHMARK_nat_dp:
             rss_para = f"{SRC_IP_PRE}{str(SRC_IP_POST_START+i)}"
             paras = f"{version} {rss_para} {len(core_list)}"
-            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_nat_dp.py {paras} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {CLIENT_DIR}/bpf-profile/profile/send_udp_packets_nat_dp.py {paras} >log.txt 2>&1 &"
         else:
-            client_cmd = f"sudo python3 -u {client_home}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
+            client_cmd = f"sudo python3 -u {CLIENT_DIR}/bpf-profile/profile/send_udp_packets_for_xl170.py {str(START_DPORT+i)} >log.txt 2>&1 &"
         run_cmd_on_client(client_cmd, client)
     # wait some seconds for the packet generation start sending packets
     # wait until tcpreplay starts
@@ -280,11 +279,13 @@ def run_tests_versions(prog_name_prefix, core_num_max, duration,
 def read_machine_info_from_file(input_file):
     client = None
     server_iface = None
+    client_dir = None
     client_keyword = "client"
     server_iface_keyword = "server_iface"
+    client_dir_keyword = "client_dir"
     if not exists(input_file):
-        print(f"ERROR: no such file {input_file}. Return client: None, server_iface: None")
-        return None, None
+        print(f"ERROR: no such file {input_file}. Return client: None, server_iface: None, client_dir: None")
+        return None, None, None
     f = open(input_file, "r")
     for line in f:
         line = line.strip().split(":", 1) # split on first occurrence
@@ -294,8 +295,10 @@ def read_machine_info_from_file(input_file):
             client = line[1].strip()
         elif line[0] == server_iface_keyword:
             server_iface = line[1].strip()
+        elif line[0] == client_dir_keyword:
+            client_dir = line[1].strip()
     f.close()
-    return client, server_iface
+    return client, server_iface, client_dir
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about data')
@@ -333,10 +336,11 @@ if __name__ == "__main__":
     if PKTGEN_input != PKTGEN_SCAPY and PKTGEN_input != PKTGEN_TREX:
         sys.exit(0)
     # read client and server_iface from config.xl170
-    CLIENT, SERVER_IFACE = read_machine_info_from_file(CONFIG_file_xl170)
-    if CLIENT is None or SERVER_IFACE is None:
+    CLIENT, SERVER_IFACE, CLIENT_DIR = read_machine_info_from_file(CONFIG_file_xl170)
+    if CLIENT is None or SERVER_IFACE is None or CLIENT_DIR is None:
         sys.exit(0)
 
+    TREX_PATH = f"{CLIENT_DIR}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
     tx_rate_list = args.tx_rate_list.split(',') # it won't be used by PKTGEN_SCAPY
     num_flows_list = args.num_flows_list.split(',') # it won't be used by PKTGEN_SCAPY
     for run_id in range(0, args.num_runs):
