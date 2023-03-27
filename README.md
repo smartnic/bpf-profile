@@ -1,4 +1,4 @@
-## 0. Get machines on Cloudlab
+	## 0. Get machines on Cloudlab
 
 Select profile `trex-xl170`.
 
@@ -73,7 +73,7 @@ Update machine config file `bpf-profile/profile/config.xl170` on node-0 with the
 cd ~; git clone https://github.com/smartnic/bpf-profile.git
 ```
 
-Modify machine config `bpf-profile/profile/config.xl170` file on node-1 with the information on your experiment machines. (The config file would be the same as the file on node-0).
+Modify machine config `bpf-profile/profile/config.xl170` and `bpf-profile/profile/config.py` files on node-1 with the information on your experiment machines. (config.xl170 file would be the same as the file on node-0).
 
 
 #### b. Install TRex
@@ -137,7 +137,15 @@ sudo bash bpf-profile/samples/compile.sh
 bash bpf-profile/experiment_prepare.sh
 ```
 
-#### d. Run experiments on node-0
+#### d. Run experiments
+
+On node-1
+```
+cd MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/
+nohup sudo sh -c 'python3 server.py >log.txt 2>err.txt &'
+```
+
+On node-0
 ```
 cd ~/experiment
 nohup sudo sh -c 'python3 -u profile-xdp.py -o /mydata/xdp_portknock/ -b xdp_portknock -v v1,v2 -l xdpex1 -r 1 --nc_max 2 -d 30 --pktgen trex --tx_rate_list 1,11.5 --disable_insn_latency 1>log.txt 2>err.txt &'

@@ -1,1 +1,1 @@
-client_dir = "/local/qx51"
+client_dir = "/data/local/"
