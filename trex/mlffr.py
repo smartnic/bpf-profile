@@ -100,7 +100,9 @@ def measure_rx(rate, measure_time, benchmark, version, num_cores, num_flows):
                 rx_pps_list.append(stats[rx_port]["rx_pps"])
                 count += 1
         # 3. Return rx rate
-        rx_pps = np.mean(rx_pps_list)
+        rx_pps = 0.0
+        if len(rx_pps_list) > 0:
+            rx_pps = np.mean(rx_pps_list)
         print(f"rx = {rx_pps}, count = {count}")
         rx = rx_pps
     except STLError as e:
