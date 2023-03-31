@@ -15,6 +15,7 @@ done < "$config_file"
 echo "server_dir is $home"
 cp $home/bpf-profile/samples/*.c $home/linux-6.0/samples/bpf/
 cp $home/bpf-profile/samples/*.h $home/linux-6.0/samples/bpf/
+cp -r $home/bpf-profile/samples/lib $home/linux-6.0/samples/bpf/
 cp $home/bpf-profile/samples/Makefile $home/linux-6.0/samples/bpf/
 cp $home/bpf-profile/samples/postprocessing.sh $home/linux-6.0/samples/bpf/
 cd $home/linux-6.0/

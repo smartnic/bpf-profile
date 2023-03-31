@@ -168,6 +168,7 @@ always-y += xdp_hhd_v6_kern.o
 always-y += xdp_hhd_v7_kern.o
 always-y += xdp_hhd_v8_kern.o
 always-y += xdp_hhd_v9_kern.o
+always-y += xdp_hhd_v10_kern.o
 always-y += xdp_portknock_v1_kern.o
 always-y += xdp_portknock_v2_kern.o
 always-y += xdp_portknock_v3_kern.o

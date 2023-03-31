@@ -119,9 +119,9 @@ def construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
         for i in range(num_pkts_in_md):
             flow1_bytes = b''
             # flow1_bytes += protocol.to_bytes(4, 'little')
+            flow1_bytes += protocol.to_bytes(1, 'little')
             flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
             flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
-            flow1_bytes += protocol.to_bytes(4, 'little')
             dports_bytes += flow1_bytes
             dports_bytes += size.to_bytes(4, 'little')
         packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
@@ -136,9 +136,9 @@ def construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
         for i in range(num_pkts_in_md):
             flow1_bytes = b''
             # flow1_bytes += protocol.to_bytes(4, 'little')
+            flow1_bytes += protocol.to_bytes(1, 'little')
             flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
             flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
-            flow1_bytes += protocol.to_bytes(4, 'little')
             dports_bytes += flow1_bytes
             dports_bytes += size.to_bytes(4, 'little')
         packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=dports_bytes)
@@ -207,7 +207,7 @@ def hhd_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
     elif version == "v3":
         packet = construct_packet_v3(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
         packets.append(packet)
-    elif version == "v6" or version == "v7" or version == "v8":
+    elif version == "v6" or version == "v7" or version == "v8" or version == "v10":
         packets = construct_packets_v6(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     elif version == "v9":
         packets = construct_packets_v9(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
@@ -219,7 +219,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     version = sys.argv[1]
-    if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]:
+    if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"]:
         print(f"Version {version} is not v1 - v9")
         sys.exit(0)
     src_ip = sys.argv[2]

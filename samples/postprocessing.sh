@@ -2,7 +2,7 @@
 NUM_CORES=8
 BPF_PROGS="xdp_token_bucket_v1 xdp_token_bucket_v3 \
 	xdp_ddos_mitigator_v1 xdp_ddos_mitigator_v2 xdp_ddos_mitigator_v3 \
-	xdp_hhd_v1 xdp_hhd_v5 xdp_hhd_v8 xdp_hhd_v9 \
+	xdp_hhd_v1 xdp_hhd_v5 xdp_hhd_v8 xdp_hhd_v9 xdp_hhd_v10 \
 	xdp_portknock_v1 xdp_portknock_v2 xdp_portknock_v3 \
 	xdp_nat_dp_v1 xdp_nat_dp_v2"
 rm -f *.o
