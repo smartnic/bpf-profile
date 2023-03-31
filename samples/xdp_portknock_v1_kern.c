@@ -31,7 +31,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);
   __type(key, u32);
   __type(value, struct array_elem);
-  __uint(max_entries, 256);
+  __uint(max_entries, 1);
 } port_state SEC(".maps");
 
 static int parse_ipv4(void *data, u64 *nh_off, void *data_end) {
