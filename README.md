@@ -1,4 +1,4 @@
-	## 0. Get machines on Cloudlab
+## 0. Get machines on Cloudlab
 
 Select profile `trex-xl170`.
 
