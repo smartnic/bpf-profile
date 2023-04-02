@@ -17,6 +17,11 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 #include <arpa/inet.h>
+#include "lib/fasthash.h"
+
+#define NOT_FOUND 0
+#define PERCPU_MAP 1
+#define CUCKOO_HASH_MAP 2
 
 static int ifindex;
 static __u32 xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST;
@@ -51,28 +56,63 @@ static void usage(const char *prog)
           prog);
 }
 
-static bool is_percpu_map(char* filename) {
-  if (strstr(filename, "v1") != NULL) {
-    return false;
+static int get_map_type(char* filename) {
+  if (strstr(filename, "v1") || strstr(filename, "v2")) {
+    return PERCPU_MAP;
+  } else if (strstr(filename, "v4")) {
+    return CUCKOO_HASH_MAP;
   }
-  return true;
+  return NOT_FOUND;
 }
 
 // * key (uint32_t): ipv4 address.
 // * value (u64): used for matched rules counters.
-static void init_blocklist(int map_fd, bool percpu_map)
+static void init_blocklist(int map_fd, int map_type)
 {
   __u32 key = inet_addr("10.10.1.0");
   __u64 value = 0;
   int res;
   printf("key: 10.10.1.0 (%04x), value: 0\n", key);
-  if (percpu_map) {
+  if (map_type == PERCPU_MAP) {
     unsigned int nr_cpus = bpf_num_possible_cpus();
     __u64 value_arr[nr_cpus];
     for (int i = 0; i < nr_cpus; i++) {
       value_arr[i] = value;
     }
     res = bpf_map_update_elem(map_fd, &key, value_arr, BPF_ANY);
+  } else if (map_type == CUCKOO_HASH_MAP) {
+    int map_size = 512;
+    struct cuckoo_hash_cell {
+      bool is_filled;
+      __u32 key;
+      __u64 val;
+    };
+    struct cuckoo_hash_table {
+      int current_size;
+      struct cuckoo_hash_cell elem_list[map_size];
+    };
+    struct cuckoo_hash_map {
+      int current_size;                    /* Current size */
+      struct cuckoo_hash_table t1; /* First hash table */
+      struct cuckoo_hash_table t2; /* Second hash table */
+    };
+    __u32 zero = 0;
+    unsigned int nr_cpus = bpf_num_possible_cpus();
+    struct cuckoo_hash_map values[nr_cpus];
+    memset(values, 0, nr_cpus * sizeof(struct cuckoo_hash_map));
+    // assert(bpf_map_lookup_elem(map_fd, &zero, values) == 0);
+#define HASH_SEED_1 0x2d31e867
+    uint32_t hash1 = fasthash32((void*)&key, sizeof(__u32), HASH_SEED_1);
+    uint32_t idx = hash1 & (map_size - 1);
+    printf("hash1 idx=%d\n", idx);
+    for (int i = 0; i < nr_cpus; i++) {
+      values[i].current_size = 1;
+      values[i].t1.current_size = 1;
+      values[i].t1.elem_list[idx].is_filled = true;
+      values[i].t1.elem_list[idx].key = key;
+      values[i].t1.elem_list[idx].val = 0;
+    }
+    res = bpf_map_update_elem(map_fd, &zero, values, BPF_ANY);
   } else {
     res = bpf_map_update_elem(map_fd, &key, &value, BPF_ANY);
   }
@@ -90,7 +130,7 @@ int main(int argc, char **argv)
   struct bpf_map *map;
   char filename[256];
   int err;
-  bool percpu_map = false;
+  int map_type;
 
   while ((opt = getopt(argc, argv, optstr)) != -1) {
     switch (opt) {
@@ -170,8 +210,8 @@ int main(int argc, char **argv)
   }
   prog_id = info.id;
 
-  percpu_map = is_percpu_map(filename);
-  init_blocklist(map_fd, percpu_map);
+  map_type = get_map_type(filename);
+  init_blocklist(map_fd, map_type);
   while (1) {}
 
   return 0;
