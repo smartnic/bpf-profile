@@ -453,7 +453,7 @@ $(BPF_SKELS_LINKED): $(BPF_OBJS_LINKED) $(BPFTOOL)
 # 'opt' output to IR, and finally 'llc' generates bpf byte code.
 $(obj)/%.o: $(src)/%.c
 	@echo "  CLANG-bpf " $@
-	@for NUM_PKTS in 1 2 3 4 5 6 7 8 ; do \
+	@for NUM_PKTS in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do \
 		$(CLANG) $(NOSTDINC_FLAGS) $(LINUXINCLUDE) $(BPF_EXTRA_CFLAGS) \
 		-I$(obj) -I$(srctree)/tools/testing/selftests/bpf/ \
 		-I$(LIBBPF_INCLUDE) \
