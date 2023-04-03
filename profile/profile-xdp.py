@@ -103,6 +103,7 @@ def clean_environment(client, prog_name):
     kill_process_on_client("run_trex.py", client)
     loader_cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
+    run_cmd(f"sudo pkill -f pcm", wait=True)
 
 def run_packet_generator_scapy(benchmark, version, core_list, client):
     # start packet generation
