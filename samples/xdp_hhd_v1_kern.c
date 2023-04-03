@@ -76,8 +76,8 @@ int xdp_prog(struct xdp_md *ctx) {
     return XDP_DROP;
   }
   flow.protocol = IPPROTO_UDP;
-  /* Zero out the least significant 3 bits as they are used for RSS (note: src_ip is be32) */
-  flow.src_ip = iph->saddr & 0xf8ffffff;
+  /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
+  flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
   /* Parse udp header to get src_port and dst_port */

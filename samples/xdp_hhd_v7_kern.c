@@ -308,8 +308,8 @@ int xdp_prog(struct xdp_md* ctx) {
     return XDP_DROP;
   }
   flow.protocol = IPPROTO_UDP;
-  /* Zero out the least significant 3 bits as they are used for RSS (note: src_ip is be32) */
-  flow.src_ip = iph->saddr & 0xf8ffffff;
+  /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
+  flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
   /* Parse udp header to get src_port and dst_port */
@@ -334,7 +334,7 @@ int xdp_prog(struct xdp_md* ctx) {
     for (int i = 0; i < NUM_PKTS - 1; i++) {
       md_elem = data + nh_off;
       md_flow = &md_elem->flow;
-      md_flow->src_ip &= 0xf8ffffff;
+      md_flow->src_ip &= 0xf0ffffff;
       flow_size_ptr = map_lookup(value, md_flow);
       pkt_size = md_elem->size;
       if (flow_size_ptr) {

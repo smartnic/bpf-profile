@@ -59,7 +59,7 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
 
 #define update_map_i(i) \
   map->elem_list[i].flow.protocol = flow->protocol; \
-  map->elem_list[i].flow.src_ip = flow->src_ip & 0xf8ffffff; \
+  map->elem_list[i].flow.src_ip = flow->src_ip & 0xf0ffffff; \
   map->elem_list[i].flow.dst_ip = flow->dst_ip; \
   map->elem_list[i].flow.src_port = flow->src_port; \
   map->elem_list[i].flow.dst_port = flow->dst_port; \
@@ -100,10 +100,10 @@ int map_insert(struct vecmap* map, struct flow_key* flow, u64 size) {
 u64* map_lookup(struct vecmap* map, struct flow_key* flow) {
   struct vecmap_elem *elem_list = map->elem_list;
   for (int i = 0; i < map->num && i < MAX_NUM_FLOWS; i++) {
-    /* 0xf8ffffff is used to zero out the least significant 3 bits as
+    /* 0xf0ffffff is used to zero out the least significant 4 bits as
        they are used for RSS (note: src_ip is be32) */
     if (elem_list[i].flow.protocol == flow->protocol &&
-        elem_list[i].flow.src_ip == (flow->src_ip & 0xf8ffffff) &&
+        elem_list[i].flow.src_ip == (flow->src_ip & 0xf0ffffff) &&
         elem_list[i].flow.dst_ip == flow->dst_ip &&
         elem_list[i].flow.src_port == flow->src_port &&
         elem_list[i].flow.dst_port == flow->dst_port) {
@@ -153,8 +153,8 @@ int xdp_prog(struct xdp_md *ctx) {
     return XDP_DROP;
   }
   flow.protocol = IPPROTO_UDP;
-  /* Zero out the least significant 3 bits as they are used for RSS (note: src_ip is be32) */
-  flow.src_ip = iph->saddr & 0xf8ffffff;
+  /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
+  flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
   /* Parse udp header to get src_port and dst_port */
