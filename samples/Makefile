@@ -162,6 +162,7 @@ always-y := $(tprogs-y)
 # always-y += xdpex1_v1_kern.o
 # always-y += xdpex1_v2_kern.o
 always-y += xdp_dummy_v1_kern.o
+always-y += xdp_cuckoo_hash_v1_kern.o
 always-y += xdp_hhd_v1_kern.o
 always-y += xdp_hhd_v2_kern.o
 always-y += xdp_hhd_v3_kern.o
