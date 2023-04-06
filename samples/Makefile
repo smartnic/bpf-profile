@@ -182,6 +182,7 @@ always-y += xdp_ddos_mitigator_v3_kern.o
 always-y += xdp_ddos_mitigator_v4_kern.o
 always-y += xdp_token_bucket_v1_kern.o
 always-y += xdp_token_bucket_v3_kern.o
+always-y += xdp_token_bucket_v4_kern.o
 always-y += xdp_nat_dp_v1_kern.o
 always-y += xdp_nat_dp_v2_kern.o
 # always-y += xdp1_kern.o
