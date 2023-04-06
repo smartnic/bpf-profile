@@ -42,6 +42,13 @@ def read_machine_info_from_file(keyword):
         sys.exit(0)
     return res
 
+def convert_ipv4_str_to_int(ip):
+    arr = ip.split('.')
+    if len(arr) != 4:
+        print(f"ERROR: invalid ip {ip}")
+    ip_int = (int(arr[0]) << 24) | (int(arr[1]) << 16) | (int(arr[2]) << 8) | int(arr[3])
+    return ip_int
+
 def construct_packet_v1(sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
     print(client_iface, client_mac, client_ip, sport, server_mac, server_ip, dport)
     packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw("123456789012")
@@ -65,6 +72,59 @@ def construct_packets_v3(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
             packet = packet/Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
     return [packet]
 
+def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
+    print(f"num_pkts_in_md: {num_pkts_in_md}, num_flows_in_md: {num_flows_in_md}")
+    ethtype = ETH_P_IP
+    protocol = 17 # udp
+    client_ip_int = convert_ipv4_str_to_int(client_ip)
+    server_ip_int = convert_ipv4_str_to_int(server_ip)
+
+    packets = []
+    if num_pkts_in_md == 0:
+        load_bytes = ethtype.to_bytes(2, 'big')
+        strHex = "0x%0.8X" % client_ip_int
+        print(f"packet client_ip_int: {client_ip_int}, {strHex}")
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
+        packets.append(packet)
+        return packets
+
+    if num_flows_in_md == 0:
+        time = 100000000
+        strHex = "0x%0.8X" % client_ip_int
+        print(f"packet client_ip_int: {client_ip_int}, {strHex}")
+        load_bytes = b''
+        for i in range(num_pkts_in_md):
+            load_bytes += ethtype.to_bytes(2, 'big')
+            flow1_bytes = b''
+            flow1_bytes += protocol.to_bytes(1, 'little')
+            flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
+            flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
+            load_bytes += flow1_bytes
+            load_bytes += time.to_bytes(8, 'little')
+            time += 1024
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
+        packets.append(packet) 
+        return packets
+
+    for pkt_id in range(num_flows_in_md):
+        client_ip_int += 16
+        time = 100000000
+        strHex = "0x%0.8X" % client_ip_int
+        print(f"packet {pkt_id} client_ip_int: {client_ip_int}, {strHex}")
+        load_bytes = b''
+        for i in range(num_pkts_in_md):
+            load_bytes += ethtype.to_bytes(2, 'big')
+            flow1_bytes = b''
+            flow1_bytes += protocol.to_bytes(1, 'little')
+            flow1_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
+            flow1_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
+            load_bytes += flow1_bytes
+            load_bytes += time.to_bytes(8, 'little')
+            time += 1024
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
+        packets.append(packet)
+    # hexdump(packet)
+    return packets
 
 
 def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
@@ -74,6 +134,8 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
         packets.append(packet)
     elif version == "v3":
         packets = construct_packets_v3(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
+    elif version == "v4":
+        packets = construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
     sendp(packets, iface=client_iface)
     # # packets = 100 * packet
     # sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
@@ -100,6 +162,8 @@ def token_bucket_construct_packets(version, src_ip, num_cores = 0, num_flows = 1
         packets.append(packet)
     elif version == "v3":
         packets = construct_packets_v3(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    elif version == "v4":
+        packets = construct_packets_v4(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     return packets
 
 if __name__ == "__main__":
@@ -108,8 +172,8 @@ if __name__ == "__main__":
         sys.exit(0)
 
     version = sys.argv[1]
-    if version not in ["v1", "v3"]:
-        print(f"Version {version} is not v1 or v3")
+    if version not in ["v1", "v3", "v4"]:
+        print(f"Version {version} is not v1, v3, or v4")
         sys.exit(0)
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])
