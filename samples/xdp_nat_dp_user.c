@@ -75,7 +75,47 @@ static void init_sm_rules(int map_fd)
   value.external_ip = inet_addr("10.10.1.10");
   value.entry_type = NAT_SRC;
   int res = bpf_map_update_elem(map_fd, &key, &value, BPF_ANY);
-  printf("init maps res: %d (0 means success).\n", res);
+  printf("init_sm_rules res: %d (0 means success).\n", res);
+}
+
+static void init_first_free_port(char* filename, int map_fd)
+{
+  if (!strstr(filename, "v3")) {
+    return;
+  }
+  int map_size = 1;
+  struct free_port_entry {
+    __u16 first_free_port;
+  };
+  struct cuckoo_hash_cell {
+    bool is_filled;
+    __u32 key;
+    struct free_port_entry val;
+  };
+  struct cuckoo_hash_table {
+    int current_size;
+    struct cuckoo_hash_cell elem_list[map_size];
+  };
+  struct cuckoo_hash_map {
+    int current_size;                    /* Current size */
+    struct cuckoo_hash_table t1; /* First hash table */
+    struct cuckoo_hash_table t2; /* Second hash table */
+    __u16 padding; /* todo: need to add padding here... why? */
+  };
+  __u32 zero = 0;
+  unsigned int nr_cpus = bpf_num_possible_cpus();
+  struct cuckoo_hash_map values[nr_cpus];
+  memset(values, 0, nr_cpus * sizeof(struct cuckoo_hash_map));
+  uint32_t idx = 0; /* only one element in the map */
+  for (int i = 0; i < nr_cpus; i++) {
+    values[i].current_size = 1;
+    values[i].t1.current_size = 1;
+    values[i].t1.elem_list[idx].is_filled = true;
+    values[i].t1.elem_list[idx].key = 0;
+    values[i].t1.elem_list[idx].val.first_free_port = 0;
+  }
+  int res = bpf_map_update_elem(map_fd, &zero, values, BPF_ANY);
+  printf("init_first_free_port res: %d (0 means success).\n", res);
 }
 
 int main(int argc, char **argv)
@@ -83,10 +123,10 @@ int main(int argc, char **argv)
   struct bpf_prog_info info = {};
   __u32 info_len = sizeof(info);
   const char *optstr = "FSNI";
-  int prog_fd, map_fd, opt;
+  int prog_fd, map_fd, opt, first_free_port_fd;
   struct bpf_program *prog;
   struct bpf_object *obj;
-  struct bpf_map *map;
+  struct bpf_map *map, *first_free_port_map;
   char filename[256];
   int err;
 
@@ -148,6 +188,15 @@ int main(int argc, char **argv)
   }
   map_fd = bpf_map__fd(map);
 
+  const char* first_free_port_name = "first_free_port";
+  first_free_port_map = bpf_object__find_map_by_name(obj,
+                        first_free_port_name);
+  if (!first_free_port_map) {
+    printf("finding a map in obj file failed\n");
+    return 1;
+  }
+  first_free_port_fd = bpf_map__fd(first_free_port_map);
+
   if (!prog_fd) {
     printf("bpf_prog_load_xattr: %s\n", strerror(errno));
     return 1;
@@ -169,6 +218,7 @@ int main(int argc, char **argv)
   prog_id = info.id;
 
   init_sm_rules(map_fd);
+  init_first_free_port(filename, first_free_port_fd);
   while (1) {}
 
   return 0;
