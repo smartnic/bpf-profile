@@ -75,6 +75,7 @@ static inline __be16 get_free_port(struct first_free_port_cuckoo_hash_map* map) 
   struct free_port_entry *entry = first_free_port_cuckoo_lookup(map, &i);
   if (!entry)
     return 0;
+  // bpf_printk("first_free_port: %d", entry->first_free_port);
   if (entry->first_free_port < 1024 || entry->first_free_port == 65535)
     entry->first_free_port = 1024;
   port = entry->first_free_port;
@@ -96,7 +97,7 @@ static inline void process_metadata(struct xdp_md *ctx,
     return;
   }
   for (int i = 0; i < NUM_PKTS - 1; i++) {
-    bpf_printk("Processing previous packet %d", i);
+    // bpf_printk("Processing previous packet %d", i);
     md = md_start + i * sizeof(struct metadata_elem);
     /* state transition code */
     if (md->ethtype != htons(ETH_P_IP)) {
@@ -117,17 +118,19 @@ static inline void process_metadata(struct xdp_md *ctx,
 
     // Status data
     uint8_t update_session_table = 1;
-    bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(md->flow.src_ip),
-               ntohl(md->flow.dst_ip));
-    srcIp = md->flow.src_ip;
+    // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(md->flow.src_ip & 0xf0ffffff),
+    //            ntohl(md->flow.dst_ip));
+    /* Zero out the least significant 4 bits as they are
+       used for RSS (note: src_ip is be32) */
+    srcIp = md->flow.src_ip & 0xf0ffffff;
     dstIp = md->flow.dst_ip;
     proto = md->flow.proto;
     if (md->flow.proto != IPPROTO_UDP) {
-      bpf_printk("Received Packet is not UDP Packet");
+      // bpf_printk("Received Packet is not UDP Packet");
       continue;
     }
-    bpf_printk("Packet is UDP: src_port %d, dst_port %d",
-               ntohs(md->flow.src_port), ntohs(md->flow.dst_port));
+    // bpf_printk("Packet is UDP: src_port %d, dst_port %d",
+    //            ntohs(md->flow.src_port), ntohs(md->flow.dst_port));
     srcPort = md->flow.src_port;
     dstPort = md->flow.dst_port;
 
@@ -145,7 +148,7 @@ static inline void process_metadata(struct xdp_md *ctx,
     value = egress_session_table_cuckoo_lookup(egress_session_table_cuckoo, &key);
     if (value != NULL) {
       // Session table hit
-      bpf_printk("Egress session table: hit");
+      // bpf_printk("Egress session table: hit");
 
       newIp = value->new_ip;
       newPort = value->new_port;
@@ -155,7 +158,7 @@ static inline void process_metadata(struct xdp_md *ctx,
 
       goto apply_nat;
     }
-    bpf_printk("Egress session table: miss");
+    // bpf_printk("Egress session table: miss");
 #else
 #error "Invalid NATTYPE"
 #endif
@@ -167,7 +170,7 @@ static inline void process_metadata(struct xdp_md *ctx,
       key.internal_ip = srcIp;
       struct sm_v *value = bpf_map_lookup_elem(&sm_rules, &key);
       if (value != NULL) {
-        bpf_printk("Egress rule table: hit");
+        // bpf_printk("Egress rule table: hit");
 
         newIp = value->external_ip;
         newPort = get_free_port(first_free_port_cuckoo);
@@ -175,7 +178,7 @@ static inline void process_metadata(struct xdp_md *ctx,
 
         goto apply_nat;
       }
-      bpf_printk("Egress rule table: miss");
+      // bpf_printk("Egress rule table: miss");
     }
 #else
 #error "Invalid NATTYPE"
@@ -217,19 +220,19 @@ apply_nat:;
         reverse_value.new_port = srcPort;
         reverse_value.originating_rule_type = rule_type;
 
-        bpf_printk("Updating session tables after SNAT");
-        bpf_printk("New outgoing connection: %04x:%d -> %04x:%d", ntohl(srcIp),
-                   ntohs(srcPort), ntohl(dstIp), ntohs(dstPort));
+        // bpf_printk("Updating session tables after SNAT");
+        // bpf_printk("New outgoing connection: %04x:%d -> %04x:%d", ntohl(srcIp),
+        //            ntohs(srcPort), ntohl(dstIp), ntohs(dstPort));
         egress_session_table_cuckoo_insert(egress_session_table_cuckoo,
                                            &forward_key, &forward_value);
         ingress_session_table_cuckoo_insert(ingress_session_table_cuckoo,
                                             &reverse_key, &reverse_value);
-        bpf_printk("Using ingress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
-                   ntohl(reverse_key.src_ip), ntohl(reverse_key.dst_ip),
-                   ntohs(reverse_key.src_port), ntohs(reverse_key.dst_port));
-        bpf_printk("Using egress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
-                   ntohl(forward_key.src_ip), ntohl(forward_key.dst_ip),
-                   ntohs(forward_key.src_port), ntohs(forward_key.dst_port));
+        // bpf_printk("Using ingress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
+        //            ntohl(reverse_key.src_ip), ntohl(reverse_key.dst_ip),
+        //            ntohs(reverse_key.src_port), ntohs(reverse_key.dst_port));
+        // bpf_printk("Using egress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
+        //            ntohl(forward_key.src_ip), ntohl(forward_key.dst_ip),
+        //            ntohs(forward_key.src_port), ntohs(forward_key.dst_port));
       }
     }
   }
@@ -237,24 +240,26 @@ apply_nat:;
 
 SEC("xdp_nat_dp")
 int xdp_prog(struct xdp_md *ctx) {
-  bpf_printk("Processing the assigned packet");
   uint32_t zero = 0;
   struct egress_session_table_cuckoo_hash_map *egress_session_table_cuckoo = bpf_map_lookup_elem(&egress_session_table, &zero);
   if (!egress_session_table_cuckoo) {
-    bpf_printk("egress_session_table_cuckoo not found");
+    // bpf_printk("egress_session_table_cuckoo not found");
     return XDP_DROP;
   }
   struct ingress_session_table_cuckoo_hash_map *ingress_session_table_cuckoo = bpf_map_lookup_elem(&ingress_session_table, &zero);
   if (!ingress_session_table_cuckoo) {
-    bpf_printk("ingress_session_table_cuckoo not found");
+    // bpf_printk("ingress_session_table_cuckoo not found");
     return XDP_DROP;
   }
   struct first_free_port_cuckoo_hash_map *first_free_port_cuckoo = bpf_map_lookup_elem(&first_free_port, &zero);
   if (!first_free_port_cuckoo) {
-    bpf_printk("first_free_port_cuckoo not found");
+    // bpf_printk("first_free_port_cuckoo not found");
     return XDP_DROP;
   }
+  // bpf_printk("Processing previous packets......");
   process_metadata(ctx, egress_session_table_cuckoo, ingress_session_table_cuckoo, first_free_port_cuckoo);
+  // bpf_printk("");
+  // bpf_printk("Processing the assigned packet.......");
   // NAT processing happens in 4 steps:
   // 1) packet parsing
   // 2) session table lookup
@@ -269,25 +274,26 @@ int xdp_prog(struct xdp_md *ctx) {
   if ( (void *)eth + sizeof(*eth) > data_end )
     goto DROP;
 
-  bpf_printk("Received new packet. eth_type: 0x%x mac_src: %M mac_dst: %M",
-             ntohs(eth->proto), eth->src, eth->dst);
+  // bpf_printk("Received new packet. eth_type: 0x%x mac_src: %M mac_dst: %M",
+  //            ntohs(eth->proto), eth->src, eth->dst);
 
   switch (eth->proto) {
   case htons(ETH_P_IP):
     // Packet is IP
-    bpf_printk("Received IP Packet");
+    // bpf_printk("Received IP Packet");
     break;
   case htons(ETH_P_ARP):
     // Packet is ARP: let is pass
-    bpf_printk("Received ARP packet. Letting it go through");
+    // bpf_printk("Received ARP packet. Letting it go through");
     return RX_OK;
   default:
-    bpf_printk("Unknown eth proto: %d, dropping",
-               ntohs(eth->proto));
+    // bpf_printk("Unknown eth proto: %d, dropping",
+    //            ntohs(eth->proto));
     goto DROP;
   }
 
   // Packet data
+  uint32_t srcIP_orig = 0;
   uint32_t srcIp = 0;
   uint32_t dstIp = 0;
   uint16_t srcPort = 0;
@@ -306,10 +312,10 @@ int xdp_prog(struct xdp_md *ctx) {
   if ( (void *)ip + sizeof(*ip) > data_end )
     goto DROP;
 
-  bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(ip->saddr),
-             ntohl(ip->daddr));
-
-  srcIp = ip->saddr;
+  // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(ip->saddr & 0xf0ffffff),
+  //            ntohl(ip->daddr));
+  srcIP_orig = ip->saddr;
+  srcIp = srcIP_orig & 0xf0ffffff;
   dstIp = ip->daddr;
   proto = ip->protocol;
 
@@ -321,8 +327,8 @@ int xdp_prog(struct xdp_md *ctx) {
     if ( (void *)tcp + sizeof(*tcp) > data_end )
       goto DROP;
 
-    bpf_printk("Packet is TCP: src_port %d, dst_port %d",
-               tcp->source, tcp->dest);
+    // bpf_printk("Packet is TCP: src_port %d, dst_port %d",
+    //            tcp->source, tcp->dest);
     srcPort = tcp->source;
     dstPort = tcp->dest;
     break;
@@ -333,8 +339,8 @@ int xdp_prog(struct xdp_md *ctx) {
     struct udphdr *udp = data + sizeof(*eth) + header_len;
     if ( (void *)udp + sizeof(*udp) > data_end )
       goto DROP;
-    bpf_printk("Packet is UDP: src_port %d, dst_port %d",
-               ntohs(udp->source), ntohs(udp->dest));
+    // bpf_printk("Packet is UDP: src_port %d, dst_port %d",
+    //            ntohs(udp->source), ntohs(udp->dest));
     srcPort = udp->source;
     dstPort = udp->dest;
     break;
@@ -345,8 +351,8 @@ int xdp_prog(struct xdp_md *ctx) {
     struct icmphdr *icmp = data + sizeof(*eth) + header_len;
     if ( (void *)icmp + sizeof(*icmp) > data_end )
       goto DROP;
-    bpf_printk("Packet is ICMP: type %d, id %d", icmp->type,
-               icmp->un.echo.id);
+    // bpf_printk("Packet is ICMP: type %d, id %d", icmp->type,
+    //            icmp->un.echo.id);
 
     // Consider the ICMP ID as a "port" number for easier handling
     srcPort = icmp->un.echo.id;
@@ -354,7 +360,7 @@ int xdp_prog(struct xdp_md *ctx) {
     break;
   }
   default:
-    bpf_printk("Unknown L4 proto %d, dropping", ip->protocol);
+    // bpf_printk("Unknown L4 proto %d, dropping", ip->protocol);
     goto DROP;
   }
 
@@ -372,7 +378,7 @@ int xdp_prog(struct xdp_md *ctx) {
   value = egress_session_table_cuckoo_lookup(egress_session_table_cuckoo, &key);
   if (value != NULL) {
     // Session table hit
-    bpf_printk("Egress session table: hit");
+    // bpf_printk("Egress session table: hit");
 
     newIp = value->new_ip;
     newPort = value->new_port;
@@ -382,14 +388,14 @@ int xdp_prog(struct xdp_md *ctx) {
 
     goto apply_nat;
   }
-  bpf_printk("Egress session table: miss");
+  // bpf_printk("Egress session table: miss");
 //  } else {
 #elif NATTYPE == NATTYPE_INGRESS
   // Packet is outside -> inside, check ingress session table
   value = ingress_session_table_cuckoo_lookup(ingress_session_table_cuckoo, &key);
   if (value != NULL) {
     // Session table hit
-    bpf_printk("Ingress session table: hit");
+    // bpf_printk("Ingress session table: hit");
 
     newIp = value->new_ip;
     newPort = value->new_port;
@@ -399,7 +405,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
     goto apply_nat;
   }
-  bpf_printk("Ingress session table: miss");
+  // bpf_printk("Ingress session table: miss");
 //  }
 #else
 #error "Invalid NATTYPE"
@@ -414,7 +420,7 @@ int xdp_prog(struct xdp_md *ctx) {
     key.internal_ip = srcIp;
     struct sm_v *value = bpf_map_lookup_elem(&sm_rules, &key);
     if (value != NULL) {
-      bpf_printk("Egress rule table: hit");
+      // bpf_printk("Egress rule table: hit");
 
       newIp = value->external_ip;
       newPort = get_free_port(first_free_port_cuckoo);
@@ -422,7 +428,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
       goto apply_nat;
     }
-    bpf_printk("Egress rule table: miss");
+    // bpf_printk("Egress rule table: miss");
   }
 //  } else {
 #elif NATTYPE == NATTYPE_INGRESS
@@ -435,7 +441,7 @@ int xdp_prog(struct xdp_md *ctx) {
     key.proto = proto;
     struct dp_v *value = bpf_map_lookup_elem(&dp_rules, &key);
     if (value != NULL) {
-      bpf_printk("Ingress rule table: hit");
+      // bpf_printk("Ingress rule table: hit");
 
       newIp = value->internal_ip;
       newPort = value->internal_port;
@@ -447,7 +453,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
       goto apply_nat;
     }
-    bpf_printk("Ingress rule table: miss");
+    // bpf_printk("Ingress rule table: miss");
   }
 //  }
 #else
@@ -500,9 +506,9 @@ apply_nat:;
       reverse_value.new_port = srcPort;
       reverse_value.originating_rule_type = rule_type;
 
-      bpf_printk("Updating session tables after SNAT");
-      bpf_printk("New outgoing connection: %04x:%d -> %04x:%d", ntohl(srcIp),
-                 ntohs(srcPort), ntohl(dstIp), ntohs(dstPort));
+      // bpf_printk("Updating session tables after SNAT");
+      // bpf_printk("New outgoing connection: %04x:%d -> %04x:%d", ntohl(srcIp),
+      //            ntohs(srcPort), ntohl(dstIp), ntohs(dstPort));
     } else {
       // A rule matched in the outside -> inside direction
 
@@ -534,25 +540,25 @@ apply_nat:;
       reverse_value.new_port = newPort;
       reverse_value.originating_rule_type = rule_type;
 
-      bpf_printk("Updating session tables after DNAT");
-      bpf_printk("New incoming connection: %04x:%d -> %04x:%d", ntohl(srcIp),
-                 srcPort, ntohl(dstIp), dstPort);
+      // bpf_printk("Updating session tables after DNAT");
+      // bpf_printk("New incoming connection: %04x:%d -> %04x:%d", ntohl(srcIp),
+      //            srcPort, ntohl(dstIp), dstPort);
     }
     egress_session_table_cuckoo_insert(egress_session_table_cuckoo,
                                        &forward_key, &forward_value);
     ingress_session_table_cuckoo_insert(ingress_session_table_cuckoo,
                                         &reverse_key, &reverse_value);
-    bpf_printk("Using ingress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
-               ntohl(reverse_key.src_ip), ntohl(reverse_key.dst_ip),
-               ntohs(reverse_key.src_port), ntohs(reverse_key.dst_port));
-    bpf_printk("Using egress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
-               ntohl(forward_key.src_ip), ntohl(forward_key.dst_ip),
-               ntohs(forward_key.src_port), ntohs(forward_key.dst_port));
+    // bpf_printk("Using ingress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
+    //            ntohl(reverse_key.src_ip), ntohl(reverse_key.dst_ip),
+    //            ntohs(reverse_key.src_port), ntohs(reverse_key.dst_port));
+    // bpf_printk("Using egress key: srcIp %04x, dstIp %04x, srcPort %d, dstPort %d",
+    //            ntohl(forward_key.src_ip), ntohl(forward_key.dst_ip),
+    //            ntohs(forward_key.src_port), ntohs(forward_key.dst_port));
   }
 
   // Modify packet
   uint32_t old_ip =
-    (rule_type == NAT_SRC || rule_type == NAT_MSQ) ? srcIp : dstIp;
+    (rule_type == NAT_SRC || rule_type == NAT_MSQ) ? srcIP_orig : dstIp;
   uint32_t old_port =
     (rule_type == NAT_SRC || rule_type == NAT_MSQ) ? srcPort : dstPort;
   uint32_t new_ip = newIp;
@@ -570,13 +576,13 @@ apply_nat:;
     if (rule_type == NAT_SRC || rule_type == NAT_MSQ) {
       ip->saddr = new_ip;
       tcp->source = (__be16)new_port;
-      bpf_printk("Natted TCP packet: source, %04x:%d -> %04x:%d",
-                 ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
+      // bpf_printk("Natted TCP packet: source, %04x:%d -> %04x:%d",
+      //            ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
     } else {
       ip->daddr = new_ip;
       tcp->dest = (__be16)new_port;
-      bpf_printk("Natted TCP packet: destination, %04x:%d -> %04x:%d",
-                 ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
+      // bpf_printk("Natted TCP packet: destination, %04x:%d -> %04x:%d",
+      //            ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
     }
 
     // Update checksums
@@ -595,13 +601,13 @@ apply_nat:;
     if (rule_type == NAT_SRC || rule_type == NAT_MSQ) {
       ip->saddr = new_ip;
       udp->source = (__be16)new_port;
-      bpf_printk("Natted UDP packet: source, %04x:%d -> %04x:%d",
-                 ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
+      // bpf_printk("Natted UDP packet: source, %04x:%d -> %04x:%d",
+      //            ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
     } else {
       ip->daddr = new_ip;
       udp->dest = (__be16)new_port;
-      bpf_printk("Natted UDP packet: destination, %04x:%d -> %04x:%d",
-                 ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
+      // bpf_printk("Natted UDP packet: destination, %04x:%d -> %04x:%d",
+      //            ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
     }
 
     // Update checksums
@@ -620,13 +626,13 @@ apply_nat:;
     if (rule_type == NAT_SRC || rule_type == NAT_MSQ) {
       ip->saddr = new_ip;
       icmp->un.echo.id = (__be16)new_port;
-      bpf_printk("Natted ICMP packet: source, %04x:%d -> %04x:%d",
-                 ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
+      // bpf_printk("Natted ICMP packet: source, %04x:%d -> %04x:%d",
+      //            ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
     } else {
       ip->daddr = new_ip;
       icmp->un.echo.id = (__be16)new_port;
-      bpf_printk("Natted ICMP packet: destination, %04x:%d -> %04x:%d",
-                 ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
+      // bpf_printk("Natted ICMP packet: destination, %04x:%d -> %04x:%d",
+      //            ntohl(old_ip), ntohs(old_port), ntohl(new_ip), ntohs(new_port));
     }
 
     // Update checksums
@@ -642,7 +648,7 @@ proceed:;
   swap_src_dst_mac(data);
   return XDP_TX;
 DROP:;
-  bpf_printk("Dropping packet");
+  // bpf_printk("Dropping packet");
   return RX_DROP;
 }
 
