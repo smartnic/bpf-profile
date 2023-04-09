@@ -70,9 +70,9 @@ static void init_sm_rules(int map_fd)
 {
   struct sm_k key = {0, 0};
   key.internal_netmask_len = 32;
-  key.internal_ip = inet_addr("10.10.1.2");
+  key.internal_ip = inet_addr("10.10.1.0");
   struct sm_v value = {0, 0};
-  value.external_ip = inet_addr("10.10.1.10");
+  value.external_ip = inet_addr("10.10.2.10");
   value.entry_type = NAT_SRC;
   int res = bpf_map_update_elem(map_fd, &key, &value, BPF_ANY);
   printf("init_sm_rules res: %d (0 means success).\n", res);
