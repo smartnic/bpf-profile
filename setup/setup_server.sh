@@ -6,6 +6,7 @@ chmod +x rss.sh
 chmod +x toggle_hyperthreading.sh
 sudo ethtool --set-priv-flags $1 rx_striding_rq off
 sudo ethtool --set-priv-flags $1 rx_cqe_compress on
+sudo ethtool --show-priv-flags $1
 sudo ethtool -G $1 rx 256
 echo "Running RSS"
 sudo ./rss.sh $1
