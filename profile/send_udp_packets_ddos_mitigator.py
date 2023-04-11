@@ -84,7 +84,7 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
     for _ in range(num_pkts_in_md):
         load_bytes += ethtype.to_bytes(2, 'big')
         load_bytes += client_ip_int.to_bytes(4, 'big')
-    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
+    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
     return [packet]
 
 def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
