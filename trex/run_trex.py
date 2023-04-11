@@ -80,8 +80,8 @@ if __name__ == "__main__":
 
             # 2. get statistics every 0.5 second
             expected_actual_rate = (rate-rate*0.01) * pow(10,6)
-            if expected_actual_rate >= 37.2 * pow(10,6):
-               expected_actual_rate = 37 * pow(10,6)
+            if expected_actual_rate >= 1.0 * pow(10,6):
+               expected_actual_rate = 1.0 * pow(10,6)
             print("Start measurement")
             print(f"Expected actual rate: {expected_actual_rate}, rate: {rate}")
             rx_pps_list = []
