@@ -24,6 +24,7 @@ struct flow_key {
 } __attribute__((packed));
 
 struct metadata_elem {
+  __be16 ethtype;
   struct flow_key flow;
   u32 size;
 } __attribute__((packed));
@@ -48,9 +49,53 @@ int xdp_prog(struct xdp_md *ctx) {
   // bpf_printk("xdp_prog: receive a packet");
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
-  struct ethhdr *eth = data;
+  struct metadata_elem *md_elem;
+  struct flow_key *md_flow;
+  u64 pkt_size;
+  u64 nh_off;
+
+  uint32_t zero = 0;
+  struct flowsize_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&flowsize_map, &zero);
+  if (!map) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
+
+  u64 *flow_size_ptr;
+  /* Process latest (n-1) packets using metadata */
+  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  int md_offset = dummy_header_size;
+  void* md_start = data + md_offset;
+  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
+  if (md_start + md_size > data_end)
+    return XDP_DROP;
+
+  for (int i = 0; i < NUM_PKTS - 1; i++) {
+    md_elem = md_start + i * sizeof(struct metadata_elem);
+    if (md_elem->ethtype != htons(ETH_P_IP)) {
+      continue;
+    }
+    md_flow = &md_elem->flow;
+    if (md_flow->protocol != IPPROTO_UDP) {
+      continue;
+    }
+    /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
+    md_flow->src_ip &= 0xf0ffffff;
+    flow_size_ptr = flowsize_map_cuckoo_lookup(map, md_flow);
+    pkt_size = md_elem->size;
+    if (flow_size_ptr) {
+      // bpf_printk("%d: flow in map, update. pkt_size: %ld", i, pkt_size);
+      *flow_size_ptr += pkt_size;
+    } else {
+      // bpf_printk("%d: flow not in map, insert. pkt_size: %ld", i, pkt_size);
+      flowsize_map_cuckoo_insert(map, md_flow, &pkt_size);
+    }
+  }
+
+  /* Process the current packet */
+  nh_off = dummy_header_size + md_size;
+  struct ethhdr *eth = data + nh_off;
   struct iphdr *iph;
-  struct vecmap *value;
   struct flow_key flow = {
     .protocol = 0,
     .src_ip = 0,
@@ -58,14 +103,10 @@ int xdp_prog(struct xdp_md *ctx) {
     .src_port = 0,
     .dst_port = 0
   };
-  struct metadata_elem *md_elem;
-  struct flow_key *md_flow;
-  u64 pkt_size;
   u16 h_proto;
-  u64 nh_off;
   int rc = XDP_DROP;
 
-  nh_off = sizeof(*eth);
+  nh_off += sizeof(*eth);
   if (data + nh_off > data_end)
     return XDP_DROP;
 
@@ -92,38 +133,6 @@ int xdp_prog(struct xdp_md *ctx) {
     return XDP_DROP;
   }
 
-  uint32_t zero = 0;
-  struct flowsize_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&flowsize_map, &zero);
-  if (!map) {
-    // bpf_printk("map not found");
-    return XDP_DROP;
-  }
-
-  u64 *flow_size_ptr;
-  /* Process latest (n-1) packets using metadata */
-  nh_off += sizeof(struct udphdr);
-  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
-  if (data + nh_off + md_size > data_end)
-    return XDP_DROP;
-
-  for (int i = 0; i < NUM_PKTS - 1; i++) {
-    md_elem = data + nh_off;
-    md_flow = &md_elem->flow;
-    /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
-    md_flow->src_ip &= 0xf0ffffff;
-    flow_size_ptr = flowsize_map_cuckoo_lookup(map, md_flow);
-    pkt_size = md_elem->size;
-    if (flow_size_ptr) {
-      // bpf_printk("%d: flow in map, update. pkt_size: %ld", i, pkt_size);
-      *flow_size_ptr += pkt_size;
-    } else {
-      // bpf_printk("%d: flow not in map, insert. pkt_size: %ld", i, pkt_size);
-      flowsize_map_cuckoo_insert(map, md_flow, &pkt_size);
-    }
-    nh_off += sizeof(struct metadata_elem);
-  }
-
-  /* Process the current packet */
   pkt_size = data_end - data;
   flow_size_ptr = flowsize_map_cuckoo_lookup(map, &flow);
   if (flow_size_ptr) {
