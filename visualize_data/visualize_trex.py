@@ -3,14 +3,20 @@ from os.path import exists
 from rx_rate import visualize_prog_avg_rx_rate
 from avg_roundtrip_latency import visualize_prog_avg_roundtrip_latency
 from drop_rate import visualize_prog_avg_drop_rate
+from rx_rate_bps import visualize_prog_avg_rx_rate_bps
+from rx_rate_bps_internal import visualize_prog_avg_rx_rate_bps_internal
 
 def read_config_from_file(input_file, num_cores_min, num_cores_max):
     version_name_list = []
     version_name_show_list = []
     insn_ids = []
+    extra_header_size_list = []
+    md_elem_size_list = []
     version_name_keyword = "version_name"
     version_name_show_keyword = "version_name_show"
     insn_ids_keyword = "insn_ids_core_"
+    extra_header_size_keyword = "extra_header_size"
+    md_elem_size_keyword = "md_elem_size"
     cur_num_cores = num_cores_min
     insn_ids_version = []
     if not exists(input_file):
@@ -26,6 +32,10 @@ def read_config_from_file(input_file, num_cores_min, num_cores_max):
             version_name_list.append(line[1].strip())
         elif line[0] == version_name_show_keyword:
             version_name_show_list.append(line[1].strip())
+        if line[0] == extra_header_size_keyword:
+            extra_header_size_list.append(int(line[1].strip()))
+        elif line[0] == md_elem_size_keyword:
+            md_elem_size_list.append(int(line[1].strip()))
         elif line[0] == f"{insn_ids_keyword}{cur_num_cores}":
             id_list = line[1].split()
             insn_ids_version.append(id_list)
@@ -35,7 +45,7 @@ def read_config_from_file(input_file, num_cores_min, num_cores_max):
             cur_num_cores = num_cores_min
             insn_ids_version = []
     f.close()
-    return version_name_list, version_name_show_list, insn_ids
+    return version_name_list, version_name_show_list, insn_ids, extra_header_size_list, md_elem_size_list
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about data')
@@ -58,9 +68,12 @@ if __name__ == "__main__":
         args.num_cores_min = 1
 
     print(args.input_folder, args.prog_name, args.num_runs, args.num_cores_max, args.num_cores_min)
-    version_name_list, version_name_show_list, _ = read_config_from_file(args.config_file, args.num_cores_min, args.num_cores_max)
+    version_name_list, version_name_show_list, _, extra_header_size_list, md_elem_size_list = read_config_from_file(args.config_file,
+        args.num_cores_min, args.num_cores_max)
     print("version name list: ", version_name_list)
     print("version name show list: ", version_name_show_list)
+    print("extra_header_size list: ", extra_header_size_list)
+    print("md_elem_size list: ", md_elem_size_list)
 
     tx_rate_list = args.tx_rate_list.split(',')
     for tx in tx_rate_list:
@@ -83,3 +96,9 @@ if __name__ == "__main__":
             args.num_runs, args.num_cores_min, args.num_cores_max, input_folder, trex_stats_versions, output_folder)
         visualize_prog_avg_drop_rate(args.prog_name, version_name_list, version_name_show_list,
             args.num_runs, args.num_cores_min, args.num_cores_max, input_folder, trex_stats_versions, output_folder)
+        visualize_prog_avg_rx_rate_bps(args.prog_name, version_name_list, version_name_show_list,
+            args.num_runs, args.num_cores_min, args.num_cores_max, input_folder, trex_stats_versions, output_folder,
+            extra_header_size_list, md_elem_size_list)
+        visualize_prog_avg_rx_rate_bps_internal(args.prog_name, version_name_list, version_name_show_list,
+            args.num_runs, args.num_cores_min, args.num_cores_max, input_folder, trex_stats_versions, output_folder)
+
