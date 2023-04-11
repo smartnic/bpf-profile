@@ -22,6 +22,7 @@ SERVER_ip = ''
 SERVER_port = 2000
 NUM_cores = 0
 NUM_flows = 0
+EXTERNAL_PKT_SIZE = 64 # in bytes
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -160,7 +161,38 @@ def construct_packets_v9(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
             packet = packet/Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=pkt_size_bytes)
     return [packet]
 
+# struct flow_key {
+#   u8 protocol;
+#   __be32 src_ip;
+#   __be32 dst_ip;
+#   u16 src_port;
+#   u16 dst_port;
+# } __attribute__((packed));
 
+# struct metadata_elem {
+#   __be32 ethtype;
+#   struct flow_key flow;
+#   u32 size;
+# } __attribute__((packed));
+def construct_packets_v10(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
+    ethtype = ETH_P_IP
+    protocol = 17 # udp
+    client_ip_int = convert_ipv4_str_to_int(client_ip)
+    server_ip_int = convert_ipv4_str_to_int(server_ip)
+    size = 100
+    load_bytes = b''
+    for _ in range(num_pkts_in_md):
+        load_bytes += ethtype.to_bytes(2, 'big')
+        flow_bytes = protocol.to_bytes(1, 'little')
+        flow_bytes += client_ip_int.to_bytes(4, 'big') + server_ip_int.to_bytes(4, 'big')
+        flow_bytes += sport.to_bytes(2, 'little') + dport.to_bytes(2, 'little')
+        load_bytes += flow_bytes
+        load_bytes += size.to_bytes(4, 'little')
+    ext_pkt = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
+    ext_pkt /= 'x' * max(0, EXTERNAL_PKT_SIZE - len(ext_pkt))
+    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+    print(f"packet size: {len(packet)} bytes")
+    return [packet]
 
 def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
     packets = []
@@ -177,13 +209,16 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
         packets = construct_packets_v6(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
     elif version == "v9":
         packets = construct_packets_v9(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
-    # sendpfast(packet, iface=client_iface)
+    elif version == "v10":
+        packets = construct_packets_v10(num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip)
+    sendpfast(packets, iface=client_iface)
     # packets = 100 * packet
-    sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
+    # sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
 
 # src_ip is used for RSS
-def set_up_arguments(num_cores, src_ip, num_flows):
+def set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size):
     global NUM_cores, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
+    global EXTERNAL_PKT_SIZE
     NUM_cores = num_cores
     NUM_flows = num_flows
     CLIENT_iface = read_machine_info_from_file("client_iface")
@@ -193,9 +228,10 @@ def set_up_arguments(num_cores, src_ip, num_flows):
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
     SERVER_port = DPORT_ARM
+    EXTERNAL_PKT_SIZE = ext_pkt_size
 
-def hhd_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
-    set_up_arguments(num_cores, src_ip, num_flows)
+def hhd_construct_packets(version, src_ip, num_cores = 0, num_flows = 1, ext_pkt_size = 64):
+    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
     packets = []
     packet = ""
     if version == "v1" or version == "v5" or version == "v4":
@@ -207,20 +243,22 @@ def hhd_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
     elif version == "v3":
         packet = construct_packet_v3(num_cores-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
         packets.append(packet)
-    elif version == "v6" or version == "v7" or version == "v8" or version == "v10":
+    elif version == "v6" or version == "v7" or version == "v8":
         packets = construct_packets_v6(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     elif version == "v9":
         packets = construct_packets_v9(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+    elif version == "v10":
+        packets = construct_packets_v10(num_cores-1, num_flows-1, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     return packets
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify version, src ip, number of cores")
+        print("Please specify version, src ip, number of cores, [number of flow], [ext_pkt_size]")
         sys.exit(0)
 
     version = sys.argv[1]
     if version not in ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"]:
-        print(f"Version {version} is not v1 - v9")
+        print(f"Version {version} is not v1 - v10")
         sys.exit(0)
     src_ip = sys.argv[2]
     num_cores = int(sys.argv[3])
@@ -230,7 +268,10 @@ if __name__ == "__main__":
     if num_flows <= 1:
         num_flows = 1
 
-    set_up_arguments(num_cores, src_ip, num_flows)
+    ext_pkt_size = 64
+    if len(sys.argv) >= 6:
+        ext_pkt_size = int(sys.argv[5])
+    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
     num_pkts_in_md = NUM_cores - 1
     num_flows_in_md = num_flows - 1
     # print(version, src_mac, src_ip, num_cores)
