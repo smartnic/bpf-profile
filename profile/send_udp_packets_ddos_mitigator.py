@@ -22,6 +22,7 @@ SERVER_ip = ''
 SERVER_port = 2000
 NUM_cores = 0
 NUM_flows = 0
+EXTERNAL_PKT_SIZE = 64 # in bytes
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -84,7 +85,10 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
     for _ in range(num_pkts_in_md):
         load_bytes += ethtype.to_bytes(2, 'big')
         load_bytes += client_ip_int.to_bytes(4, 'big')
-    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
+    ext_pkt = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
+    ext_pkt /= 'x' * max(0, EXTERNAL_PKT_SIZE - len(ext_pkt))
+    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+    print(f"packet size: {len(packet)} bytes")
     return [packet]
 
 def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
@@ -101,8 +105,9 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
     # sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
 
 # src_ip is used for RSS
-def set_up_arguments(num_cores, src_ip, num_flows):
+def set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size):
     global NUM_cores, NUM_flows, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
+    global EXTERNAL_PKT_SIZE
     NUM_cores = num_cores
     NUM_flows = num_flows
     CLIENT_iface = read_machine_info_from_file("client_iface")
@@ -112,9 +117,10 @@ def set_up_arguments(num_cores, src_ip, num_flows):
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
     SERVER_port = DPORT_ARM
+    EXTERNAL_PKT_SIZE = ext_pkt_size
 
-def ddos_mitigator_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
-    set_up_arguments(num_cores, src_ip, num_flows)
+def ddos_mitigator_construct_packets(version, src_ip, num_cores = 0, num_flows = 1, ext_pkt_size = 64):
+    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
     packets = []
     packet = ""
     if version == "v1" or version == "v2":
@@ -128,7 +134,7 @@ def ddos_mitigator_construct_packets(version, src_ip, num_cores = 0, num_flows =
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify version, src ip, number of cores")
+        print("Please specify version, src ip, number of cores, [number of flow], [ext_pkt_size]")
         sys.exit(0)
 
     version = sys.argv[1]
@@ -143,7 +149,10 @@ if __name__ == "__main__":
     if num_flows <= 1:
         num_flows = 1
 
-    set_up_arguments(num_cores, src_ip, num_flows)
+    ext_pkt_size = 64
+    if len(sys.argv) >= 6:
+        ext_pkt_size = int(sys.argv[5])    
+    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
     num_pkts_in_md = NUM_cores - 1
     num_flows_in_md = num_flows - 1
     # print(version, src_mac, src_ip, num_cores)
