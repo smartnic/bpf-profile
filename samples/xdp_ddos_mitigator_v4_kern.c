@@ -164,7 +164,8 @@ int xdp_prog(struct xdp_md *ctx) {
   u64 *value;
 
   /* Process the previous packets using metadata */
-  int md_offset = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr);
+  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  int md_offset = dummy_header_size;
   struct metadata_elem* md;
   void* md_start = data + md_offset;
   u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
@@ -200,10 +201,11 @@ int xdp_prog(struct xdp_md *ctx) {
     }
   }
   /* update the start address of the assigned packet */
-  eth = data;
+  offset = dummy_header_size + md_size;
+  eth = data + offset;
   result = 0;
 
-  offset = sizeof(*eth);
+  offset += sizeof(*eth);
 
   if (data + offset > data_end) {
     // goto PASS;
