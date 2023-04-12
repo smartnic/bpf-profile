@@ -90,7 +90,8 @@ static inline void process_metadata(struct xdp_md *ctx,
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
   struct metadata_elem* md;
-  void* md_start = data + sizeof(struct eth_hdr) + sizeof(struct iphdr) + sizeof(struct udphdr);
+  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  void* md_start = data + dummy_header_size;
   u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
   /* safety check of accessing metadata */
   if (md_start + md_size > data_end) {
@@ -101,7 +102,7 @@ static inline void process_metadata(struct xdp_md *ctx,
     md = md_start + i * sizeof(struct metadata_elem);
     /* state transition code */
     if (md->ethtype != htons(ETH_P_IP)) {
-      bpf_printk("Received Packet is not IP Packet");
+      // bpf_printk("Received Packet is not IP Packet");
       continue;
     }
     // Packet data
@@ -270,7 +271,10 @@ int xdp_prog(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
 
-  struct eth_hdr *eth = data;
+  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
+  void* pkt_start = data + dummy_header_size + md_size;
+  struct eth_hdr *eth = pkt_start;
   if ( (void *)eth + sizeof(*eth) > data_end )
     goto DROP;
 
@@ -287,8 +291,7 @@ int xdp_prog(struct xdp_md *ctx) {
     // bpf_printk("Received ARP packet. Letting it go through");
     return RX_OK;
   default:
-    // bpf_printk("Unknown eth proto: %d, dropping",
-    //            ntohs(eth->proto));
+    // bpf_printk("Unknown eth proto: %d, dropping", ntohs(eth->proto));
     goto DROP;
   }
 
@@ -308,12 +311,11 @@ int xdp_prog(struct xdp_md *ctx) {
   // Status data
   uint8_t update_session_table = 1;
 
-  struct iphdr *ip = data + sizeof(*eth);
+  struct iphdr *ip = pkt_start + sizeof(*eth);
   if ( (void *)ip + sizeof(*ip) > data_end )
     goto DROP;
 
-  // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(ip->saddr & 0xf0ffffff),
-  //            ntohl(ip->daddr));
+  // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(ip->saddr & 0xf0ffffff), ntohl(ip->daddr));
   srcIP_orig = ip->saddr;
   srcIp = srcIP_orig & 0xf0ffffff;
   dstIp = ip->daddr;
@@ -323,12 +325,11 @@ int xdp_prog(struct xdp_md *ctx) {
   case IPPROTO_TCP: {
     uint8_t header_len = 4 * ip->ihl;
     // uint8_t header_len = sizeof(*ip);
-    struct tcphdr *tcp = data + sizeof(*eth) + header_len;
+    struct tcphdr *tcp = pkt_start + sizeof(*eth) + header_len;
     if ( (void *)tcp + sizeof(*tcp) > data_end )
       goto DROP;
 
-    // bpf_printk("Packet is TCP: src_port %d, dst_port %d",
-    //            tcp->source, tcp->dest);
+    // bpf_printk("Packet is TCP: src_port %d, dst_port %d", tcp->source, tcp->dest);
     srcPort = tcp->source;
     dstPort = tcp->dest;
     break;
@@ -336,11 +337,10 @@ int xdp_prog(struct xdp_md *ctx) {
   case IPPROTO_UDP: {
     uint8_t header_len = 4 * ip->ihl;
     // uint8_t header_len = sizeof(*ip);
-    struct udphdr *udp = data + sizeof(*eth) + header_len;
+    struct udphdr *udp = pkt_start + sizeof(*eth) + header_len;
     if ( (void *)udp + sizeof(*udp) > data_end )
       goto DROP;
-    // bpf_printk("Packet is UDP: src_port %d, dst_port %d",
-    //            ntohs(udp->source), ntohs(udp->dest));
+    // bpf_printk("Packet is UDP: src_port %d, dst_port %d", ntohs(udp->source), ntohs(udp->dest));
     srcPort = udp->source;
     dstPort = udp->dest;
     break;
@@ -348,11 +348,10 @@ int xdp_prog(struct xdp_md *ctx) {
   case IPPROTO_ICMP: {
     uint8_t header_len = 4 * ip->ihl;
     // uint8_t header_len = sizeof(*ip);
-    struct icmphdr *icmp = data + sizeof(*eth) + header_len;
+    struct icmphdr *icmp = pkt_start + sizeof(*eth) + header_len;
     if ( (void *)icmp + sizeof(*icmp) > data_end )
       goto DROP;
-    // bpf_printk("Packet is ICMP: type %d, id %d", icmp->type,
-    //            icmp->un.echo.id);
+    // bpf_printk("Packet is ICMP: type %d, id %d", icmp->type, icmp->un.echo.id);
 
     // Consider the ICMP ID as a "port" number for easier handling
     srcPort = icmp->un.echo.id;
@@ -507,8 +506,7 @@ apply_nat:;
       reverse_value.originating_rule_type = rule_type;
 
       // bpf_printk("Updating session tables after SNAT");
-      // bpf_printk("New outgoing connection: %04x:%d -> %04x:%d", ntohl(srcIp),
-      //            ntohs(srcPort), ntohl(dstIp), ntohs(dstPort));
+      // bpf_printk("New outgoing connection: %04x:%d -> %04x:%d", ntohl(srcIp), ntohs(srcPort), ntohl(dstIp), ntohs(dstPort));
     } else {
       // A rule matched in the outside -> inside direction
 
@@ -541,8 +539,7 @@ apply_nat:;
       reverse_value.originating_rule_type = rule_type;
 
       // bpf_printk("Updating session tables after DNAT");
-      // bpf_printk("New incoming connection: %04x:%d -> %04x:%d", ntohl(srcIp),
-      //            srcPort, ntohl(dstIp), dstPort);
+      // bpf_printk("New incoming connection: %04x:%d -> %04x:%d", ntohl(srcIp), srcPort, ntohl(dstIp), dstPort);
     }
     egress_session_table_cuckoo_insert(egress_session_table_cuckoo,
                                        &forward_key, &forward_value);
@@ -569,7 +566,7 @@ apply_nat:;
   case IPPROTO_TCP: {
     uint8_t header_len = 4 * ip->ihl;
     // uint8_t header_len = sizeof(*ip);
-    struct tcphdr *tcp = data + sizeof(*eth) + header_len;
+    struct tcphdr *tcp = pkt_start + sizeof(*eth) + header_len;
     if ( (void *)tcp + sizeof(*tcp) > data_end )
       goto DROP;
 
@@ -595,7 +592,7 @@ apply_nat:;
   case IPPROTO_UDP: {
     uint8_t header_len = 4 * ip->ihl;
     // uint8_t header_len = sizeof(*ip);
-    struct udphdr *udp = data + sizeof(*eth) + header_len;
+    struct udphdr *udp = pkt_start + sizeof(*eth) + header_len;
     if ( (void *)udp + sizeof(*udp) > data_end )
       goto DROP;
     if (rule_type == NAT_SRC || rule_type == NAT_MSQ) {
@@ -620,7 +617,7 @@ apply_nat:;
   case IPPROTO_ICMP: {
     uint8_t header_len = 4 * ip->ihl;
     // uint8_t header_len = sizeof(*ip);
-    struct icmphdr *icmp = data + sizeof(*eth) + header_len;
+    struct icmphdr *icmp = pkt_start + sizeof(*eth) + header_len;
     if ( (void *)icmp + sizeof(*icmp) > data_end )
       goto DROP;
     if (rule_type == NAT_SRC || rule_type == NAT_MSQ) {
