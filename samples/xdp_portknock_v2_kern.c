@@ -22,6 +22,12 @@ enum state {
 
 #define RET_ERR -1
 
+struct metadata_elem {
+  __be16 ethtype;
+  u8 ipproto;
+  u16 dport;      /* 4 bytes */
+} __attribute__((packed));
+
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __type(key, u32);
@@ -40,14 +46,14 @@ static int parse_ipv4(void *data, u64 *nh_off, void *data_end) {
 }
 
 static inline int parse_udp(void *data, u64 *nh_off, void *data_end,
-                            u16 *sport, u16 *dport) {
+                            u16 *dport) {
   struct udphdr *udph = data + *nh_off;
 
   if (udph + 1 > data_end)
     return RET_ERR;
 
   *nh_off += sizeof(*udph);
-  *sport = ntohs(udph->source);
+  // *sport = ntohs(udph->source);
   *dport = ntohs(udph->dest);
   return 0;
 }
@@ -69,17 +75,48 @@ SEC("xdp_portknock")
 int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
-  struct ethhdr *eth = data;
-  u16 h_proto;
-  u64 nh_off, md_size;
-  int ipproto;
-  u16 dport, sport;
-  int rc = XDP_DROP;
+  u16 dport;
   int state_id = 0;
   u32 *value, state;
-  u16 cur_port;
 
-  nh_off = sizeof(*eth);
+  value = bpf_map_lookup_elem(&port_state, &state_id);
+  if (!value) {
+    return XDP_DROP;
+  }
+
+  /* Process the previous packets using metadata */
+  struct metadata_elem* md;
+  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  void* md_start = data + dummy_header_size;
+  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
+  /* safety check of accessing metadata */
+  if (md_start + md_size > data_end) {
+    return XDP_DROP;
+  }
+  state = *value;
+  /* read metadata element */
+  // bpf_printk("initial state: %d", state);
+  for (int i = 0; i < NUM_PKTS - 1; i++) {
+    md = md_start + i * sizeof(struct metadata_elem);
+    if (md->ethtype != htons(ETH_P_IP)) {
+      continue;
+    }
+    if (md->ipproto != IPPROTO_UDP) {
+      continue;
+    }
+    dport = md->dport;
+    state = get_new_state(state, dport);
+    // bpf_printk("%d, dport: %d, state: %d", i, dport, state);
+  }
+
+  /* Process the assigned packet */
+  u64 nh_off = dummy_header_size + md_size;
+  struct ethhdr *eth = data + nh_off;
+  u16 h_proto;
+  int ipproto;
+  int rc = XDP_DROP;
+
+  nh_off += sizeof(*eth);
   if (data + nh_off > data_end)
     return rc;
 
@@ -93,39 +130,17 @@ int xdp_prog(struct xdp_md *ctx) {
     return rc;
   }
 
-  if (parse_udp(data, &nh_off, data_end, &sport, &dport) == RET_ERR) {
-    return rc;
-  }
-  if (sport < SPORT_MIN || sport > SPORT_MAX) {
+  if (parse_udp(data, &nh_off, data_end, &dport) == RET_ERR) {
     return rc;
   }
 
-  // Safety check of metadata
-  md_size = (NUM_PKTS - 1) * sizeof(u16);
-  if (data + nh_off + md_size > data_end)
-    return rc;
-
-  value = bpf_map_lookup_elem(&port_state, &state_id);
-  if (!value) {
-    return rc;
-  }
-  state = *value;
-
-  // Process metadata
-  for (int i = 0; i < NUM_PKTS - 1; i++) {
-    // todo: remove ntohs() and modify the metadata constructed in scapy
-    cur_port = ntohs(*(u16*)(data + nh_off));
-    state = get_new_state(state, cur_port);
-    nh_off += sizeof(u16);
-  }
-
-  // Process the assigned packet
   if (state == OPEN) {
     rc = XDP_PASS;
   }
   state = get_new_state(state, dport);
 
   *value = state;
+  // bpf_printk("pkt, dport: %d, state: %d\n", dport, state);
 
   /* For all valid packets, bounce them back to the packet generator. */
   swap_src_dst_mac(data);

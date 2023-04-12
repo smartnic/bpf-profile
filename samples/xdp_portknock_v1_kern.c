@@ -45,13 +45,13 @@ static int parse_ipv4(void *data, u64 *nh_off, void *data_end) {
 }
 
 static inline int parse_udp(void *data, u64 nh_off, void *data_end,
-                            u16 *sport, u16 *dport) {
+                            u16 *dport) {
   struct udphdr *udph = data + nh_off;
 
   if (udph + 1 > data_end)
     return RET_ERR;
 
-  *sport = ntohs(udph->source);
+  // *sport = ntohs(udph->source);
   *dport = ntohs(udph->dest);
   return 0;
 }
@@ -65,7 +65,7 @@ int xdp_prog(struct xdp_md *ctx) {
   u16 h_proto;
   u64 nh_off;
   int ipproto;
-  u16 dport, sport;
+  u16 dport;
   int rc = XDP_DROP;
   int state_id = 0;
 
@@ -83,10 +83,7 @@ int xdp_prog(struct xdp_md *ctx) {
     return rc;
   }
 
-  if (parse_udp(data, nh_off, data_end, &sport, &dport) == RET_ERR) {
-    return rc;
-  }
-  if (sport < SPORT_MIN || sport > SPORT_MAX) {
+  if (parse_udp(data, nh_off, data_end, &dport) == RET_ERR) {
     return rc;
   }
 
