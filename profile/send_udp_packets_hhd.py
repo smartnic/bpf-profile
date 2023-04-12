@@ -44,8 +44,11 @@ def read_machine_info_from_file(keyword):
     return res
 
 def construct_packet_v1(sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
-    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw("123456789012")
-    return packet
+    print(client_iface, client_mac, client_ip, sport, server_mac, server_ip, dport)
+    ext_pkt = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
+    ext_pkt /= 'x' * max(0, EXTERNAL_PKT_SIZE - len(ext_pkt))
+    print(f"packet size: {len(ext_pkt)} bytes")
+    return ext_pkt
 
 def construct_packet_v2(num, sport, dport, client_iface, client_mac, client_ip, server_mac, server_ip):
     print(f"num = {num}")
