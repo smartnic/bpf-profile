@@ -58,9 +58,76 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
 
 SEC("xdp")
 int xdp_prog(struct xdp_md* ctx) {
+  u64 cur_time = bpf_ktime_get_ns();
+  // bpf_printk("cur_time: %lld\n", cur_time);
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
-  struct ethhdr *eth = data;
+  struct token_elem *token = NULL;
+  int rc = XDP_DROP;
+  u32 token_needed = 1;
+
+  uint32_t zero = 0;
+  struct token_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&token_map, &zero);
+  if (!map) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
+
+  /* Process previous packets using metadata */
+  struct metadata_elem* md;
+  struct flow_key *md_flow;
+  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  int md_offset = dummy_header_size;
+  void* md_start = data + md_offset;
+  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
+  /* safety check of accessing metadata */
+  if (md_start + md_size > data_end) {
+    return XDP_DROP;
+  }
+  /* process each packet */
+  for (int i = 0; i < NUM_PKTS - 1; i++) {
+    md = md_start + i * sizeof(struct metadata_elem);
+    md_flow = &md->flow;
+    if (md->ethtype != htons(ETH_P_IP)) {
+      continue;
+    }
+    if (md_flow->protocol != IPPROTO_UDP) {
+      continue;
+    }
+    u64 time = md->time;
+    md_flow->src_ip &= 0xf0ffffff;
+    token = token_map_cuckoo_lookup(map, md_flow);
+    if (!token) {
+      /* set initial state */
+      u32 token_remain = MAX_TOKEN - token_needed;
+      struct token_elem elem;
+      elem.num = token_remain;
+      elem.last_time = time;
+      token_map_cuckoo_insert(map, md_flow, &elem);
+    } else {
+      /* update flow state in the map */
+      // bpf_printk("%d last time: %lld, time: %lld\n", i, token->last_time, token->last_time);
+      u32 token_increase = (time - token->last_time) >> TOKEN_RATE;
+      // bpf_printk("%d token_increase: %ld\n", i, token_increase);
+      u32 token_new = token->num + token_increase;
+      u32 token_remain = 0;
+      if (token_new > MAX_TOKEN) {
+        token_new = MAX_TOKEN;
+      }
+      if (token_new < token_needed) {
+        rc = XDP_DROP;
+        token_remain = token_new;
+      } else {
+        rc = XDP_PASS;
+        token_remain = token_new - token_needed;
+      }
+      token->num = token_remain;
+      token->last_time = time;
+    }
+  }
+
+  /* Process the current packet */
+  struct ethhdr *eth;
   struct iphdr *iph;
   struct flow_key flow = {
     .protocol = 0,
@@ -71,11 +138,10 @@ int xdp_prog(struct xdp_md* ctx) {
   };
   u16 h_proto;
   u64 nh_off;
-  struct token_elem *token = NULL;
-  int rc = XDP_DROP;
-  u32 token_needed = 1;
+  nh_off = dummy_header_size + md_size;
+  eth = data + nh_off;
 
-  nh_off = sizeof(*eth);
+  nh_off += sizeof(*eth);
   if (data + nh_off > data_end)
     return XDP_DROP;
 
@@ -104,65 +170,6 @@ int xdp_prog(struct xdp_md* ctx) {
   }
   nh_off += sizeof(struct udphdr);
 
-  /* Process previous packets using metadata */
-  struct metadata_elem* md;
-  struct flow_key *md_flow;
-  void* md_start = data + nh_off;
-  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
-  /* safety check of accessing metadata */
-  if (md_start + md_size > data_end) {
-    return XDP_DROP;
-  }
-  /* process each packet */
-  uint32_t zero = 0;
-  struct token_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&token_map, &zero);
-  if (!map) {
-    // bpf_printk("map not found");
-    return XDP_DROP;
-  }
-  for (int i = 0; i < NUM_PKTS - 1; i++) {
-    md = md_start + i * sizeof(struct metadata_elem);
-    md_flow = &md->flow;
-    if (md->ethtype != htons(ETH_P_IP)) {
-      continue;
-    }
-    if (md_flow->protocol != IPPROTO_UDP) {
-      continue;
-    }
-    u64 time = md->time;
-    md_flow->src_ip &= 0xf0ffffff;
-    token = token_map_cuckoo_lookup(map, md_flow);
-    if (!token) {
-      /* set initial state */
-      u32 token_remain = MAX_TOKEN - token_needed;
-      struct token_elem elem;
-      elem.num = token_remain;
-      elem.last_time = time;
-      token_map_cuckoo_insert(map, md_flow, &elem);
-    } else {
-      /* update flow state in the map */
-      // bpf_printk("%d last time: %lld\n", i, token->last_time);
-      u32 token_increase = (time - token->last_time) >> TOKEN_RATE;
-      // bpf_printk("%d token_increase: %ld\n", i, token_increase);
-      u32 token_new = token->num + token_increase;
-      u32 token_remain = 0;
-      if (token_new > MAX_TOKEN) {
-        token_new = MAX_TOKEN;
-      }
-      if (token_new < token_needed) {
-        rc = XDP_DROP;
-        token_remain = token_new;
-      } else {
-        rc = XDP_PASS;
-        token_remain = token_new - token_needed;
-      }
-      token->num = token_remain;
-      token->last_time = time;
-    }
-  }
-
-  u64 cur_time = bpf_ktime_get_ns();
-  // bpf_printk("cur_time: %lld\n", cur_time);
   token = token_map_cuckoo_lookup(map, &flow);
   if (!token) {
     /* configure flow initial state in the map */
