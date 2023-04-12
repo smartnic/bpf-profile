@@ -12,7 +12,7 @@ from os.path import expanduser
 from config import *
 
 SPORT_ARM = 53
-DPORT_ARM = 12
+DPORT_ARM = 100
 
 CONFIG_file_xl170 = f"{client_dir}/bpf-profile/profile/config.xl170"
 # # DPORT_SEQ won't be used for arm machines
@@ -32,6 +32,7 @@ CLIENT_ip = ''
 SERVER_mac = ''
 SERVER_ip = ''
 NUM_cores = 0
+EXTERNAL_PKT_SIZE = 64 # in bytes
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -114,15 +115,11 @@ def construct_packet(sport, dport, client_mac, client_ip, server_mac, server_ip)
     return packet
 
 def construct_packet_v1(sport, client_mac, client_ip, server_mac, server_ip):
-    packet_list = []
-    dports_list = [[DPORT_ARM]]
-    # if not FLGA_ARM:
-    #     dports_list = construct_port_sequences(len(DPORT_SEQ) + 1)
-    for dports in dports_list:
-        for dport in dports:
-            packet = construct_packet(sport, dport, client_mac, client_ip, server_mac, server_ip)
-            packet_list.append(packet)
-    return packet_list
+    dport = DPORT_ARM
+    ext_pkt = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
+    ext_pkt /= 'x' * max(0, EXTERNAL_PKT_SIZE - len(ext_pkt))
+    print(f"packet size: {len(ext_pkt)} bytes")
+    return [ext_pkt]
 
 def send_udp_packets_v1(sport, client_iface, client_mac, client_ip, server_mac, server_ip):
     print("send_udp_packets_v1", client_iface)
@@ -159,22 +156,24 @@ def construct_packet_with_metadata(sport, dports, client_mac, client_ip, server_
     return packet
 
 def construct_packet_v2(sport, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
-    dports_list = [[DPORT_ARM]]
-    # if not FLGA_ARM:
-    #     dports_list = construct_port_sequences(num_ports_in_md + 1)
-    packet_list = []
-    # print(f"{len(dports_list)} sequences in packets: ")
-    # for dports in dports_list:
-    #     print(dports)
-    for dports in dports_list:
-        packet = construct_packet_with_metadata(sport, dports, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
-        packet_list.append(packet)
-    return packet_list
+    ethtype = ETH_P_IP
+    protocol = 17 # udp
+    dport = DPORT_ARM
+    ext_pkt = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
+    ext_pkt /= 'x' * max(0, EXTERNAL_PKT_SIZE - len(ext_pkt))
+    load_bytes = b''
+    for i in range(num_ports_in_md):
+        load_bytes += ethtype.to_bytes(2, 'big')
+        load_bytes += protocol.to_bytes(1, 'little')
+        load_bytes += dport.to_bytes(2, 'little')
+    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+    print(f"packet size: {len(packet)} bytes")
+    return [packet]
 
 def send_udp_packets_v2(sport, client_iface, client_mac, client_ip, server_mac, server_ip, num_ports_in_md):
     packet_list = construct_packet_v2(sport, client_mac, client_ip, server_mac, server_ip, num_ports_in_md)
     if not FLAG_LOOP:
-        sendpfast(packet_list, iface=client_iface)
+        sendp(packet_list, iface=client_iface)
     else:
         n = 100
         k = int(n / len(packet_list))
@@ -228,8 +227,9 @@ def send_udp_packets_v3(sport, client_iface, client_mac, client_ip, server_mac, 
         sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
 # src_ip is used for RSS
-def set_up_arguments(function, num_cores, src_ip):
+def set_up_arguments(function, num_cores, src_ip, ext_pkt_size):
     global FLAG_LOOP, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, NUM_cores
+    global EXTERNAL_PKT_SIZE
     NUM_cores = num_cores
     if function == "loop":
         FLAG_LOOP = True
@@ -241,9 +241,10 @@ def set_up_arguments(function, num_cores, src_ip):
     CLIENT_port = SPORT_ARM
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
+    EXTERNAL_PKT_SIZE = ext_pkt_size
 
-def portknock_construct_packets(function, version, src_ip, num_cores = 0):
-    set_up_arguments(function, num_cores, src_ip)
+def portknock_construct_packets(function, version, src_ip, num_cores = 0, ext_pkt_size = 64):
+    set_up_arguments(function, num_cores, src_ip, ext_pkt_size)
     packet_list = []
     if version == "v1":
         packet_list = construct_packet_v1(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip)
@@ -255,7 +256,7 @@ def portknock_construct_packets(function, version, src_ip, num_cores = 0):
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify function, version, and the src ip.")
+        print("Please specify function, version, the src ip, num_cores, [ext_pkt_size]")
         sys.exit(0)
 
     function = sys.argv[1]
@@ -275,7 +276,12 @@ if __name__ == "__main__":
         num_cores = int(sys.argv[4])
 
     src_ip = sys.argv[3]
-    set_up_arguments(function, num_cores, src_ip)
+
+    ext_pkt_size = 64
+    if len(sys.argv) >= 6:
+        ext_pkt_size = int(sys.argv[5])
+
+    set_up_arguments(function, num_cores, src_ip, ext_pkt_size)
     num_ports_in_md = NUM_cores - 1
 
     if version == "v1":
