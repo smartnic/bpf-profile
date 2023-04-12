@@ -56,6 +56,7 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
 
 SEC("xdp")
 int xdp_prog(struct xdp_md* ctx) {
+  u64 cur_time = bpf_ktime_get_ns();
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth = data;
@@ -100,7 +101,6 @@ int xdp_prog(struct xdp_md* ctx) {
     return XDP_DROP;
   }
 
-  u64 cur_time = bpf_ktime_get_ns();
   u32 token_needed = 1;
   // bpf_printk("cur_time: %lld\n", cur_time);
   token = bpf_map_lookup_elem(&token_map, &flow);
