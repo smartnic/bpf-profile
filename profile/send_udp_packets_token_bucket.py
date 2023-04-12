@@ -22,6 +22,7 @@ SERVER_ip = ''
 SERVER_port = 2000
 NUM_cores = 0
 NUM_flows = 0
+EXTERNAL_PKT_SIZE = 64 # in bytes
 
 def read_machine_info_from_file(keyword):
     input_file = CONFIG_file_xl170
@@ -80,14 +81,16 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
     server_ip_int = convert_ipv4_str_to_int(server_ip)
 
     packets = []
-    if num_pkts_in_md == 0:
-        load_bytes = ethtype.to_bytes(2, 'big')
-        strHex = "0x%0.8X" % client_ip_int
-        print(f"packet client_ip_int: {client_ip_int}, {strHex}")
-        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
-        packets.append(packet)
-        return packets
+    # if num_pkts_in_md == 0:
+    #     load_bytes = ethtype.to_bytes(2, 'big')
+    #     strHex = "0x%0.8X" % client_ip_int
+    #     print(f"packet client_ip_int: {client_ip_int}, {strHex}")
+    #     packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
+    #     packets.append(packet)
+    #     return packets
 
+    ext_pkt = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
+    ext_pkt /= 'x' * max(0, EXTERNAL_PKT_SIZE - len(ext_pkt))
     if num_flows_in_md == 0:
         time = 100000000
         strHex = "0x%0.8X" % client_ip_int
@@ -102,8 +105,9 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
             load_bytes += flow1_bytes
             load_bytes += time.to_bytes(8, 'little')
             time += 1024
-        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
-        packets.append(packet) 
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+        packets.append(packet)
+        print(f"packet size: {len(packet)} bytes")
         return packets
 
     for pkt_id in range(num_flows_in_md):
@@ -121,7 +125,8 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
             load_bytes += flow1_bytes
             load_bytes += time.to_bytes(8, 'little')
             time += 1024
-        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)/Raw(load=load_bytes)
+        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+        print(f"packet size: {len(packet)} bytes")
         packets.append(packet)
     # hexdump(packet)
     return packets
@@ -141,8 +146,9 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
     # sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
 
 # src_ip is used for RSS
-def set_up_arguments(num_cores, src_ip, num_flows):
+def set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size):
     global NUM_cores, NUM_flows, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
+    global EXTERNAL_PKT_SIZE
     NUM_cores = num_cores
     NUM_flows = num_flows
     CLIENT_iface = read_machine_info_from_file("client_iface")
@@ -152,9 +158,10 @@ def set_up_arguments(num_cores, src_ip, num_flows):
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
     SERVER_port = DPORT_ARM
+    EXTERNAL_PKT_SIZE = ext_pkt_size
 
-def token_bucket_construct_packets(version, src_ip, num_cores = 0, num_flows = 1):
-    set_up_arguments(num_cores, src_ip, num_flows)
+def token_bucket_construct_packets(version, src_ip, num_cores = 0, num_flows = 1, ext_pkt_size = 64):
+    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
     packets = []
     packet = ""
     if version == "v1":
@@ -168,7 +175,7 @@ def token_bucket_construct_packets(version, src_ip, num_cores = 0, num_flows = 1
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        print("Please specify version, src ip, number of cores")
+        print("Please specify version, src ip, number of cores, [number of flow], [ext_pkt_size]")
         sys.exit(0)
 
     version = sys.argv[1]
@@ -183,7 +190,10 @@ if __name__ == "__main__":
     if num_flows <= 1:
         num_flows = 1
 
-    set_up_arguments(num_cores, src_ip, num_flows)
+    ext_pkt_size = 64
+    if len(sys.argv) >= 6:
+        ext_pkt_size = int(sys.argv[5])
+    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
     num_pkts_in_md = NUM_cores - 1
     num_flows_in_md = num_flows - 1
     # print(version, src_mac, src_ip, num_cores)
