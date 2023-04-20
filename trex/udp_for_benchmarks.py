@@ -52,17 +52,17 @@ class STLS1(object):
                     # use continuous mode
                     mode = STLTXCont()
                 ))
-            if i == 0: # add latency stream (used to measure the latency)
-                latency_packet = base_pkts[0]
-                # add additional bytes to be overwritten by trex to measure the latency
-                # todo: have not figured out how many bytes will be overwritten, 16 is a number
-                # which works for xdp_hhd
-                latency_packet /= 'x' * 16
-                packets.append(STLStream(
-                    packet = STLPktBuilder(pkt = latency_packet),
-                    mode = STLTXCont(pps=1000),
-                    flow_stats = STLFlowLatencyStats(pg_id = stream_count + 1)
-                ))
+            # if i == 0: # add latency stream (used to measure the latency)
+            #     latency_packet = base_pkts[0]
+            #     # add additional bytes to be overwritten by trex to measure the latency
+            #     # todo: have not figured out how many bytes will be overwritten, 16 is a number
+            #     # which works for xdp_hhd
+            #     latency_packet /= 'x' * 16
+            #     packets.append(STLStream(
+            #         packet = STLPktBuilder(pkt = latency_packet),
+            #         mode = STLTXCont(pps=1000),
+            #         flow_stats = STLFlowLatencyStats(pg_id = stream_count + 1)
+            #     ))
         return packets
     def get_streams (self, direction = 0, packet_len = 64, stream_count = 1, **kwargs):
         # create 1 stream
