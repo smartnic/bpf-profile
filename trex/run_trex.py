@@ -6,6 +6,7 @@ from os.path import exists
 import os
 import numpy as np
 import shutil
+from statistics import stdev
 
 MEASUREMENT_START_FILE = "measure_start.txt"
 MEASUREMENT_STOP_FILE = "measure_stop.txt"
@@ -197,6 +198,19 @@ def send_packets(benchmark, version, dur, rate, num_cores, num_flows, base_pkt_l
             writer = csv.writer(f)
             lst = [count, rx_pps, tx_pps, diff, max_l, min_l, avg_l, rx_bps, tx_bps, diff_bps]
             writer.writerow(lst)
+            stdev_list = []
+            if count > 0:
+                stdev_list = [stdev(rx_pps_list), stdev(tx_pps_list),
+                              0, 0, 0,
+                              stdev(rx_bps_list), stdev(tx_bps_list)]
+            writer.writerow(stdev_list)
+            writer.writerow(rx_pps_list)
+            writer.writerow(tx_pps_list)
+            writer.writerow(min_l_list)
+            writer.writerow(avg_l_list)
+            writer.writerow(max_l_list)
+            writer.writerow(rx_bps_list)
+            writer.writerow(tx_bps_list)
             f.close()
     except STLError as e:
         print(e)
