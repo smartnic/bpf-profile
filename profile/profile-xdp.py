@@ -141,19 +141,20 @@ def start_trex_server(client):
     run_cmd_on_client(client_cmd, client)
     time.sleep(30)
 
-def run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate):
+def run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate, base_pkt_len):
     # start trex server
     start_trex_server(client)
     # send packets for 10000 seconds
-    client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} {num_flows} >log.txt 2>&1 &"
+    print(f"run_packet_generator_trex: {base_pkt_len}")
+    client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} {num_flows} {base_pkt_len} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     time.sleep(120)
 
-def run_packet_generator(benchmark, version, core_list, client, num_flows, tx_rate):
+def run_packet_generator(benchmark, version, core_list, client, num_flows, tx_rate, base_pkt_len):
     if PKTGEN_input == PKTGEN_SCAPY:
         run_packet_generator_scapy(benchmark, version, core_list, client)
     elif PKTGEN_input == PKTGEN_TREX:
-        run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate)
+        run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate, base_pkt_len)
     else:
         print(f"ERROR: pktgen {PKTGEN_input} is not {PKTGEN_SCAPY} or {PKTGEN_TREX}")
 
@@ -231,7 +232,7 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, num_flow
 
 
 def run_test(prog_name, core_list, client, seconds, output_folder,
-             output_folder_trex, num_flows, tx_rate = '0'):
+             output_folder_trex, num_flows, tx_rate = '0', base_pkt_len = 64):
     # 1. print test name
     print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
     if exists("tmp"):
@@ -245,7 +246,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
 
     # 3. run packet generator
     benchmark, version = get_benchmark_version(prog_name)
-    run_packet_generator(benchmark, version, core_list, client, num_flows, tx_rate)
+    run_packet_generator(benchmark, version, core_list, client, num_flows, tx_rate, base_pkt_len)
 
     # 4. measure the xdp prorgam
     try:
@@ -320,7 +321,8 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
     time.sleep(5)
 
 def run_tests_versions(prog_name_prefix, core_num_max, duration,
-                       output_folder, output_folder_trex, run_id, num_flows, tx_rate):
+                       output_folder, output_folder_trex, run_id,
+                       num_flows, tx_rate, base_pkt_len):
     if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_trex_measure:
         return
     core_list = []
@@ -331,7 +333,7 @@ def run_tests_versions(prog_name_prefix, core_num_max, duration,
         run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
         output_folder_i_trex = output_folder_trex + "/" + str(i) + "/" + str(run_id)
         run_test(prog_name, core_list, CLIENT, duration, output_folder_i,
-            output_folder_i_trex, num_flows, tx_rate)
+            output_folder_i_trex, num_flows, tx_rate, base_pkt_len)
 
 def run_mlffr_versions(prog_name_prefix, core_num_max, duration,
                        output_folder, run_id, num_flows):
@@ -389,9 +391,11 @@ if __name__ == "__main__":
     parser.add_argument('--pktgen', dest="pktgen", type=str, help='Packet generator: scapy or trex', required=True)
     parser.add_argument('--tx_rate_list', dest="tx_rate_list", default="1", help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     parser.add_argument('--nf_list', dest="num_flows_list", default="1", help='Number of flows sent to each core, e.g., 1,3. The default list is [1].', required=False)
+    parser.add_argument('--pkt_len', dest="base_pkt_len", type=int, default=64, help='base packet length (>=64)', required=False)
     args = parser.parse_args()
     if args.output_folder_trex is None:
         args.output_folder_trex = args.output_folder
+    args.base_pkt_len = max(64, args.base_pkt_len)
     version_name_list = args.versions.split(",")
     LOADER_NAME = args.loader_name
     DISABLE_prog_latency = args.disable_prog_latency
@@ -434,7 +438,8 @@ if __name__ == "__main__":
                     output_folder_version_dut = f"{args.output_folder}/{num_flows}/{tx_rate}/{version}"
                     output_folder_version_trex = f"{args.output_folder_trex}/{num_flows}/{tx_rate}/{version}"
                     run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration,
-                        output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate)
+                        output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate,
+                        args.base_pkt_len)
                     time_cost_v = time.time() - t_start_v
                     print(f"Run {run_id} {version} test ends. time_cost: {time_cost_v}")
         time_cost = time.time() - t_start
