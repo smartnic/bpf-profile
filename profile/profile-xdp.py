@@ -374,13 +374,42 @@ def read_machine_info_from_file(input_file):
     f.close()
     return client, server_iface, client_dir
 
+def test_benchmark(run_id, benchmark, version_name_list, tx_rate_list,
+    num_flows_list, num_cores_max, duration, output_folder,
+    output_folder_trex, base_pkt_len):
+    print(f"Benchmark {benchmark} run {run_id} starts......")
+    t_start = time.time()
+    for num_flows in num_flows_list:
+        # mlffr should have a different loop, not reply on tx_rate_list
+        for version in version_name_list:
+            t_start_v = time.time()
+            prog_name_prefix = f"{benchmark}_{version}"
+            output_folder_version_dut = f"{output_folder}/{num_flows}/{version}"
+            run_mlffr_versions(prog_name_prefix, num_cores_max, duration,
+                output_folder_version_dut, run_id, num_flows)
+            time_cost_v = time.time() - t_start_v
+            print(f"Run {run_id} {version} mlffr ends. time_cost: {time_cost_v}")
+        for tx_rate in tx_rate_list:
+            for version in version_name_list:
+                t_start_v = time.time()
+                prog_name_prefix = f"{benchmark}_{version}"
+                output_folder_version_dut = f"{output_folder}/{num_flows}/{tx_rate}/{version}"
+                output_folder_version_trex = f"{output_folder_trex}/{num_flows}/{tx_rate}/{version}"
+                run_tests_versions(prog_name_prefix, num_cores_max, duration,
+                    output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate,
+                    base_pkt_len)
+                time_cost_v = time.time() - t_start_v
+                print(f"Run {run_id} {version} test ends. time_cost: {time_cost_v}")
+    time_cost = time.time() - t_start
+    print(f"Benchmark {benchmark} run {run_id} ends. time_cost: {time_cost}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about data')
     parser.add_argument('-o', dest="output_folder", type=str, help='Output path on DUT', required=True)
     parser.add_argument('--o_trex', dest="output_folder_trex", type=str, default=None, help='Output path on trex machine, default is the same as output path on DUT', required=False)
-    parser.add_argument('-b', dest="prog_name", type=str, help='Benchmark', required=True)
-    parser.add_argument('-v', dest="versions", type=str, help='Version names for the benchmark', required=True)
-    parser.add_argument('-l', dest="loader_name", type=str, help='Program used for loading benchmark', required=True)
+    parser.add_argument('-b', dest="benchmark_list", type=str, default="all", help='XDP benchmark list, e.g., xdp_portknock,xdp_hhd. `all` means all benchmarks', required=False)
+    # parser.add_argument('-v', dest="versions", type=str, help='Version names for the benchmark', required=True)
+    # parser.add_argument('-l', dest="loader_name", type=str, help='Program used for loading benchmark', required=True)
     parser.add_argument('-r', dest="num_runs", type=int, help='Total number of runs (greater than 1)', required=True)
     parser.add_argument('--nc_max', dest="num_cores_max", type=int, help='Maximum number of cores (greater than 1)', required=True)
     parser.add_argument('-d', dest="duration", type=int, help='Duration for each test. Unit: seconds', required=True)
@@ -399,8 +428,14 @@ if __name__ == "__main__":
     if args.output_folder_trex is None:
         args.output_folder_trex = args.output_folder
     args.base_pkt_len = max(64, args.base_pkt_len)
-    version_name_list = args.versions.split(",")
-    LOADER_NAME = args.loader_name
+    if args.benchmark_list == "all":
+        benchmark_list = [f"xdp_{BENCHMARK_portknock}", f"xdp_{BENCHMARK_hhd}",
+                          f"xdp_{BENCHMARK_token_bucket}", f"xdp_{BENCHMARK_ddos_mitigator}",
+                          f"xdp_{BENCHMARK_nat_dp}"]
+    else:
+        benchmark_list = args.benchmark_list.split(",")
+    # version_name_list = args.versions.split(",")
+    # LOADER_NAME = args.loader_name
     DISABLE_prog_latency = args.disable_prog_latency
     DISABLE_prog_latency_ns = args.disable_prog_latency_ns
     DISABLE_insn_latency = args.disable_insn_latency
@@ -421,29 +456,40 @@ if __name__ == "__main__":
     TREX_PATH = f"{CLIENT_DIR}/MLNX_OFED_LINUX-5.4-3.5.8.0-rhel7.9-x86_64/v2.87/"
     tx_rate_list = args.tx_rate_list.split(',') # it won't be used by PKTGEN_SCAPY
     num_flows_list = args.num_flows_list.split(',') # it won't be used by PKTGEN_SCAPY
+    t_start_experiments = time.time()
     for run_id in range(0, args.num_runs):
         print(f"Run {run_id} starts......")
         t_start = time.time()
-        for num_flows in num_flows_list:
-            # mlffr should have a different loop, not reply on tx_rate_list
-            for version in version_name_list:
-                t_start_v = time.time()
-                prog_name_prefix = f"{args.prog_name}_{version}"
-                output_folder_version_dut = f"{args.output_folder}/{num_flows}/{version}"
-                run_mlffr_versions(prog_name_prefix, args.num_cores_max, args.duration,
-                    output_folder_version_dut, run_id, num_flows)
-                time_cost_v = time.time() - t_start_v
-                print(f"Run {run_id} {version} mlffr ends. time_cost: {time_cost_v}")
-            for tx_rate in tx_rate_list:
-                for version in version_name_list:
-                    t_start_v = time.time()
-                    prog_name_prefix = f"{args.prog_name}_{version}"
-                    output_folder_version_dut = f"{args.output_folder}/{num_flows}/{tx_rate}/{version}"
-                    output_folder_version_trex = f"{args.output_folder_trex}/{num_flows}/{tx_rate}/{version}"
-                    run_tests_versions(prog_name_prefix, args.num_cores_max, args.duration,
-                        output_folder_version_dut, output_folder_version_trex, run_id, num_flows, tx_rate,
-                        args.base_pkt_len)
-                    time_cost_v = time.time() - t_start_v
-                    print(f"Run {run_id} {version} test ends. time_cost: {time_cost_v}")
+        for benchmark in benchmark_list:
+            output_folder = f"{args.output_folder}/{benchmark}"
+            output_folder_trex = f"{args.output_folder_trex}/{benchmark}"
+            if BENCHMARK_portknock in benchmark:
+                LOADER_NAME = "xdpex1"
+                version_name_list = ["v1", "v2"]
+            elif BENCHMARK_hhd in benchmark:
+                LOADER_NAME = "xdpex1"
+                version_name_list = ["v1", "v10"]
+            elif BENCHMARK_token_bucket in benchmark:
+                LOADER_NAME = "xdpex1"
+                version_name_list = ["v1", "v4"]
+            elif BENCHMARK_ddos_mitigator in benchmark:
+                LOADER_NAME = "xdp_ddos_mitigator"
+                version_name_list = ["v1", "v4"]
+            elif BENCHMARK_nat_dp in benchmark:
+                LOADER_NAME = "xdp_nat_dp"
+                version_name_list = ["v1", "v3"]
+            else:
+                print(f"Benchmark {benchmark} not supported. Exit")
+                sys.exit(0)
+            print(f"Test benchmark {benchmark}")
+            print(run_id, benchmark, LOADER_NAME, version_name_list, tx_rate_list,
+                num_flows_list, args.num_cores_max, args.duration, output_folder,
+                output_folder_trex, args.base_pkt_len)
+            test_benchmark(run_id, benchmark, version_name_list, tx_rate_list,
+                num_flows_list, args.num_cores_max, args.duration, output_folder,
+                output_folder_trex, args.base_pkt_len)
         time_cost = time.time() - t_start
         print(f"Run {run_id} ends. time_cost: {time_cost}")
+    time_cost = time.time() - t_start_experiments
+    print(f"Experiments ends. time_cost: {time_cost}")
+
