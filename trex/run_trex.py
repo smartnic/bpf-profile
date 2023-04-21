@@ -86,6 +86,8 @@ if __name__ == "__main__":
             print(f"Expected actual rate: {expected_actual_rate}, rate: {rate}")
             rx_pps_list = []
             tx_pps_list = []
+            rx_bps_list = []
+            tx_bps_list = []
             min_l_list = []
             avg_l_list = []
             max_l_list = []
@@ -99,6 +101,8 @@ if __name__ == "__main__":
                 if stats[tx_port]["tx_pps"] >= expected_actual_rate:
                     rx_pps_list.append(stats[rx_port]["rx_pps"])
                     tx_pps_list.append(stats[tx_port]["tx_pps"])
+                    rx_bps_list.append(stats[rx_port]["rx_bps"])
+                    tx_bps_list.append(stats[tx_port]["tx_bps"])
                     # latency_stats = stats["latency"][2]["latency"]
                     # min_l_list.append(latency_stats["total_min"])
                     # max_l_list.append(latency_stats["total_max"])
@@ -125,15 +129,22 @@ if __name__ == "__main__":
             max_l = 0
             min_l = 0
             avg_l = 0
+            print("rx_bps_list: ", rx_bps_list)
+            print("tx_bps_list: ", tx_bps_list)
+            rx_bps = np.mean(rx_bps_list)
+            tx_bps = np.mean(tx_bps_list)
+            diff_bps = np.mean(np.abs(np.subtract(rx_bps_list, tx_bps_list)))
             print(f"rx = {rx_pps}")
             print(f"tx = {tx_pps}")
             print(f"diff = {diff}")
             print(f"maxL = {max_l}")
             print(f"minL = {min_l}")
             print(f"avgL = {avg_l}")
+            print(f"rx_bps = {rx_bps}")
+            print(f"tx_bps = {tx_bps}")
             f = open(output_file, 'w')
             writer = csv.writer(f)
-            lst = [count, rx_pps, tx_pps, diff, max_l, min_l, avg_l]
+            lst = [count, rx_pps, tx_pps, diff, max_l, min_l, avg_l, rx_bps, tx_bps, diff_bps]
             writer.writerow(lst)
             f.close()
     except STLError as e:
