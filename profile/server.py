@@ -3,7 +3,10 @@ from socket_commands import *
 import subprocess
 import os
 from os.path import exists
+from multiprocessing import Process
 from mlffr import measure_mlffr
+from run_trex import check_packet_gen_stable
+import time
 
 CONFIG_file_xl170 = "config.xl170"
 IP = ""  # interface address
@@ -53,6 +56,17 @@ def measure_benchmark_mlffr(paras_str):
                           measure_time, rate_high, rate_low, precision)
     return True, mlffr
 
+def check_send_packets_stable():
+    t_wait_start = time.time()
+    max_wait_time = 120.0
+    while True:
+        wait_time = time.time() - t_wait_start
+        if wait_time >= max_wait_time:
+            return True
+        if check_packet_gen_stable():
+            return True
+        time.sleep(0.5)
+    return False
 
 def start_server():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -78,6 +92,10 @@ def start_server():
                         res, mlffr = measure_benchmark_mlffr(paras)
                         print(f"resp: {mlffr}")
                         conn.sendall(bytes(str(mlffr), 'utf-8'))
+                    elif data == CMD_CHECK_PKT_GEN_STABLE:
+                        res = check_send_packets_stable()
+                        print(f"{CMD_CHECK_PKT_GEN_STABLE} res: {res}")
+                        conn.sendall(bytes(str(res), 'utf-8'))
                     else:
                         conn.sendall(bytes(CMD_RECVD, 'utf-8'))
                         run_cmd(data)
