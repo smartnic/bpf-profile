@@ -103,7 +103,8 @@ def clean_environment(client, prog_name):
     kill_process_on_client("run_trex.py", client)
     loader_cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
-    run_cmd(f"sudo pkill -f pcm", wait=True)
+    pcm_cmd = "sudo nohup pcm"
+    run_cmd(f"sudo pkill -f \"{pcm_cmd}\"", wait=True)
 
 def run_packet_generator_scapy(benchmark, version, core_list, client):
     # start packet generation
@@ -139,7 +140,7 @@ def run_packet_generator_scapy(benchmark, version, core_list, client):
 def start_trex_server(client):
     client_cmd = f"sudo bash {TREX_PATH}start_trex_server.sh {TREX_PATH} >log_trex_server.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
-    time.sleep(30)
+    time.sleep(10)
 
 def run_packet_generator_trex(benchmark, version, core_list, client, num_flows, tx_rate, base_pkt_len):
     # start trex server
@@ -148,7 +149,9 @@ def run_packet_generator_trex(benchmark, version, core_list, client, num_flows, 
     print(f"run_packet_generator_trex: {base_pkt_len}")
     client_cmd = f"sudo bash {TREX_PATH}run_trex.sh {TREX_PATH} {benchmark} {version} 10000 {tx_rate} {len(core_list)} {num_flows} {base_pkt_len} >log.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
-    time.sleep(120)
+    # check if packet gen is stable
+    client_cmd = CMD_CHECK_PKT_GEN_STABLE
+    res = run_unmodified_cmd_on_client(client_cmd, client)
 
 def run_packet_generator(benchmark, version, core_list, client, num_flows, tx_rate, base_pkt_len):
     if PKTGEN_input == PKTGEN_SCAPY:
