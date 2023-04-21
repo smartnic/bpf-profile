@@ -46,6 +46,7 @@ if __name__ == "__main__":
     parser.add_argument('-r', dest="rate", type=float, help='Multiplier send rate in Mpps', default=1)
     parser.add_argument('-nc', dest="num_cores", type=int, help='Number of cores', required=True)
     parser.add_argument('-nf', dest="num_flows", type=int, help='Number of flows', required=True)
+    parser.add_argument('-l', dest="base_pkt_len", type=int, help='base packet len (>=64)', required=True)
     args = parser.parse_args()
 
     c = STLClient(server='127.0.0.1')
@@ -59,7 +60,7 @@ if __name__ == "__main__":
         c.connect() # connect to server
         c.reset(ports = 0)
         c.add_profile(filename="stl/udp_for_benchmarks.py", ports=0,
-            kwargs={"packet_len": 64,
+            kwargs={"packet_len": args.base_pkt_len,
                     "stream_count": 1,
                     "benchmark": args.benchmark,
                     "version": args.version,
