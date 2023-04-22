@@ -107,7 +107,7 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
             load_bytes += flow1_bytes
             load_bytes += time.to_bytes(8, 'little')
             time += 1024
-        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+        packet = Ether(src=client_mac,dst=server_mac,type=ethtype)/Raw(load=load_bytes)/ext_pkt
         packets.append(packet)
         print(f"packet size: {len(packet)} bytes")
         return packets
@@ -127,7 +127,7 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
             load_bytes += flow1_bytes
             load_bytes += time.to_bytes(8, 'little')
             time += 1024
-        packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+        packet = Ether(src=client_mac,dst=server_mac,type=ethtype)/Raw(load=load_bytes)/ext_pkt
         print(f"packet size: {len(packet)} bytes")
         packets.append(packet)
     # hexdump(packet)
@@ -147,23 +147,23 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
     # # packets = 100 * packet
     # sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
 
-# src_ip is used for RSS
-def set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size):
+# src_mac is used for RSS
+def set_up_arguments(num_cores, src_mac, num_flows, ext_pkt_size):
     global NUM_cores, NUM_flows, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
     global EXTERNAL_PKT_SIZE
     NUM_cores = num_cores
     NUM_flows = num_flows
     CLIENT_iface = read_machine_info_from_file("client_iface")
-    CLIENT_mac = read_machine_info_from_file("client_mac")
-    CLIENT_ip = src_ip
+    CLIENT_mac = src_mac
+    CLIENT_ip = read_machine_info_from_file("client_ip")
     CLIENT_port = SPORT_ARM
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
     SERVER_port = DPORT_ARM
     EXTERNAL_PKT_SIZE = ext_pkt_size
 
-def token_bucket_construct_packets(version, src_ip, num_cores = 0, num_flows = 1, ext_pkt_size = 64):
-    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
+def token_bucket_construct_packets(version, src_mac, num_cores = 0, num_flows = 1, ext_pkt_size = 64):
+    set_up_arguments(num_cores, src_mac, num_flows, ext_pkt_size)
     packets = []
     packet = ""
     if version == "v1":
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     if version not in ["v1", "v3", "v4"]:
         print(f"Version {version} is not v1, v3, or v4")
         sys.exit(0)
-    src_ip = sys.argv[2]
+    src_mac = sys.argv[2]
     num_cores = int(sys.argv[3])
     num_flows = 1
     if len(sys.argv) >= 5:
@@ -195,9 +195,9 @@ if __name__ == "__main__":
     ext_pkt_size = 64
     if len(sys.argv) >= 6:
         ext_pkt_size = int(sys.argv[5])
-    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
+    set_up_arguments(num_cores, src_mac, num_flows, ext_pkt_size)
     num_pkts_in_md = NUM_cores - 1
     num_flows_in_md = num_flows - 1
-    # print(version, src_mac, src_ip, num_cores)
+    # print(version, src_mac, src_mac, num_cores)
 
     send_udp_packets(version, num_pkts_in_md, num_flows_in_md, CLIENT_port, SERVER_port, CLIENT_iface, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)

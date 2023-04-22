@@ -34,18 +34,17 @@ class STLS1(object):
             base_pkts = []
             # used for RSS, src mac starts from 10:10:10:10:10:01 (i.e., core 1)
             src_mac = f"10:10:10:10:10:{format(i+1, '02x')}"
-            src_ip = f"10.10.1.{i+1}"
             print(f"create_stream: {src_mac}")
             if benchmark == "portknock":
                 base_pkts = portknock_construct_packets("loop", version, src_mac, num_cores, packet_len)
             elif benchmark == "hhd":
-                base_pkts = hhd_construct_packets(version, src_ip, num_cores, num_flows, packet_len)
+                base_pkts = hhd_construct_packets(version, src_mac, num_cores, num_flows, packet_len)
             elif benchmark == "ddos_mitigator":
-                base_pkts = ddos_mitigator_construct_packets(version, src_ip, num_cores, num_flows, packet_len)
+                base_pkts = ddos_mitigator_construct_packets(version, src_mac, num_cores, num_flows, packet_len)
             elif benchmark == "token_bucket":
-                base_pkts = token_bucket_construct_packets(version, src_ip, num_cores, num_flows, packet_len)
+                base_pkts = token_bucket_construct_packets(version, src_mac, num_cores, num_flows, packet_len)
             elif benchmark == "nat_dp":
-                base_pkts = nat_dp_construct_packets(version, src_ip, num_cores, num_flows, packet_len)
+                base_pkts = nat_dp_construct_packets(version, src_mac, num_cores, num_flows, packet_len)
             assert(len(base_pkts) > 0)
             for base_pkt in base_pkts:
                 base_pkt_len = len(base_pkt)

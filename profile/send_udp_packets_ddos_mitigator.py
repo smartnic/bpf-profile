@@ -89,7 +89,7 @@ def construct_packets_v4(num_pkts_in_md, num_flows_in_md, sport, dport, client_i
         load_bytes += client_ip_int.to_bytes(4, 'big')
     ext_pkt = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/UDP(sport=sport,dport=dport)
     ext_pkt /= 'x' * max(0, EXTERNAL_PKT_SIZE - len(ext_pkt))
-    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+    packet = Ether(src=client_mac,dst=server_mac,type=ethtype)/Raw(load=load_bytes)/ext_pkt
     print(f"packet size: {len(packet)} bytes")
     return [packet]
 
@@ -106,23 +106,23 @@ def send_udp_packets(version, num_pkts_in_md, num_flows_in_md, sport, dport, cli
     # # packets = 100 * packet
     # sendpfast(packets, iface=client_iface, pps=1000000, loop=1)
 
-# src_ip is used for RSS
-def set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size):
+# src_mac is used for RSS
+def set_up_arguments(num_cores, src_mac, num_flows, ext_pkt_size):
     global NUM_cores, NUM_flows, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, SERVER_port
     global EXTERNAL_PKT_SIZE
     NUM_cores = num_cores
     NUM_flows = num_flows
     CLIENT_iface = read_machine_info_from_file("client_iface")
-    CLIENT_mac = read_machine_info_from_file("client_mac")
-    CLIENT_ip = src_ip
+    CLIENT_mac = src_mac
+    CLIENT_ip = "10.10.1.0"
     CLIENT_port = SPORT_ARM
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
     SERVER_port = DPORT_ARM
     EXTERNAL_PKT_SIZE = ext_pkt_size
 
-def ddos_mitigator_construct_packets(version, src_ip, num_cores = 0, num_flows = 1, ext_pkt_size = 64):
-    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
+def ddos_mitigator_construct_packets(version, src_mac, num_cores = 0, num_flows = 1, ext_pkt_size = 64):
+    set_up_arguments(num_cores, src_mac, num_flows, ext_pkt_size)
     packets = []
     packet = ""
     if version == "v1" or version == "v2":
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     if version not in ["v1", "v2", "v3", "v4"]:
         print(f"Version {version} is not v1 - v4")
         sys.exit(0)
-    src_ip = sys.argv[2]
+    src_mac = sys.argv[2]
     num_cores = int(sys.argv[3])
     num_flows = 1
     if len(sys.argv) >= 5:
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     ext_pkt_size = 64
     if len(sys.argv) >= 6:
         ext_pkt_size = int(sys.argv[5])    
-    set_up_arguments(num_cores, src_ip, num_flows, ext_pkt_size)
+    set_up_arguments(num_cores, src_mac, num_flows, ext_pkt_size)
     num_pkts_in_md = NUM_cores - 1
     num_flows_in_md = num_flows - 1
     # print(version, src_mac, src_ip, num_cores)

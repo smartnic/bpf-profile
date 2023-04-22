@@ -247,11 +247,11 @@ def portknock_construct_packets(function, version, src_mac, num_cores = 0, ext_p
     set_up_arguments(function, num_cores, src_mac, ext_pkt_size)
     packet_list = []
     if version == "v1":
-        packet_list = construct_packet_v1(CLIENT_port, src_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
+        packet_list = construct_packet_v1(CLIENT_port, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     elif version == "v2":
-        packet_list = construct_packet_v2(CLIENT_port, src_mac, CLIENT_ip, SERVER_mac, SERVER_ip, num_cores-1)
+        packet_list = construct_packet_v2(CLIENT_port, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip, num_cores-1)
     elif version == "v3":
-        packet_list = construct_packet_v3(CLIENT_port, src_mac, CLIENT_ip, src_mac, SERVER_mac, SERVER_ip, num_cores-1)
+        packet_list = construct_packet_v3(CLIENT_port, CLIENT_mac, CLIENT_ip, SERVER_mac, SERVER_ip, num_cores-1)
     return packet_list
 
 if __name__ == "__main__":
