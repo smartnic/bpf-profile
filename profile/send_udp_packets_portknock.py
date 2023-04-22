@@ -1,4 +1,4 @@
-# sudo python3 send_udp_packets_test.py [function] [version] [src_ip] [# of cores]
+# sudo python3 send_udp_packets_test.py [function] [version] [src_mac] [# of cores]
 # function: single, loop
 # version: v1, v2
 # v1 is for shared state, v2 is for local state
@@ -166,7 +166,7 @@ def construct_packet_v2(sport, client_mac, client_ip, server_mac, server_ip, num
         load_bytes += ethtype.to_bytes(2, 'big')
         load_bytes += protocol.to_bytes(1, 'little')
         load_bytes += dport.to_bytes(2, 'little')
-    packet = Ether(src=client_mac,dst=server_mac)/IP(src=client_ip,dst=server_ip)/Raw(load=load_bytes)/ext_pkt
+    packet = Ether(src=client_mac,dst=server_mac,type=ethtype)/Raw(load=load_bytes)/ext_pkt
     print(f"packet size: {len(packet)} bytes")
     return [packet]
 
@@ -226,8 +226,8 @@ def send_udp_packets_v3(sport, client_iface, client_mac, client_ip, server_mac, 
         packets += packet_list[:r]
         sendpfast(packets, iface=client_iface, pps=1000000, loop=1000000000)
 
-# src_ip is used for RSS
-def set_up_arguments(function, num_cores, src_ip, ext_pkt_size):
+# src_mac is used for RSS
+def set_up_arguments(function, num_cores, src_mac, ext_pkt_size):
     global FLAG_LOOP, CLIENT_iface, CLIENT_mac, CLIENT_ip, CLIENT_port, SERVER_mac, SERVER_ip, NUM_cores
     global EXTERNAL_PKT_SIZE
     NUM_cores = num_cores
@@ -236,22 +236,22 @@ def set_up_arguments(function, num_cores, src_ip, ext_pkt_size):
     else:
         FLAG_LOOP = False
     CLIENT_iface = read_machine_info_from_file("client_iface")
-    CLIENT_mac = read_machine_info_from_file("client_mac")
-    CLIENT_ip = src_ip
+    CLIENT_mac = src_mac
+    CLIENT_ip = read_machine_info_from_file("client_ip")
     CLIENT_port = SPORT_ARM
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
     EXTERNAL_PKT_SIZE = ext_pkt_size
 
-def portknock_construct_packets(function, version, src_ip, num_cores = 0, ext_pkt_size = 64):
-    set_up_arguments(function, num_cores, src_ip, ext_pkt_size)
+def portknock_construct_packets(function, version, src_mac, num_cores = 0, ext_pkt_size = 64):
+    set_up_arguments(function, num_cores, src_mac, ext_pkt_size)
     packet_list = []
     if version == "v1":
-        packet_list = construct_packet_v1(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip)
+        packet_list = construct_packet_v1(CLIENT_port, src_mac, CLIENT_ip, SERVER_mac, SERVER_ip)
     elif version == "v2":
-        packet_list = construct_packet_v2(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip, num_cores-1)
+        packet_list = construct_packet_v2(CLIENT_port, src_mac, CLIENT_ip, SERVER_mac, SERVER_ip, num_cores-1)
     elif version == "v3":
-        packet_list = construct_packet_v3(CLIENT_port, CLIENT_mac, src_ip, SERVER_mac, SERVER_ip, num_cores-1)
+        packet_list = construct_packet_v3(CLIENT_port, src_mac, CLIENT_ip, src_mac, SERVER_mac, SERVER_ip, num_cores-1)
     return packet_list
 
 if __name__ == "__main__":
@@ -275,13 +275,13 @@ if __name__ == "__main__":
     if version == "v2" or version == "v3":
         num_cores = int(sys.argv[4])
 
-    src_ip = sys.argv[3]
+    src_mac = sys.argv[3]
 
     ext_pkt_size = 64
     if len(sys.argv) >= 6:
         ext_pkt_size = int(sys.argv[5])
 
-    set_up_arguments(function, num_cores, src_ip, ext_pkt_size)
+    set_up_arguments(function, num_cores, src_mac, ext_pkt_size)
     num_ports_in_md = NUM_cores - 1
 
     if version == "v1":

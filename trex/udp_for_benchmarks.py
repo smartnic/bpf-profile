@@ -32,11 +32,12 @@ class STLS1(object):
         packet_len = actual_packet_len - 4
         for i in range(num_cores):
             base_pkts = []
-            # used for RSS, src ip starts from 10.10.1.1 (i.e., core 1)
+            # used for RSS, src mac starts from 10:10:10:10:10:01 (i.e., core 1)
+            src_mac = f"10:10:10:10:10:{format(i+1, '02x')}"
             src_ip = f"10.10.1.{i+1}"
-            print(f"create_stream: {src_ip}")
+            print(f"create_stream: {src_mac}")
             if benchmark == "portknock":
-                base_pkts = portknock_construct_packets("loop", version, src_ip, num_cores, packet_len)
+                base_pkts = portknock_construct_packets("loop", version, src_mac, num_cores, packet_len)
             elif benchmark == "hhd":
                 base_pkts = hhd_construct_packets(version, src_ip, num_cores, num_flows, packet_len)
             elif benchmark == "ddos_mitigator":
