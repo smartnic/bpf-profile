@@ -76,7 +76,7 @@ int xdp_prog(struct xdp_md* ctx) {
   /* Process previous packets using metadata */
   struct metadata_elem* md;
   struct flow_key *md_flow;
-  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  int dummy_header_size = sizeof(struct ethhdr);
   int md_offset = dummy_header_size;
   void* md_start = data + md_offset;
   u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);

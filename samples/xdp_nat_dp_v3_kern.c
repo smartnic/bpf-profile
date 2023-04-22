@@ -90,7 +90,7 @@ static inline void process_metadata(struct xdp_md *ctx,
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
   struct metadata_elem* md;
-  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  int dummy_header_size = sizeof(struct ethhdr);
   void* md_start = data + dummy_header_size;
   u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
   /* safety check of accessing metadata */
@@ -271,7 +271,7 @@ int xdp_prog(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
 
-  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  int dummy_header_size = sizeof(struct ethhdr);
   u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
   void* pkt_start = data + dummy_header_size + md_size;
   struct eth_hdr *eth = pkt_start;

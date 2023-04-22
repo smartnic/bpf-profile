@@ -164,7 +164,7 @@ int xdp_prog(struct xdp_md *ctx) {
   u64 *value;
 
   /* Process the previous packets using metadata */
-  int dummy_header_size = sizeof(struct ethhdr) + sizeof(struct iphdr);
+  int dummy_header_size = sizeof(struct ethhdr);
   int md_offset = dummy_header_size;
   struct metadata_elem* md;
   void* md_start = data + md_offset;
