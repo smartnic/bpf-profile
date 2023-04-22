@@ -9,16 +9,17 @@ if [ -z "$1" ]; then
 fi
 IFACE=$1
 
-SRC_IP_PRE="10.10.1."
-SRC_IP_POST_START=1
+SRC_MAC_PRE="10:10:10:10:10:"
+SRC_MAC_POST_START=1
 num=14
 node1_ring_list=(1 2 3 4 5 6 7 17 18 19 20 21 22 23)
 count=0
 
 for i in $(seq 0 $(($num - 1))); do
 	ring=${node1_ring_list[$i]}
-    ip_post=$((SRC_IP_POST_START + $i))
-    ethtool -N $IFACE flow-type ip4 src-ip $SRC_IP_PRE$ip_post action $ring
+    mac_post_dec=$((SRC_MAC_POST_START + $i))
+    mac_post_hex="$(printf '%02x' $mac_post_dec)"
+    ethtool -N $IFACE flow-type ether src $SRC_MAC_PRE$mac_post_hex action $ring
 done
 
 echo "Display rx network flow classification rules"
