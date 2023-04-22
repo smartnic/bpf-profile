@@ -16,8 +16,9 @@ NUM_CORES=$(grep 'cpu cores' /proc/cpuinfo | uniq | awk '{print $4}')
 num=$(( NUM_RINGS < NUM_CORES ? NUM_RINGS : NUM_CORES ))
 
 for ring in $(seq 0 $(($num - 1))); do
-    ip_post=$((SRC_MAC_POST_START + $ring))
-    ethtool -N $IFACE flow-type ether src $SRC_MAC_PRE$ip_post action $ring
+    mac_post_dec=$((SRC_MAC_POST_START + $ring))
+    mac_post_hex="$(printf '%02x' $mac_post_dec)"
+    ethtool -N $IFACE flow-type ether src $SRC_MAC_PRE$mac_post_hex action $ring
 done
 
 echo "Display rx network flow classification rules"
