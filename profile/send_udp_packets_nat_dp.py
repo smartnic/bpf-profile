@@ -141,7 +141,7 @@ def set_up_arguments(num_cores, src_mac, num_flows, ext_pkt_size):
     NUM_flows = num_flows
     CLIENT_iface = read_machine_info_from_file("client_iface")
     CLIENT_mac = src_mac
-    CLIENT_ip = read_machine_info_from_file("client_ip")
+    CLIENT_ip = "10.10.1.0"
     CLIENT_port = SPORT_ARM
     SERVER_mac = read_machine_info_from_file("server_mac")
     SERVER_ip = read_machine_info_from_file("server_ip")
