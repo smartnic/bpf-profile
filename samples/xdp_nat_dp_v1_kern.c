@@ -93,6 +93,14 @@ static inline __be16 get_free_port() {
   return htons(port);
 }
 
+static inline void remove_entries_from_session_tables(struct st_k *key) {
+  if (key) {
+    // bpf_printk("remove entries from ingress/egress session tables");
+    bpf_map_delete_elem(&egress_session_table, key);
+    bpf_map_delete_elem(&ingress_session_table, key);
+  }
+}
+
 SEC("xdp_nat_dp")
 int xdp_prog(struct xdp_md *ctx) {
   // NAT processing happens in 4 steps:
@@ -142,6 +150,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
   // Status data
   uint8_t update_session_table = 1;
+  bool remove_session_table = false;
 
   struct iphdr *ip = data + sizeof(*eth);
   if ( (void *)ip + sizeof(*ip) > data_end )
@@ -167,6 +176,14 @@ int xdp_prog(struct xdp_md *ctx) {
     //            tcp->source, tcp->dest);
     srcPort = tcp->source;
     dstPort = tcp->dest;
+
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    // if entry needs to be removed, no need to update
+    if (remove_session_table) {
+      update_session_table = 0;
+    }
     break;
   }
   case IPPROTO_UDP: {
@@ -221,6 +238,9 @@ int xdp_prog(struct xdp_md *ctx) {
     rule_type = NAT_SRC;
 
     update_session_table = 0;
+    if (remove_session_table) {
+      remove_entries_from_session_tables(&key);
+    }
 
     goto apply_nat;
   }
@@ -238,6 +258,9 @@ int xdp_prog(struct xdp_md *ctx) {
     rule_type = NAT_DST;
 
     update_session_table = 0;
+    if (remove_session_table) {
+      remove_entries_from_session_tables(&key);
+    }
 
     goto apply_nat;
   }
