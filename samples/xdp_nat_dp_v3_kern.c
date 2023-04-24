@@ -6,6 +6,7 @@
 struct metadata_elem {
   __be16 ethtype;
   struct st_k flow;
+  bool tcp_fin_flag; /* if true: is a tcp fin packet */
 } __attribute__((packed));
 
 #define NATTYPE NATTYPE_EGRESS
@@ -83,6 +84,16 @@ static inline __be16 get_free_port(struct first_free_port_cuckoo_hash_map* map) 
   return htons(port);
 }
 
+static inline void remove_entries_from_session_tables(struct st_k *key,
+    struct egress_session_table_cuckoo_hash_map *egress_session_table_cuckoo,
+    struct ingress_session_table_cuckoo_hash_map *ingress_session_table_cuckoo) {
+  if (key) {
+    // bpf_printk("remove entries from ingress/egress session tables");
+    egress_session_table_cuckoo_delete(egress_session_table_cuckoo, key);
+    ingress_session_table_cuckoo_delete(ingress_session_table_cuckoo, key);
+  }
+}
+
 static inline void process_metadata(struct xdp_md *ctx,
                                     struct egress_session_table_cuckoo_hash_map *egress_session_table_cuckoo,
                                     struct ingress_session_table_cuckoo_hash_map *ingress_session_table_cuckoo,
@@ -105,6 +116,7 @@ static inline void process_metadata(struct xdp_md *ctx,
       // bpf_printk("Received Packet is not IP Packet");
       continue;
     }
+
     // Packet data
     uint32_t srcIp = 0;
     uint32_t dstIp = 0;
@@ -119,6 +131,7 @@ static inline void process_metadata(struct xdp_md *ctx,
 
     // Status data
     uint8_t update_session_table = 1;
+    bool remove_session_table = false;
     // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(md->flow.src_ip & 0xf0ffffff),
     //            ntohl(md->flow.dst_ip));
     /* Zero out the least significant 4 bits as they are
@@ -126,14 +139,24 @@ static inline void process_metadata(struct xdp_md *ctx,
     srcIp = md->flow.src_ip & 0xf0ffffff;
     dstIp = md->flow.dst_ip;
     proto = md->flow.proto;
-    if (md->flow.proto != IPPROTO_UDP) {
-      // bpf_printk("Received Packet is not UDP Packet");
+    if ((md->flow.proto != IPPROTO_UDP) &&
+        (md->flow.proto != IPPROTO_TCP)) {
+      // bpf_printk("Received Packet is not UDP or TCP Packet");
       continue;
     }
     // bpf_printk("Packet is UDP: src_port %d, dst_port %d",
     //            ntohs(md->flow.src_port), ntohs(md->flow.dst_port));
     srcPort = md->flow.src_port;
     dstPort = md->flow.dst_port;
+
+    // check if entry needs to be removed
+    // no need to check proto, as tcp_fin_flag is set as 0 for other proto packets
+    remove_session_table = md->tcp_fin_flag;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    /* if entry needs to be removed, no need to update */
+    if (remove_session_table) {
+      update_session_table = 0;
+    }
 
     // Packet parsed, start session table lookup
     struct st_k key = {0, 0, 0, 0, 0};
@@ -156,6 +179,11 @@ static inline void process_metadata(struct xdp_md *ctx,
       rule_type = NAT_SRC;
 
       update_session_table = 0;
+      if (remove_session_table) {
+        remove_entries_from_session_tables(&key,
+                                           egress_session_table_cuckoo,
+                                           ingress_session_table_cuckoo);
+      }
 
       goto apply_nat;
     }
@@ -310,6 +338,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
   // Status data
   uint8_t update_session_table = 1;
+  bool remove_session_table = false;
 
   struct iphdr *ip = pkt_start + sizeof(*eth);
   if ( (void *)ip + sizeof(*ip) > data_end )
@@ -332,6 +361,14 @@ int xdp_prog(struct xdp_md *ctx) {
     // bpf_printk("Packet is TCP: src_port %d, dst_port %d", tcp->source, tcp->dest);
     srcPort = tcp->source;
     dstPort = tcp->dest;
+
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    // if entry needs to be removed, no need to update
+    if (remove_session_table) {
+      update_session_table = 0;
+    }
     break;
   }
   case IPPROTO_UDP: {
@@ -384,6 +421,11 @@ int xdp_prog(struct xdp_md *ctx) {
     rule_type = NAT_SRC;
 
     update_session_table = 0;
+    if (remove_session_table) {
+      remove_entries_from_session_tables(&key,
+                                         egress_session_table_cuckoo,
+                                         ingress_session_table_cuckoo);
+    }
 
     goto apply_nat;
   }
@@ -401,6 +443,11 @@ int xdp_prog(struct xdp_md *ctx) {
     rule_type = NAT_DST;
 
     update_session_table = 0;
+    if (remove_session_table) {
+      remove_entries_from_session_tables(&key,
+                                         egress_session_table_cuckoo,
+                                         ingress_session_table_cuckoo);
+    }
 
     goto apply_nat;
   }
