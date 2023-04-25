@@ -30,6 +30,12 @@
 #include "fasthash.h"
 #endif
 
+#ifndef SHARED_CPU_MAP
+#define CUCKOO_HASH_TYPE BPF_MAP_TYPE_PERCPU_ARRAY
+#else
+#define CUCKOO_HASH_TYPE BPF_MAP_TYPE_ARRAY
+#endif
+
 #include "cilium_builtin.h"
 
 #define HASH_SEED_1 0x2d31e867
@@ -64,7 +70,7 @@
     };                                                                                             \
                                                                                                    \
     struct {                                                                                       \
-        __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);                                                   \
+        __uint(type, CUCKOO_HASH_TYPE);                                                            \
         __type(key, __u32);                                                                        \
         __type(value, struct _name##_cuckoo_hash_map);                                             \
         __uint(max_entries, 1);                                                                    \

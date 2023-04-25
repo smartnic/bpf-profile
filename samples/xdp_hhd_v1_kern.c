@@ -11,9 +11,16 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
-#define MAX_NUM_FLOWS 256
+#define MAX_NUM_FLOWS 512
 #define MAX_FLOW_BYTES (1 << 10)
 #define RET_ERR -1
+/* If define SHARED_CPU_MAP (value does not matter),
+ * cuckoo hash map is shared across CPUs.
+ * Need to include cuckoo hash header after defining SHARED_CPU_MAP
+ */
+#define SHARED_CPU_MAP 1
+#include "lib/cilium_builtin.h"
+#include "lib/cuckoo_hash.h"
 
 struct flow_key {
   u8 protocol;
@@ -21,14 +28,9 @@ struct flow_key {
   __be32 dst_ip;
   u16 src_port;
   u16 dst_port;
-};
+} __attribute__((packed));
 
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, struct flow_key);
-  __type(value, u64);
-  __uint(max_entries, MAX_NUM_FLOWS);
-} my_map SEC(".maps");
+BPF_CUCKOO_HASH(flowsize_map, struct flow_key, u64, 512)
 
 static inline int parse_udp(void *data, u64 nh_off, void *data_end,
                             u16 *sport, u16 *dport) {
@@ -60,6 +62,13 @@ int xdp_prog(struct xdp_md *ctx) {
   u64 nh_off;
   int rc = XDP_DROP;
   bool remove_session_table = false;
+
+  uint32_t zero = 0;
+  struct flowsize_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&flowsize_map, &zero);
+  if (!map) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
 
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
@@ -103,20 +112,20 @@ int xdp_prog(struct xdp_md *ctx) {
 
   /* Calculate packet length */
   u64 bytes = data_end - data;
-  value = bpf_map_lookup_elem(&my_map, &flow);
+  value = flowsize_map_cuckoo_lookup(map, &flow);
   if (value) {
     // bpf_printk("map hit");
     bytes_before = __sync_fetch_and_add(value, bytes);
     bytes += bytes_before;
     if (remove_session_table) {
       // bpf_printk("map remove");
-      bpf_map_delete_elem(&my_map, &flow);
+      flowsize_map_cuckoo_delete(map, &flow);
     }
   } else {
     // bpf_printk("map miss");
     if (!remove_session_table) {
       // bpf_printk("map insert");
-      bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
+      flowsize_map_cuckoo_insert(map, &flow, &bytes);
     }
   }
   if (bytes < MAX_FLOW_BYTES) {
