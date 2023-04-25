@@ -4,6 +4,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
@@ -101,7 +102,8 @@ int xdp_prog(struct xdp_md *ctx) {
     if (md->ethtype != htons(ETH_P_IP)) {
       continue;
     }
-    if (md->ipproto != IPPROTO_UDP) {
+    if ((md->ipproto != IPPROTO_UDP) &&
+        (md->ipproto != IPPROTO_TCP)) {
       continue;
     }
     dport = md->dport;
@@ -126,12 +128,19 @@ int xdp_prog(struct xdp_md *ctx) {
   }
 
   ipproto = parse_ipv4(data, &nh_off, data_end);
-  if (ipproto != IPPROTO_UDP) {
-    return rc;
-  }
-
-  if (parse_udp(data, &nh_off, data_end, &dport) == RET_ERR) {
-    return rc;
+  if (ipproto == IPPROTO_UDP) {
+    if (parse_udp(data, &nh_off, data_end, &dport) == RET_ERR) {
+      return rc;
+    }
+  } else if (ipproto == IPPROTO_TCP) {
+    /* Parse tcp header to get dst_port */
+    struct tcphdr *tcp = data + nh_off;
+    if (tcp + 1 > data_end)
+      return XDP_DROP;
+    dport = ntohs(tcp->dest);
+  } else {
+    /* drop packets that are not udp or tcp */
+    return XDP_DROP;
   }
 
   if (state == OPEN) {
