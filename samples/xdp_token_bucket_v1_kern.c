@@ -9,6 +9,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
@@ -72,6 +73,7 @@ int xdp_prog(struct xdp_md* ctx) {
   u64 nh_off;
   struct token_elem *token = NULL;
   int rc = XDP_DROP;
+  bool remove_session_table = false;
 
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
@@ -85,19 +87,31 @@ int xdp_prog(struct xdp_md* ctx) {
   iph = data + nh_off;
   if (iph + 1 > data_end)
     return XDP_DROP;
-  if (iph->protocol != IPPROTO_UDP) {
-    return XDP_DROP;
-  }
-  flow.protocol = IPPROTO_UDP;
+
+  flow.protocol = iph->protocol;
   /* Zero out the least significant 4 bits as they are
      used for RSS (note: src_ip is be32) */
   flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
-
-  /* Parse udp header to get src_port and dst_port */
   nh_off += sizeof(*iph);
-  if (parse_udp(data, nh_off, data_end, &flow.src_port,
-                &flow.dst_port) == RET_ERR) {
+  if (iph->protocol == IPPROTO_UDP) {
+    /* Parse udp header to get src_port and dst_port */
+    if (parse_udp(data, nh_off, data_end, &flow.src_port,
+                  &flow.dst_port) == RET_ERR) {
+      return XDP_DROP;
+    }
+  } else if (iph->protocol == IPPROTO_TCP) {
+    /* Parse tcp header to get src_port and dst_port */
+    struct tcphdr *tcp = data + nh_off;
+    if (tcp + 1 > data_end)
+      return XDP_DROP;
+    flow.src_port = ntohs(tcp->source);
+    flow.dst_port = ntohs(tcp->dest);
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+  } else {
+    /* drop packets that are not udp or tcp */
     return XDP_DROP;
   }
 
@@ -105,16 +119,21 @@ int xdp_prog(struct xdp_md* ctx) {
   // bpf_printk("cur_time: %lld\n", cur_time);
   token = bpf_map_lookup_elem(&token_map, &flow);
   if (!token) {
+    // bpf_printk("token_map miss");
     /* configure flow initial state in the map */
     rc = XDP_PASS;
-    u32 token_remain = MAX_TOKEN - token_needed;
-    struct token_elem elem;
-    __builtin_memset(&elem, 0, sizeof(elem));
-    elem.num = token_remain;
-    elem.last_time = cur_time;
-    bpf_map_update_elem(&token_map, &flow, &elem, BPF_NOEXIST);
+    if (!remove_session_table) {
+      u32 token_remain = MAX_TOKEN - token_needed;
+      struct token_elem elem;
+      __builtin_memset(&elem, 0, sizeof(elem));
+      elem.num = token_remain;
+      elem.last_time = cur_time;
+      // bpf_printk("token_map insert");
+      bpf_map_update_elem(&token_map, &flow, &elem, BPF_NOEXIST);
+    }
   } else {
-    /* update flow state in the map */
+    /* update/delete flow state in the map */
+    // bpf_printk("token_map hit");
     bpf_spin_lock(&token->lock);
     u32 token_increase = (cur_time - token->last_time) >> TOKEN_RATE;
     // bpf_printk("token_increase: %ld\n", token_increase);
@@ -133,6 +152,10 @@ int xdp_prog(struct xdp_md* ctx) {
     token->num = token_remain;
     token->last_time = cur_time;
     bpf_spin_unlock(&token->lock);
+    if (remove_session_table) {
+      // bpf_printk("token_map remove");
+      bpf_map_delete_elem(&token_map, &flow);
+    }
   }
 
   /* For all valid packets, bounce them back to the packet generator. */
