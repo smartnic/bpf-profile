@@ -22,6 +22,7 @@
 #define NOT_FOUND 0
 #define PERCPU_MAP 1
 #define CUCKOO_HASH_MAP 2
+#define CUCKOO_HASH_MAP_SHARED_CPU 3
 
 static int ifindex;
 static __u32 xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST;
@@ -57,7 +58,9 @@ static void usage(const char *prog)
 }
 
 static int get_map_type(char* filename) {
-  if (strstr(filename, "v1") || strstr(filename, "v2")) {
+  if (strstr(filename, "v1")) {
+    return CUCKOO_HASH_MAP_SHARED_CPU;
+  } else if (strstr(filename, "v2")) {
     return PERCPU_MAP;
   } else if (strstr(filename, "v4")) {
     return CUCKOO_HASH_MAP;
@@ -80,7 +83,8 @@ static void init_blocklist(int map_fd, int map_type)
       value_arr[i] = value;
     }
     res = bpf_map_update_elem(map_fd, &key, value_arr, BPF_ANY);
-  } else if (map_type == CUCKOO_HASH_MAP) {
+  } else if ((map_type == CUCKOO_HASH_MAP) ||
+             (map_type == CUCKOO_HASH_MAP_SHARED_CPU)) {
     int map_size = 512;
     struct cuckoo_hash_cell {
       bool is_filled;
@@ -97,22 +101,33 @@ static void init_blocklist(int map_fd, int map_type)
       struct cuckoo_hash_table t2; /* Second hash table */
     };
     __u32 zero = 0;
-    unsigned int nr_cpus = bpf_num_possible_cpus();
-    struct cuckoo_hash_map values[nr_cpus];
-    memset(values, 0, nr_cpus * sizeof(struct cuckoo_hash_map));
-    // assert(bpf_map_lookup_elem(map_fd, &zero, values) == 0);
 #define HASH_SEED_1 0x2d31e867
     uint32_t hash1 = fasthash32((void*)&key, sizeof(__u32), HASH_SEED_1);
     uint32_t idx = hash1 & (map_size - 1);
     printf("hash1 idx=%d\n", idx);
-    for (int i = 0; i < nr_cpus; i++) {
-      values[i].current_size = 1;
-      values[i].t1.current_size = 1;
-      values[i].t1.elem_list[idx].is_filled = true;
-      values[i].t1.elem_list[idx].key = key;
-      values[i].t1.elem_list[idx].val = 0;
+    if (map_type == CUCKOO_HASH_MAP_SHARED_CPU) {
+      struct cuckoo_hash_map value;
+      memset(&value, 0, sizeof(struct cuckoo_hash_map));
+      value.current_size = 1;
+      value.t1.current_size = 1;
+      value.t1.elem_list[idx].is_filled = true;
+      value.t1.elem_list[idx].key = key;
+      value.t1.elem_list[idx].val = 0;
+      res = bpf_map_update_elem(map_fd, &zero, &value, BPF_ANY);
+    } else if (map_type == CUCKOO_HASH_MAP) {
+      unsigned int nr_cpus = bpf_num_possible_cpus();
+      struct cuckoo_hash_map values[nr_cpus];
+      memset(values, 0, nr_cpus * sizeof(struct cuckoo_hash_map));
+      // assert(bpf_map_lookup_elem(map_fd, &zero, values) == 0);
+      for (int i = 0; i < nr_cpus; i++) {
+        values[i].current_size = 1;
+        values[i].t1.current_size = 1;
+        values[i].t1.elem_list[idx].is_filled = true;
+        values[i].t1.elem_list[idx].key = key;
+        values[i].t1.elem_list[idx].val = 0;
+      }
+      res = bpf_map_update_elem(map_fd, &zero, values, BPF_ANY);
     }
-    res = bpf_map_update_elem(map_fd, &zero, values, BPF_ANY);
   } else {
     res = bpf_map_update_elem(map_fd, &key, &value, BPF_ANY);
   }

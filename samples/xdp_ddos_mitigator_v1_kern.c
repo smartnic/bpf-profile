@@ -29,6 +29,14 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
+/* If define SHARED_CPU_MAP (value does not matter),
+ * cuckoo hash map is shared across CPUs.
+ * Need to include cuckoo hash header after defining SHARED_CPU_MAP
+ */
+#define SHARED_CPU_MAP 1
+#include "lib/cilium_builtin.h"
+#include "lib/cuckoo_hash.h"
+
 /*
  * dropcount is used to store dropped pkts counters.
  * key (uint32_t): [0] always stored at same array position
@@ -48,12 +56,7 @@ struct {
  * value (u64): used for matched rules counters.
  */
 #if SRC_MATCH
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __type(key, uint32_t);
-  __type(value, u64);
-  __uint(max_entries, 1024);
-} srcblocklist SEC(".maps");
+BPF_CUCKOO_HASH(srcblocklist, uint32_t, u64, 512)
 // BPF_TABLE("percpu_hash", uint32_t, u64, srcblocklist, 1024);
 // TODO it should be u64 as value
 #endif
@@ -83,7 +86,8 @@ struct {
  * __sk_buff struct
  * Please look at the libpolycube documentation for more details.
  */
-static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
+static inline int parse_ipv4(void *data, u64 nh_off, void *data_end,
+                             void *srcblocklist_ptr) {
   struct iphdr *iph = data + nh_off;
 
   if ((void *)&iph[1] > data_end)
@@ -94,7 +98,7 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
   uint32_t src = iph->saddr & 0xf0ffffff;
 
   // bpf_printk("src: %04x\n", src);
-  u64 *cntsrc = bpf_map_lookup_elem(&srcblocklist, &src);
+  u64 *cntsrc = srcblocklist_cuckoo_lookup(srcblocklist_ptr, &src);
   if (cntsrc) {
     __sync_fetch_and_add(cntsrc, 1);
     return iph->protocol;
@@ -126,6 +130,13 @@ int xdp_prog(struct xdp_md *ctx) {
   uint16_t ethtype;
   u64 *value;
 
+  uint32_t zero = 0;
+  struct srcblocklist_cuckoo_hash_map *srcblocklist_ptr = bpf_map_lookup_elem(&srcblocklist, &zero);
+  if (!srcblocklist_ptr) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
+
   offset = sizeof(*eth);
 
   if (data + offset > data_end) {
@@ -135,7 +146,7 @@ int xdp_prog(struct xdp_md *ctx) {
 
   ethtype = eth->h_proto;
   if (ethtype == htons(ETH_P_IP))
-    result = parse_ipv4(data, offset, data_end);
+    result = parse_ipv4(data, offset, data_end, srcblocklist_ptr);
 
   if (result == 0) {
     // goto PASS;
