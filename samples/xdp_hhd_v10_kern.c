@@ -7,6 +7,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
 #include "lib/cilium_builtin.h"
 #include "lib/cuckoo_hash.h"
@@ -27,6 +28,7 @@ struct metadata_elem {
   __be16 ethtype;
   struct flow_key flow;
   u32 size;
+  bool tcp_fin_flag; /* if true: is a tcp fin packet */
 } __attribute__((packed));
 
 /* map size: 1024 = 2 * 512 */
@@ -53,6 +55,7 @@ int xdp_prog(struct xdp_md *ctx) {
   struct flow_key *md_flow;
   u64 pkt_size;
   u64 nh_off;
+  bool remove_session_table = false;
 
   uint32_t zero = 0;
   struct flowsize_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&flowsize_map, &zero);
@@ -76,23 +79,38 @@ int xdp_prog(struct xdp_md *ctx) {
       continue;
     }
     md_flow = &md_elem->flow;
-    if (md_flow->protocol != IPPROTO_UDP) {
+    if ((md_flow->protocol != IPPROTO_UDP) &&
+        (md_flow->protocol != IPPROTO_TCP)) {
       continue;
     }
+    remove_session_table = md_elem->tcp_fin_flag;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+
     /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
     md_flow->src_ip &= 0xf0ffffff;
     flow_size_ptr = flowsize_map_cuckoo_lookup(map, md_flow);
     pkt_size = md_elem->size;
     if (flow_size_ptr) {
+      // bpf_printk("map hit");
       // bpf_printk("%d: flow in map, update. pkt_size: %ld", i, pkt_size);
-      *flow_size_ptr += pkt_size;
+      if (!remove_session_table) {
+        *flow_size_ptr += pkt_size;
+      } else {
+        // bpf_printk("map remove");
+        flowsize_map_cuckoo_delete(map, md_flow);
+      }
     } else {
+      // bpf_printk("map miss");
       // bpf_printk("%d: flow not in map, insert. pkt_size: %ld", i, pkt_size);
-      flowsize_map_cuckoo_insert(map, md_flow, &pkt_size);
+      if (!remove_session_table) {
+        // bpf_printk("map insert");
+        flowsize_map_cuckoo_insert(map, md_flow, &pkt_size);
+      }
     }
   }
 
   /* Process the current packet */
+  remove_session_table = false;
   nh_off = dummy_header_size + md_size;
   struct ethhdr *eth = data + nh_off;
   struct iphdr *iph;
@@ -119,31 +137,53 @@ int xdp_prog(struct xdp_md *ctx) {
   iph = data + nh_off;
   if (iph + 1 > data_end)
     return XDP_DROP;
-  if (iph->protocol != IPPROTO_UDP) {
-    return XDP_DROP;
-  }
-  flow.protocol = IPPROTO_UDP;
+
+  flow.protocol = iph->protocol;
   /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
   flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
   /* Parse udp header to get src_port and dst_port */
   nh_off += sizeof(*iph);
-  if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
+  if (iph->protocol == IPPROTO_UDP) {
+    if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
+      return XDP_DROP;
+    }
+  } else if (iph->protocol == IPPROTO_TCP) {
+    /* Parse tcp header to get src_port and dst_port */
+    struct tcphdr *tcp = data + nh_off;
+    if (tcp + 1 > data_end)
+      return XDP_DROP;
+    flow.src_port = ntohs(tcp->source);
+    flow.dst_port = ntohs(tcp->dest);
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+  } else {
+    /* drop packets that are not udp or tcp */
     return XDP_DROP;
   }
 
   pkt_size = data_end - data;
   flow_size_ptr = flowsize_map_cuckoo_lookup(map, &flow);
   if (flow_size_ptr) {
+    // bpf_printk("map hit");
     // bpf_printk("current: flow in map, update. pkt_size: %ld", pkt_size);
     *flow_size_ptr += pkt_size;
     if (*flow_size_ptr < MAX_FLOW_BYTES) {
       rc = XDP_PASS;
     }
+    if (remove_session_table) {
+      // bpf_printk("map remove");
+      flowsize_map_cuckoo_delete(map, &flow);
+    }
   } else {
+    // bpf_printk("map miss");
     // bpf_printk("current: flow not in map, insert. pkt_size: %ld", pkt_size);
-    flowsize_map_cuckoo_insert(map, &flow, &pkt_size);
+    if (!remove_session_table) {
+      // bpf_printk("map insert");
+      flowsize_map_cuckoo_insert(map, &flow, &pkt_size);
+    }
   }
 
   /* For all valid packets, bounce them back to the packet generator. */
