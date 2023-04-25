@@ -7,6 +7,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
@@ -58,6 +59,7 @@ int xdp_prog(struct xdp_md *ctx) {
   u16 h_proto;
   u64 nh_off;
   int rc = XDP_DROP;
+  bool remove_session_table = false;
 
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
@@ -72,17 +74,30 @@ int xdp_prog(struct xdp_md *ctx) {
   iph = data + nh_off;
   if (iph + 1 > data_end)
     return XDP_DROP;
-  if (iph->protocol != IPPROTO_UDP) {
-    return XDP_DROP;
-  }
-  flow.protocol = IPPROTO_UDP;
+
+  flow.protocol = iph->protocol;
   /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
   flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
   /* Parse udp header to get src_port and dst_port */
   nh_off += sizeof(*iph);
-  if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
+  if (iph->protocol == IPPROTO_UDP) {
+    if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
+      return XDP_DROP;
+    }
+  } else if (iph->protocol == IPPROTO_TCP) {
+    /* Parse tcp header to get src_port and dst_port */
+    struct tcphdr *tcp = data + nh_off;
+    if (tcp + 1 > data_end)
+      return XDP_DROP;
+    flow.src_port = ntohs(tcp->source);
+    flow.dst_port = ntohs(tcp->dest);
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+  } else {
+    /* drop packets that are not udp or tcp */
     return XDP_DROP;
   }
 
@@ -90,10 +105,19 @@ int xdp_prog(struct xdp_md *ctx) {
   u64 bytes = data_end - data;
   value = bpf_map_lookup_elem(&my_map, &flow);
   if (value) {
+    // bpf_printk("map hit");
     bytes_before = __sync_fetch_and_add(value, bytes);
     bytes += bytes_before;
+    if (remove_session_table) {
+      // bpf_printk("map remove");
+      bpf_map_delete_elem(&my_map, &flow);
+    }
   } else {
-    bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
+    // bpf_printk("map miss");
+    if (!remove_session_table) {
+      // bpf_printk("map insert");
+      bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
+    }
   }
   if (bytes < MAX_FLOW_BYTES) {
     rc = XDP_PASS;
