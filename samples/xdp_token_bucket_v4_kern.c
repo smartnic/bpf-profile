@@ -9,6 +9,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
 #include "lib/cuckoo_hash.h"
 #include "xdp_utils.h"
@@ -33,6 +34,7 @@ struct metadata_elem {
   __be16 ethtype;
   struct flow_key flow;
   u64 time;
+  bool tcp_fin_flag; /* if true: is a tcp fin packet */
 } __attribute__((packed));
 
 struct token_elem {
@@ -65,6 +67,7 @@ int xdp_prog(struct xdp_md* ctx) {
   struct token_elem *token = NULL;
   int rc = XDP_DROP;
   u32 token_needed = 1;
+  bool remove_session_table = false;
 
   uint32_t zero = 0;
   struct token_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&token_map, &zero);
@@ -86,25 +89,38 @@ int xdp_prog(struct xdp_md* ctx) {
   }
   /* process each packet */
   for (int i = 0; i < NUM_PKTS - 1; i++) {
+    // bpf_printk("process packet %d", i);
     md = md_start + i * sizeof(struct metadata_elem);
     md_flow = &md->flow;
     if (md->ethtype != htons(ETH_P_IP)) {
       continue;
     }
-    if (md_flow->protocol != IPPROTO_UDP) {
+    if ((md_flow->protocol != IPPROTO_UDP) &&
+        (md_flow->protocol != IPPROTO_TCP)) {
       continue;
     }
+    remove_session_table = md->tcp_fin_flag;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+
     u64 time = md->time;
     md_flow->src_ip &= 0xf0ffffff;
     token = token_map_cuckoo_lookup(map, md_flow);
+    // bpf_printk("%d, %04x:%d -> %04x:%d", md_flow->protocol,
+    //            md_flow->src_ip, md_flow->src_port,
+    //            md_flow->dst_ip, md_flow->dst_port);
     if (!token) {
-      /* set initial state */
-      u32 token_remain = MAX_TOKEN - token_needed;
-      struct token_elem elem;
-      elem.num = token_remain;
-      elem.last_time = time;
-      token_map_cuckoo_insert(map, md_flow, &elem);
+      // bpf_printk("token_map miss");
+      if (!remove_session_table) {
+        /* set initial state */
+        u32 token_remain = MAX_TOKEN - token_needed;
+        struct token_elem elem;
+        elem.num = token_remain;
+        elem.last_time = time;
+        // bpf_printk("token_map insert");
+        token_map_cuckoo_insert(map, md_flow, &elem);
+      }
     } else {
+      // bpf_printk("token_map hit");
       /* update flow state in the map */
       // bpf_printk("%d last time: %lld, time: %lld\n", i, token->last_time, token->last_time);
       u32 token_increase = (time - token->last_time) >> TOKEN_RATE;
@@ -123,6 +139,10 @@ int xdp_prog(struct xdp_md* ctx) {
       }
       token->num = token_remain;
       token->last_time = time;
+      if (remove_session_table) {
+        // bpf_printk("token_map remove");
+        token_map_cuckoo_delete(map, md_flow);
+      }
     }
   }
 
@@ -140,6 +160,7 @@ int xdp_prog(struct xdp_md* ctx) {
   u64 nh_off;
   nh_off = dummy_header_size + md_size;
   eth = data + nh_off;
+  remove_session_table = false;
 
   nh_off += sizeof(*eth);
   if (data + nh_off > data_end)
@@ -153,33 +174,52 @@ int xdp_prog(struct xdp_md* ctx) {
   iph = data + nh_off;
   if (iph + 1 > data_end)
     return XDP_DROP;
-  if (iph->protocol != IPPROTO_UDP) {
-    return XDP_DROP;
-  }
-  flow.protocol = IPPROTO_UDP;
+
+  flow.protocol = iph->protocol;
   /* Zero out the least significant 4 bits as they are
      used for RSS (note: src_ip is be32) */
   flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
-  /* Parse udp header to get src_port and dst_port */
   nh_off += sizeof(*iph);
-  if (parse_udp(data, nh_off, data_end, &flow.src_port,
-                &flow.dst_port) == RET_ERR) {
+  if (iph->protocol == IPPROTO_UDP) {
+    /* Parse udp header to get src_port and dst_port */
+    if (parse_udp(data, nh_off, data_end, &flow.src_port,
+                  &flow.dst_port) == RET_ERR) {
+      return XDP_DROP;
+    }
+  } else if (iph->protocol == IPPROTO_TCP) {
+    /* Parse tcp header to get src_port and dst_port */
+    struct tcphdr *tcp = data + nh_off;
+    if (tcp + 1 > data_end)
+      return XDP_DROP;
+    flow.src_port = ntohs(tcp->source);
+    flow.dst_port = ntohs(tcp->dest);
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+  } else {
+    /* drop packets that are not udp or tcp */
     return XDP_DROP;
   }
-  nh_off += sizeof(struct udphdr);
-
+  // bpf_printk("%d, %04x:%d -> %04x:%d", flow.protocol,
+  //            flow.src_ip, flow.src_port,
+  //            flow.dst_ip, flow.dst_port);
   token = token_map_cuckoo_lookup(map, &flow);
   if (!token) {
+    // bpf_printk("token_map miss");
     /* configure flow initial state in the map */
     rc = XDP_PASS;
-    u32 token_remain = MAX_TOKEN - token_needed;
-    struct token_elem elem;
-    elem.num = token_remain;
-    elem.last_time = cur_time;
-    token_map_cuckoo_insert(map, &flow, &elem);
+    if (!remove_session_table) {
+      u32 token_remain = MAX_TOKEN - token_needed;
+      struct token_elem elem;
+      elem.num = token_remain;
+      elem.last_time = cur_time;
+      // bpf_printk("token_map insert");
+      token_map_cuckoo_insert(map, &flow, &elem);
+    }
   } else {
+    // bpf_printk("token_map hit");
     /* update flow state in the map */
     // bpf_printk("last time: %lld\n", token->last_time);
     u32 token_increase = (cur_time - token->last_time) >> TOKEN_RATE;
@@ -198,6 +238,10 @@ int xdp_prog(struct xdp_md* ctx) {
     }
     token->num = token_remain;
     token->last_time = cur_time;
+    if (remove_session_table) {
+      // bpf_printk("token_map remove");
+      token_map_cuckoo_delete(map, &flow);
+    }
   }
 
   /* For all valid packets, bounce them back to the packet generator. */
