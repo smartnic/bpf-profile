@@ -112,7 +112,8 @@ int xdp_prog(struct xdp_md *ctx) {
   /* Process the current packet */
   remove_session_table = false;
   nh_off = dummy_header_size + md_size;
-  struct ethhdr *eth = data + nh_off;
+  void* pkt_start = data + nh_off;
+  struct ethhdr *eth = pkt_start;
   struct iphdr *iph;
   struct flow_key flow = {
     .protocol = 0,
@@ -164,7 +165,7 @@ int xdp_prog(struct xdp_md *ctx) {
     return XDP_DROP;
   }
 
-  pkt_size = data_end - data;
+  pkt_size = data_end - pkt_start;
   flow_size_ptr = flowsize_map_cuckoo_lookup(map, &flow);
   if (flow_size_ptr) {
     // bpf_printk("map hit");
