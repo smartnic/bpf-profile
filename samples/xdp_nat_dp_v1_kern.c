@@ -96,8 +96,27 @@ static inline __be16 get_free_port() {
 static inline void remove_entries_from_session_tables(struct st_k *key) {
   if (key) {
     // bpf_printk("remove entries from ingress/egress session tables");
+    struct st_v *value = bpf_map_lookup_elem(&egress_session_table, key);
+    if (!value) {
+      return;
+    }
+    struct st_k reverse_key = {0, 0, 0, 0, 0};
+    uint32_t newIp = value->new_ip;
+    uint16_t newPort = value->new_port;
+    // Session table entry for the incoming packets
+    reverse_key.src_ip = key->dst_ip;
+    reverse_key.dst_ip = newIp;
+    if (key->proto == IPPROTO_ICMP) {
+      // For ICMP session table entries "source port" and "destination port"
+      // must be the same, equal to the ICMP ID
+      reverse_key.src_port = newPort;
+    } else {
+      reverse_key.src_port = key->dst_port;
+    }
+    reverse_key.dst_port = newPort;
+    reverse_key.proto = key->proto;
     bpf_map_delete_elem(&egress_session_table, key);
-    bpf_map_delete_elem(&ingress_session_table, key);
+    bpf_map_delete_elem(&ingress_session_table, &reverse_key);
   }
 }
 
@@ -160,7 +179,8 @@ int xdp_prog(struct xdp_md *ctx) {
   //            ntohl(ip->daddr));
 
   srcIP_orig = ip->saddr;
-  srcIp = srcIP_orig & 0xf0ffffff;
+  // srcIp = srcIP_orig & 0xf0ffffff;
+  srcIp = srcIP_orig;
   dstIp = ip->daddr;
   proto = ip->protocol;
 
@@ -173,7 +193,7 @@ int xdp_prog(struct xdp_md *ctx) {
       goto DROP;
 
     // bpf_printk("Packet is TCP: src_port %d, dst_port %d",
-    //            tcp->source, tcp->dest);
+    //            ntohs(tcp->source), ntohs(tcp->dest));
     srcPort = tcp->source;
     dstPort = tcp->dest;
 
