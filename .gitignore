@@ -1,6 +1,8 @@
 *.csv
 *.pdf
 *.txt
+*.pcap.*
+*.pcap
 .DS_Store
 __pycache__
 samples/build/
