@@ -89,8 +89,27 @@ static inline void remove_entries_from_session_tables(struct st_k *key,
     struct ingress_session_table_cuckoo_hash_map *ingress_session_table_cuckoo) {
   if (key) {
     // bpf_printk("remove entries from ingress/egress session tables");
+    struct st_v *value = egress_session_table_cuckoo_lookup(egress_session_table_cuckoo, key);
+    if (!value) {
+      return;
+    }
+    struct st_k reverse_key = {0, 0, 0, 0, 0};
+    uint32_t newIp = value->new_ip;
+    uint16_t newPort = value->new_port;
+    // Session table entry for the incoming packets
+    reverse_key.src_ip = key->dst_ip;
+    reverse_key.dst_ip = newIp;
+    if (key->proto == IPPROTO_ICMP) {
+      // For ICMP session table entries "source port" and "destination port"
+      // must be the same, equal to the ICMP ID
+      reverse_key.src_port = newPort;
+    } else {
+      reverse_key.src_port = key->dst_port;
+    }
+    reverse_key.dst_port = newPort;
+    reverse_key.proto = key->proto;
     egress_session_table_cuckoo_delete(egress_session_table_cuckoo, key);
-    ingress_session_table_cuckoo_delete(ingress_session_table_cuckoo, key);
+    ingress_session_table_cuckoo_delete(ingress_session_table_cuckoo, &reverse_key);
   }
 }
 
@@ -132,11 +151,9 @@ static inline void process_metadata(struct xdp_md *ctx,
     // Status data
     uint8_t update_session_table = 1;
     bool remove_session_table = false;
-    // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(md->flow.src_ip & 0xf0ffffff),
+    // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(md->flow.src_ip),
     //            ntohl(md->flow.dst_ip));
-    /* Zero out the least significant 4 bits as they are
-       used for RSS (note: src_ip is be32) */
-    srcIp = md->flow.src_ip & 0xf0ffffff;
+    srcIp = md->flow.src_ip;
     dstIp = md->flow.dst_ip;
     proto = md->flow.proto;
     if ((md->flow.proto != IPPROTO_UDP) &&
@@ -344,9 +361,9 @@ int xdp_prog(struct xdp_md *ctx) {
   if ( (void *)ip + sizeof(*ip) > data_end )
     goto DROP;
 
-  // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(ip->saddr & 0xf0ffffff), ntohl(ip->daddr));
+  // bpf_printk("Processing IP packet: src %04x, dst: %04x", ntohl(ip->saddr), ntohl(ip->daddr));
   srcIP_orig = ip->saddr;
-  srcIp = srcIP_orig & 0xf0ffffff;
+  srcIp = srcIP_orig;
   dstIp = ip->daddr;
   proto = ip->protocol;
 
