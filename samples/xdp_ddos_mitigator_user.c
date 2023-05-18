@@ -21,8 +21,9 @@
 
 #define NOT_FOUND 0
 #define PERCPU_MAP 1
-#define CUCKOO_HASH_MAP 2
-#define CUCKOO_HASH_MAP_SHARED_CPU 3
+#define HASH_MAP 2
+#define CUCKOO_HASH_MAP 3
+#define CUCKOO_HASH_MAP_SHARED_CPU 4
 
 static int ifindex;
 static __u32 xdp_flags = XDP_FLAGS_UPDATE_IF_NOEXIST;
@@ -59,7 +60,7 @@ static void usage(const char *prog)
 
 static int get_map_type(char* filename) {
   if (strstr(filename, "v1")) {
-    return CUCKOO_HASH_MAP_SHARED_CPU;
+    return HASH_MAP;
   } else if (strstr(filename, "v2")) {
     return PERCPU_MAP;
   } else if (strstr(filename, "v4")) {
@@ -69,14 +70,16 @@ static int get_map_type(char* filename) {
 }
 
 // * key (uint32_t): ipv4 address.
-// * value (u64): used for matched rules counters.
-static void init_blocklist(int map_fd, int map_type)
+// * value (u64): 0 (used for matched rules counters)
+static void update_blocklist(int map_fd, int map_type, char* map_key)
 {
-  __u32 key = inet_addr("10.10.1.0");
+  __u32 key = inet_addr(map_key);
   __u64 value = 0;
   int res;
-  printf("key: 10.10.1.0 (%04x), value: 0\n", key);
-  if (map_type == PERCPU_MAP) {
+  printf("key: %04x, value: 0\n", key);
+  if (map_type == HASH_MAP) {
+    res = bpf_map_update_elem(map_fd, &key, &value, BPF_ANY);
+  } else if (map_type == PERCPU_MAP) {
     unsigned int nr_cpus = bpf_num_possible_cpus();
     __u64 value_arr[nr_cpus];
     for (int i = 0; i < nr_cpus; i++) {
@@ -108,8 +111,9 @@ static void init_blocklist(int map_fd, int map_type)
     if (map_type == CUCKOO_HASH_MAP_SHARED_CPU) {
       struct cuckoo_hash_map value;
       memset(&value, 0, sizeof(struct cuckoo_hash_map));
-      value.current_size = 1;
-      value.t1.current_size = 1;
+      assert(bpf_map_lookup_elem(map_fd, &zero, &value) == 0);
+      value.current_size += 1;
+      value.t1.current_size += 1;
       value.t1.elem_list[idx].is_filled = true;
       value.t1.elem_list[idx].key = key;
       value.t1.elem_list[idx].val = 0;
@@ -118,10 +122,10 @@ static void init_blocklist(int map_fd, int map_type)
       unsigned int nr_cpus = bpf_num_possible_cpus();
       struct cuckoo_hash_map values[nr_cpus];
       memset(values, 0, nr_cpus * sizeof(struct cuckoo_hash_map));
-      // assert(bpf_map_lookup_elem(map_fd, &zero, values) == 0);
+      assert(bpf_map_lookup_elem(map_fd, &zero, values) == 0);
       for (int i = 0; i < nr_cpus; i++) {
-        values[i].current_size = 1;
-        values[i].t1.current_size = 1;
+        values[i].current_size += 1;
+        values[i].t1.current_size += 1;
         values[i].t1.elem_list[idx].is_filled = true;
         values[i].t1.elem_list[idx].key = key;
         values[i].t1.elem_list[idx].val = 0;
@@ -132,6 +136,16 @@ static void init_blocklist(int map_fd, int map_type)
     res = bpf_map_update_elem(map_fd, &key, &value, BPF_ANY);
   }
   printf("init maps res: %d (0 means success).\n", res);
+}
+
+// * key (uint32_t): ipv4 address.
+// * value (u64): used for matched rules counters.
+static void init_blocklist(int map_fd, int map_type)
+{
+  char* key1 = "172.16.90.197";
+  update_blocklist(map_fd, map_type, key1);
+  char* key2 = "172.16.90.198";
+  update_blocklist(map_fd, map_type, key2);
 }
 
 int main(int argc, char **argv)
