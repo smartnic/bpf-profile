@@ -99,8 +99,7 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
     return 0;
 
 #if SRC_MATCH
-  /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
-  uint32_t src = iph->saddr & 0xf0ffffff;
+  uint32_t src = iph->saddr;
 
   u64 *cntsrc = bpf_map_lookup_elem(&srcblocklist, &src);
   if (cntsrc) {
@@ -111,7 +110,7 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
 #endif
 
 #if DST_MATCH
-  uint32_t dst = iph->daddr & 0xf0ffffff;
+  uint32_t dst = iph->daddr;
 
   u64 cntdst = bpf_map_lookup_elem(&dstblocklist, &dst);
   if (cntdst) {
@@ -127,8 +126,7 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
 static inline int parse_ipv4_metadata(uint32_t saddr, uint32_t daddr) {
 
 #if SRC_MATCH
-  /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
-  uint32_t src = saddr & 0xf0ffffff;
+  uint32_t src = saddr;
 
   u64 *cntsrc = bpf_map_lookup_elem(&srcblocklist, &src);
   if (cntsrc) {
@@ -139,7 +137,7 @@ static inline int parse_ipv4_metadata(uint32_t saddr, uint32_t daddr) {
 #endif
 
 #if DST_MATCH
-  uint32_t dst = daddr & 0xf0ffffff;
+  uint32_t dst = daddr;
 
   u64 cntdst = bpf_map_lookup_elem(&dstblocklist, &dst);
   if (cntdst) {
