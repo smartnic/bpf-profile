@@ -8,6 +8,7 @@ import numpy as np
 from statistics import stdev
 
 STATS_FILE = "eth_stat_output.txt"
+OUTPUT_FILE = "pktgen_stats.txt"
 
 def run_cmd(cmd, wait=True):
     # print(cmd)
@@ -19,7 +20,7 @@ def run_cmd(cmd, wait=True):
 
 def get_stats():
     run_cmd(f"rm -f {STATS_FILE}")
-    get_stats_cmd = "./eth_stat.sh ens114np0"
+    get_stats_cmd = "bash eth_stat.sh ens114np0"
     run_cmd(get_stats_cmd) # block until get stats
     if not exists(STATS_FILE):
         print(f"ERROR: no such file {STATS_FILE}.")
@@ -85,7 +86,9 @@ def wait_until_packet_gen_stable(timeout):
     print(f"rx stabilize time: {time.time() - t_start}")
     return True
 
-def measure_performance(duration, output_file):
+def measure_performance(duration, output_folder):
+    run_cmd("mkdir -p " + output_folder, wait=True)
+    output_file = f"{output_folder}/{OUTPUT_FILE}"
     # 1. get statistics every 0.5 second
     print("Start measurement")
     rx_pps_list = []
@@ -160,7 +163,7 @@ def measure_performance(duration, output_file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about Data')
     parser.add_argument('-t', dest="time", type=int, help='How long(secs) you want to measure performance', default=30)
-    parser.add_argument('-o', dest="output_file", type=str, help='output_file', required=True)
+    parser.add_argument('-o', dest="output_folder", type=str, help='output_folder', required=True)
     args = parser.parse_args()
-    wait_until_packet_gen_stable()
-    measure_performance(args.time, args.output_file)
+    # wait_until_packet_gen_stable()
+    measure_performance(args.time, args.output_folder)
