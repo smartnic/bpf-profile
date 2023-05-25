@@ -2,7 +2,6 @@
 # By yskoh@mellanox.com
 
 IFG_PLUS_PREAMBLE=20 # IFG 12B + Preamble 8B
-OUTPUT_FILE=eth_stat_output.txt
 
 update_stats () { # $name $index
 	TS_LAST[$2]=${TS[$2]}
@@ -23,10 +22,17 @@ update_stats () { # $name $index
 	R_BYTE[$2]=${ETHTOOL[3]}
 }
 
+if [ -z $2 ]; then
+	printf "Usage: $0 [iface] [output_file]\n"
+	exit 1
+else
+	OUTPUT_FILE=$2
+fi
+
 if [ -z $1 ] && [ -x /usr/bin/ibdev2netdev ]; then
 	NETIF=$(ibdev2netdev | awk '/mlx/{print $5}')
 else
-	NETIF=$@
+	NETIF=$1
 fi
 
 if [ -z "$NETIF" ]; then

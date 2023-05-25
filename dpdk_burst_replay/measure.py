@@ -7,7 +7,6 @@ import os
 import numpy as np
 from statistics import stdev
 
-STATS_FILE = "eth_stat_output.txt"
 OUTPUT_FILE = "pktgen_stats.txt"
 
 def run_cmd(cmd, wait=True):
@@ -19,14 +18,17 @@ def run_cmd(cmd, wait=True):
         os.system(cmd)
 
 def get_stats():
-    run_cmd(f"rm -f {STATS_FILE}")
-    get_stats_cmd = "bash eth_stat.sh ens114np0"
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    stats_file = f"eth_stat_output_{timestr}.txt"
+    if exists(stats_file):
+        run_cmd(f"rm -f {stats_file}")
+    get_stats_cmd = f"bash eth_stat.sh ens114np0 {stats_file}"
     run_cmd(get_stats_cmd) # block until get stats
-    if not exists(STATS_FILE):
-        print(f"ERROR: no such file {STATS_FILE}.")
+    if not exists(stats_file):
+        print(f"ERROR: no such file {stats_file}.")
         return None
     stats_list = {}
-    f = open(STATS_FILE, "r")
+    f = open(stats_file, "r")
     for line in f:
         str_list = line.split()
         if len(str_list) < 2:
@@ -37,6 +39,7 @@ def get_stats():
         stats_list["tx_bps"] = 0
     f.close()
     print(stats_list)
+    run_cmd(f"rm -f {stats_file}")
     return stats_list
 
 def wait_until_packet_gen_stable(timeout):
