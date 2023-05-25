@@ -173,7 +173,6 @@ def run_test(prog_name, core_list, client, seconds, output_folder, output_folder
     # 1. print test name and environment configurations such as RSS
     print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
     set_up_configs(benchmark, version, len(core_list))
-    return
 
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
