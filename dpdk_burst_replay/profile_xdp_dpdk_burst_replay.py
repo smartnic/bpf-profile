@@ -7,6 +7,7 @@ import time
 from os.path import expanduser
 from client import send_command
 from socket_commands import *
+from utils import *
 
 CLIENT_DIR = ""
 CONFIG_file_xl170 = "config.xl170"
@@ -39,15 +40,15 @@ def get_prog_tag():
     try:
         output = subprocess.check_output(cmd, shell=True, text=True)
     except:
-        print ("ERROR: no xdp found! not able to get program tag")
+        print_log ("ERROR: no xdp found! not able to get program tag")
         raise
         return
     tag = output.split()[5]
-    print(f"program tag is {tag}")
+    print_log(f"program tag is {tag}")
     return tag
 
 def run_cmd(cmd, wait=True):
-    print(cmd)
+    print_log(cmd)
     if wait is True:
         process = subprocess.Popen(cmd, shell=True, close_fds=True)
         process.wait()
@@ -66,12 +67,12 @@ def run_cmd_on_client(client_cmd, client):
     # run_cmd(cmd)
     cmd = f"nohup sudo sh -c '{client_cmd}'"
     res = send_command(cmd)
-    print(f"run_cmd_on_client: {res}")
+    print_log(f"run_cmd_on_client: {res}")
     return res
 
 def run_unmodified_cmd_on_client(client_cmd, client):
     res = send_command(client_cmd)
-    print(f"run_cmd_on_client: {res}")
+    print_log(f"run_cmd_on_client: {res}")
     return res
 
 def kill_process_on_client(process, client):
@@ -132,19 +133,19 @@ def set_up_configs(benchmark, version, n_cores):
     hash_packet_fields_dic = {
         BENCHMARK_hhd: "sdfn",
     }
-    print(f"benchmark: {benchmark}")
+    print_log(f"benchmark: {benchmark}")
     if benchmark not in flow_affinity_version_dic:
-        print(f"Benchmark {benchmark} not supported. Exit")
+        print_log(f"Benchmark {benchmark} not supported. Exit")
         sys.exit(0)
     if benchmark not in hash_packet_fields_dic:
-        print(f"Benchmark {benchmark} not supported. Exit")
+        print_log(f"Benchmark {benchmark} not supported. Exit")
         sys.exit(0)
     flow_affinity_version = flow_affinity_version_dic[benchmark]
     hash_packet_fields = hash_packet_fields_dic[benchmark]
     if flow_affinity_version == version:
         is_flow_affinity = True
-    print(f"is_flow_affinity: {is_flow_affinity}")
-    print(f"hash_packet_fields: {hash_packet_fields}")
+    print_log(f"is_flow_affinity: {is_flow_affinity}")
+    print_log(f"hash_packet_fields: {hash_packet_fields}")
 
     if is_flow_affinity:
         # 1. delete RSS rules (delete all possible rules)
@@ -162,16 +163,51 @@ def set_up_configs(benchmark, version, n_cores):
         run_cmd(f"bash rss.sh {SERVER_IFACE}")
 
 
-    print(f"Display configurations: {benchmark}, {version}, {n_cores}")
+    print_log(f"Display configurations: {benchmark}, {version}, {n_cores}")
     run_cmd(f"ethtool --show-nfc {SERVER_IFACE}")
     run_cmd(f"ethtool -l {SERVER_IFACE}")
     run_cmd(f"ethtool -n {SERVER_IFACE} rx-flow-hash tcp4")
 
+def get_pcap_file(pcap_path, benchmark, version, n_cores):
+    # shared_state: shared_state_[#cores].pcap
+    # flow_affinity: [benchmark]_flow_affinity.pcap
+    # shared_nothing: [benchmark]_shared_nothing_[#cores].pcap
+    VERSION_shared_state = "shared_state"
+    VERSION_flow_affinity = "flow_affinity"
+    VERSION_shared_nothing = "shared_nothing"
+    version_type_dic = {
+        BENCHMARK_hhd: {
+            "v1": VERSION_shared_state,
+            "v2": VERSION_flow_affinity,
+            "v10": VERSION_shared_nothing,
+        },
+    }
+    if benchmark not in version_type_dic:
+        print_log(f"Benchmark {benchmark} not supported. Exit")
+        sys.exit(0)
+    if version not in version_type_dic[benchmark]:
+        print_log(f"Benchmark {benchmark} {version} not supported. Exit")
+        sys.exit(0)
+    version_type = version_type_dic[benchmark][version]
+    pcap_name = ""
+    if version_type == VERSION_shared_state:
+        pcap_name = f"{version_type}_{n_cores}.pcap"
+    elif version_type == VERSION_flow_affinity:
+        pcap_name = f"xdp_{benchmark}_flow_affinity.pcap"
+    elif version_type == VERSION_shared_nothing:
+        pcap_name = f"xdp_{benchmark}_shared_nothing_{n_cores}.pcap"
+    else:
+        print_log(f"version_type {version_type} not supported. Exit")
+        sys.exit(0)
+    pcap_file = f"{pcap_path}/{pcap_name}"
+    return pcap_file
 
-def run_test(prog_name, core_list, client, seconds, output_folder, output_folder_pktgen):
+
+def run_test(prog_name, core_list, client, seconds, output_folder,
+    output_folder_pktgen, pcap_path):
     benchmark, version = get_benchmark_version(prog_name)
-    # 1. print test name and environment configurations such as RSS
-    print("Test",  prog_name, "across", len(core_list), "core(s) for", str(seconds), "seconds...")
+    # 1. print_log test name and environment configurations such as RSS
+    print_log(f"Test {prog_name} across {len(core_list)} core(s) for {str(seconds)} seconds...")
     set_up_configs(benchmark, version, len(core_list))
 
     # 2. attach xdp program
@@ -181,14 +217,14 @@ def run_test(prog_name, core_list, client, seconds, output_folder, output_folder
 
     # 3. run packet generator
     n_cores = len(core_list)
-    pcap_file = f"/data/local/qx51/bpf-profile/profile/pkt_trace/trace_10.pcap.{n_cores}"
+    pcap_file = get_pcap_file(pcap_path, benchmark, version, n_cores)
     run_packet_generator(benchmark, version, core_list, pcap_file, client)
 
     # 4. measure the xdp prorgam
     try:
         tag = get_prog_tag()
     except:
-        print(f"ERROR: not able to get the tag of {prog_name}. Test stop...")
+        print_log(f"ERROR: not able to get the tag of {prog_name}. Test stop...")
         clean_environment(client, prog_name)
         return
 
@@ -202,7 +238,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder, output_folder
     time.sleep(5)
 
 def run_tests_versions(prog_name_prefix, core_num_max, duration,
-                       output_folder, output_folder_pktgen, run_id):
+                       output_folder, output_folder_pktgen, run_id, pcap_path):
     if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_pktgen_measure:
         return
     core_list = []
@@ -213,7 +249,7 @@ def run_tests_versions(prog_name_prefix, core_num_max, duration,
         run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
         output_folder_i_pktgen = output_folder_pktgen + "/" + str(i) + "/" + str(run_id)
         run_test(prog_name, core_list, CLIENT, duration, output_folder_i,
-            output_folder_i_pktgen)
+            output_folder_i_pktgen, pcap_path)
 
 def read_machine_info_from_file(input_file):
     client = None
@@ -223,7 +259,7 @@ def read_machine_info_from_file(input_file):
     server_iface_keyword = "server_iface"
     client_dir_keyword = "client_dir"
     if not exists(input_file):
-        print(f"ERROR: no such file {input_file}. Return client: None, server_iface: None, client_dir: None")
+        print_log(f"ERROR: no such file {input_file}. Return client: None, server_iface: None, client_dir: None")
         return None, None, None
     f = open(input_file, "r")
     for line in f:
@@ -240,8 +276,9 @@ def read_machine_info_from_file(input_file):
     return client, server_iface, client_dir
 
 def test_benchmark(run_id, benchmark, version_name_list,
-    num_cores_max, duration, output_folder, output_folder_pktgen):
-    print(f"Benchmark {benchmark} run {run_id} starts......")
+    num_cores_max, duration, output_folder, output_folder_pktgen,
+    pcap_path):
+    print_log(f"Benchmark {benchmark} run {run_id} starts......")
     t_start = time.time()
     for version in version_name_list:
         t_start_v = time.time()
@@ -249,11 +286,12 @@ def test_benchmark(run_id, benchmark, version_name_list,
         output_folder_version_dut = f"{output_folder}/{version}"
         output_folder_version_pktgen = f"{output_folder_pktgen}/{version}"
         run_tests_versions(prog_name_prefix, num_cores_max, duration,
-            output_folder_version_dut, output_folder_version_pktgen, run_id)
+            output_folder_version_dut, output_folder_version_pktgen, run_id,
+            pcap_path)
         time_cost_v = time.time() - t_start_v
-        print(f"Run {run_id} {version} test ends. time_cost: {time_cost_v}")
+        print_log(f"Run {run_id} {version} test ends. time_cost: {time_cost_v}")
     time_cost = time.time() - t_start
-    print(f"Benchmark {benchmark} run {run_id} ends. time_cost: {time_cost}")
+    print_log(f"Benchmark {benchmark} run {run_id} ends. time_cost: {time_cost}")
 
 # add pcap file
 if __name__ == "__main__":
@@ -293,9 +331,12 @@ if __name__ == "__main__":
         sys.exit(0)
 
     PKTGEN_PATH = f"{CLIENT_DIR}/dpdk-burst-replay/src/"
+    pcap_path = f"/data/local/qx51/pkt_trace/trace_10/"
+    version_name_list = []
+    version_info_list = []
     t_start_experiments = time.time()
     for run_id in range(0, args.num_runs):
-        print(f"Run {run_id} starts......")
+        print_log(f"Run {run_id} starts......")
         t_start = time.time()
         for benchmark in benchmark_list:
             output_folder = f"{args.output_folder}/{benchmark}"
@@ -305,7 +346,7 @@ if __name__ == "__main__":
                 version_name_list = ["v1", "v2"]
             elif BENCHMARK_hhd in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v10"]
+                version_name_list = ["v1", "v2", "v10"]
             elif BENCHMARK_token_bucket in benchmark:
                 LOADER_NAME = "xdpex1"
                 version_name_list = ["v1", "v4"]
@@ -316,16 +357,17 @@ if __name__ == "__main__":
                 LOADER_NAME = "xdp_nat_dp"
                 version_name_list = ["v1", "v3"]
             else:
-                print(f"Benchmark {benchmark} not supported. Exit")
+                print_log(f"Benchmark {benchmark} not supported. Exit")
                 sys.exit(0)
-            print(f"Test benchmark {benchmark}")
-            print(run_id, benchmark, LOADER_NAME, version_name_list,
-                args.num_cores_max, args.duration, output_folder,
-                output_folder_pktgen)
+            print_log(f"Test benchmark {benchmark}")
+            string = f"{run_id} {benchmark} {LOADER_NAME}"
+            string += f" {version_name_list} {args.num_cores_max}"
+            string += f" {args.duration} {output_folder} {output_folder_pktgen}"
+            print_log(string)
             test_benchmark(run_id, benchmark, version_name_list,
                 args.num_cores_max, args.duration, output_folder,
-                output_folder_pktgen)
+                output_folder_pktgen, pcap_path)
         time_cost = time.time() - t_start
-        print(f"Run {run_id} ends. time_cost: {time_cost}")
+        print_log(f"Run {run_id} ends. time_cost: {time_cost}")
     time_cost = time.time() - t_start_experiments
-    print(f"Experiments ends. time_cost: {time_cost}")
+    print_log(f"Experiments ends. time_cost: {time_cost}")
