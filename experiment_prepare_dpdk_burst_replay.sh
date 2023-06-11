@@ -22,6 +22,8 @@ cp $home/bpf-profile/samples/build/* .
 cp $home/perf .
 # copy machine config
 cp $home/bpf-profile/profile/config.xl170 .
+cp $home/bpf-profile/dpdk_burst_replay/rss.sh .
+cp $home/bpf-profile/dpdk_burst_replay/rss_delete.sh .
 cp $home/bpf-profile/dpdk_burst_replay/utils.py .
 cp $home/bpf-profile/dpdk_burst_replay/client.py .
 cp $home/bpf-profile/dpdk_burst_replay/socket_commands.py .
