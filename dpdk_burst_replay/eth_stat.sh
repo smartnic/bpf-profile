@@ -84,7 +84,7 @@ for name in $NETIF; do
 
 	# printf "[%'9s Rx]: %'16d pkts  %'16d pps  | %'20d bytes %'16d bps \n" $name $R_PKT_TOTAL $R_PKT_RATE $R_BYTE_TOTAL $R_BIT_RATE
 	# printf "[%'9s Tx]: %'16d pkts  %'16d pps  | %'20d bytes %'16d bps \n" $name $T_PKT_TOTAL $T_PKT_RATE $T_BYTE_TOTAL $T_BIT_RATE
-	str="$R_PKT_RATE $T_PKT_RATE"
+	str="$R_PKT_RATE $T_PKT_RATE $R_BIT_RATE $T_BIT_RATE"
 	echo $str > $OUTPUT_FILE
 	((index++))
 done

@@ -31,12 +31,12 @@ def get_stats():
     f = open(stats_file, "r")
     for line in f:
         str_list = line.split()
-        if len(str_list) < 2:
+        if len(str_list) < 4:
             return None
         stats_list["rx_pps"] = float(str_list[0])
         stats_list["tx_pps"] = float(str_list[1])
-        stats_list["rx_bps"] = 0
-        stats_list["tx_bps"] = 0
+        stats_list["rx_bps"] = float(str_list[2])
+        stats_list["tx_bps"] = float(str_list[3])
     f.close()
     print(stats_list)
     run_cmd(f"rm -f {stats_file}")
