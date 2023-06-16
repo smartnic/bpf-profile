@@ -1,0 +1,153 @@
+import socket
+import ipaddress
+from scapy.all import *
+from scapy.utils import wrpcap
+
+ETH_BYTES = 14
+
+# from ctypes import *
+# struct flow_key {
+#   u8 protocol;
+#   __be32 src_ip;
+#   __be32 dst_ip;
+#   u16 src_port;
+#   u16 dst_port;
+# } __attribute__((packed));
+
+# struct metadata_elem {
+#   __be16 ethtype;
+#   struct flow_key flow;
+#   u32 size;
+#   bool tcp_fin_flag; /* if true: is a tcp fin packet */
+# } __attribute__((packed));
+class MetadataElem():
+  def __init__(self):
+    self.ethtype = 0
+    self.protocol = 0
+    self.src_ip = 0
+    self.dst_ip = 0
+    self.src_port = 0
+    self.dst_port = 0
+    self.size = 0
+    self.tcp_fin_flag = False
+
+  def __str__(self):
+    str = f"Ethtype: {self.ethtype}\n"
+    str += f"Proto: {self.protocol}\n"
+    str += f"Source IP: {ipaddress.IPv4Address(self.src_ip)}\n"
+    str += f"Dest IP: {ipaddress.IPv4Address(self.dst_ip)}\n"
+    str += f"Source port: {self.src_port}\n"
+    str += f"Dest port: {self.dst_port}\n"
+    str += f"Size: {self.size}\n"
+    str += f"tcp_fin_flag: {self.tcp_fin_flag}"
+    return str
+
+  def __bytes__(self):
+    md_bytes = b''
+    md_bytes += self.ethtype.to_bytes(2, 'big')
+    md_bytes += self.protocol.to_bytes(1, 'big')
+    md_bytes += self.src_ip.to_bytes(4, 'big')
+    md_bytes += self.dst_ip.to_bytes(4, 'big')
+    md_bytes += self.src_port.to_bytes(2, 'little')
+    md_bytes += self.dst_port.to_bytes(2, 'little')
+    md_bytes += self.size.to_bytes(4, 'little')
+    md_bytes += self.tcp_fin_flag.to_bytes(1, 'little')
+    return md_bytes
+
+
+def get_md_from_pkt(pkt):
+    md_elem = MetadataElem()
+    # ETH_P_IP: 2048 (0x800)
+    md_elem.ethtype = pkt.getlayer(Ether).type
+    md_elem.src_ip = int(ipaddress.ip_address(pkt.getlayer(IP).src))
+    md_elem.dst_ip = int(ipaddress.ip_address(pkt.getlayer(IP).dst))
+    if pkt.haslayer(TCP):
+        md_elem.protocol = socket.IPPROTO_TCP
+        md_elem.src_port = pkt.getlayer(TCP).sport
+        md_elem.dst_port = pkt.getlayer(TCP).dport
+        md_elem.tcp_fin_flag = pkt.getlayer(TCP).flags.F
+    elif pkt.haslayer(UDP):
+        md_elem.protocol = socket.IPPROTO_UDP
+        md_elem.src_port = pkt.getlayer(UDP).sport
+        md_elem.dst_port = pkt.getlayer(UDP).dport
+    else:
+        print(f"Unsupported layer type: {pkt.getlayer(IP).proto}")
+        sys.exit(1)
+    md_elem.size = len(pkt)
+    # print(md_elem)
+    return md_elem
+
+def add_md_to_pkts(input_pkts, num_cores, dst_mac, padding_size):
+    new_pkts = list()
+    md_initial = MetadataElem()
+    pkt_history = []
+    if num_cores > 1:
+        pkt_history = [md_initial] * (num_cores - 1)
+    padding_to_add = padding_size - len(bytes(md_initial)) * (num_cores - 1)
+    padding_to_add -= ETH_BYTES
+    padding_to_add = 0
+    print(f"padding_to_add: {padding_to_add} bytes")
+    for i, curr_pkt in enumerate(input_pkts):
+        # print(f"\npkt {i}....")
+        # get metadata from curr_pkt
+        md_bytes = b''
+        for x in pkt_history:
+            md_bytes += bytes(x)
+        # src_mac is used for rss
+        src_mac = f"10:10:10:10:10:{format(i % num_cores, '02x')}"
+        # print(src_mac)
+        new_pkt = Ether(dst = dst_mac, src = src_mac, type=ETH_P_IP) / \
+                  md_bytes / \
+                  curr_pkt
+        if padding_to_add > 0:
+            zero = 0
+            padding = zero.to_bytes(padding_to_add, 'little')
+            new_pkt = new_pkt / padding
+        new_pkts.append(new_pkt)
+        if num_cores > 1:
+            curr_md = get_md_from_pkt(curr_pkt)
+            # update pkt_history
+            pkt_history = pkt_history[1:]
+            pkt_history.append(curr_md)
+    return new_pkts
+
+def modify_mac_one_pkt(curr_pkt, src_mac, dst_mac):
+    new_pkt = Ether(dst = dst_mac, src = src_mac, type=ETH_P_IP)/ \
+              curr_pkt[Ether].payload
+    return new_pkt
+
+def modify_mac(input_pkts, src_mac, dst_mac):
+    new_pkts = []
+    for pkt in input_pkts:
+        new_pkts.append(modify_mac_one_pkt(pkt, src_mac, dst_mac))
+    return new_pkts
+
+def add_padding(input_pkts):
+    ETH_BYTES = 14
+    md_elem_bytes = 20 * 10
+    total_bytes = ETH_BYTES + md_elem_bytes
+    new_pkts = []
+    payload = 'x' * total_bytes
+    for pkt in input_pkts:
+        pkt /= Raw(load=payload)
+        new_pkts.append(pkt)
+    return new_pkts
+
+
+if __name__ == '__main__':
+    md_elem_bytes = 20 * 10
+    padding_size = ETH_BYTES + md_elem_bytes
+    print(f"padding_size: {padding_size} bytes")
+    num_cores_max = 9
+    num_cores_min = 1
+    dst_mac = "10:70:fd:d6:a0:64"
+    # src_mac = "10:70:fd:d6:a0:1c"
+    input_file = "trace_10_mtu1500/trace_10_mtu1500.pcap"
+    input_pkts = rdpcap(input_file)
+    print(f'{len(input_pkts)} packets in this pcap')
+    for n in range(num_cores_min, num_cores_max + 1):
+        print(f"processing {n}")
+        new_pkts = add_md_to_pkts(input_pkts, n, dst_mac, padding_size)
+        output_file = f"trace_10_mtu1500/xdp_hhd_shared_nothing_{n}.pcap"
+        print(f"output pcap: {output_file}")
+        wrpcap(output_file, new_pkts)
