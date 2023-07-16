@@ -1,5 +1,5 @@
 /*
- * heavy hitter detection
+ * heavy hitter detection (flow affinity using cuckoo hash)
  */
 #define KBUILD_MODNAME "foo"
 #include <uapi/linux/bpf.h>
@@ -7,12 +7,16 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
-#define MAX_NUM_FLOWS 8
+#define MAX_NUM_FLOWS 1024
 #define MAX_FLOW_BYTES (1 << 10)
 #define RET_ERR -1
+
+#include "lib/cilium_builtin.h"
+#include "lib/cuckoo_hash.h"
 
 struct flow_key {
   u8 protocol;
@@ -20,26 +24,10 @@ struct flow_key {
   __be32 dst_ip;
   u16 src_port;
   u16 dst_port;
-};
+} __attribute__((packed));
 
-struct element {
-  struct flow_key flow;
-  u64 bytes;
-};
-
-struct map_value {
-  struct element elem_list[MAX_NUM_FLOWS];
-};
-
-/* The size of value should <= the stack size (512B), otherwise not able to
-   use map update to insert a new element
-*/
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-  __type(key, int);
-  __type(value, struct map_value);
-  __uint(max_entries, 1);
-} my_map SEC(".maps");
+/* map size: 1024 = 2 * 512 */
+BPF_CUCKOO_HASH(flowsize_map, struct flow_key, u64, 512)
 
 static inline int parse_udp(void *data, u64 nh_off, void *data_end,
                             u16 *sport, u16 *dport) {
@@ -53,14 +41,13 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
   return 0;
 }
 
-SEC("xdp_hdd")
+SEC("xdp_hhd")
 int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth = data;
   struct iphdr *iph;
-  struct map_value *value;
-  u64 *bytes_before;
+  u64 *value;
   struct flow_key flow = {
     .protocol = 0,
     .src_ip = 0,
@@ -68,10 +55,17 @@ int xdp_prog(struct xdp_md *ctx) {
     .src_port = 0,
     .dst_port = 0
   };
-  struct element *elem;
   u16 h_proto;
   u64 nh_off;
   int rc = XDP_DROP;
+  bool remove_session_table = false;
+
+  uint32_t zero = 0;
+  struct flowsize_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&flowsize_map, &zero);
+  if (!map) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
 
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
@@ -86,42 +80,50 @@ int xdp_prog(struct xdp_md *ctx) {
   iph = data + nh_off;
   if (iph + 1 > data_end)
     return XDP_DROP;
-  if (iph->protocol != IPPROTO_UDP) {
-    return XDP_DROP;
-  }
-  flow.protocol = IPPROTO_UDP;
+
+  flow.protocol = iph->protocol;
   /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
   flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
   /* Parse udp header to get src_port and dst_port */
   nh_off += sizeof(*iph);
-  if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
+  if (iph->protocol == IPPROTO_UDP) {
+    if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
+      return XDP_DROP;
+    }
+  } else if (iph->protocol == IPPROTO_TCP) {
+    /* Parse tcp header to get src_port and dst_port */
+    struct tcphdr *tcp = data + nh_off;
+    if (tcp + 1 > data_end)
+      return XDP_DROP;
+    flow.src_port = ntohs(tcp->source);
+    flow.dst_port = ntohs(tcp->dest);
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+  } else {
+    /* drop packets that are not udp or tcp */
     return XDP_DROP;
   }
 
   /* Calculate packet length */
   u64 bytes = data_end - data;
-  int index = 1;
-  value = bpf_map_lookup_elem(&my_map, &index);
+  value = flowsize_map_cuckoo_lookup(map, &flow);
   if (value) {
-    for (int i = 0; i < NUM_PKTS; i++) {
-      elem = &value->elem_list[i];
-      /* Read flow by using a dummy check */
-      if (elem->flow.protocol != 0 ||
-          elem->flow.src_ip != 0 ||
-          elem->flow.dst_ip != 0 ||
-          elem->flow.src_port != 0 ||
-          elem->flow.dst_port != 0) {
-        return XDP_DROP;
-      }
-      /* Read and update state */
-      elem->bytes += 1;
+    // bpf_printk("map hit");
+    bytes += *value;
+    *value = bytes;
+    if (remove_session_table) {
+      // bpf_printk("map remove");
+      flowsize_map_cuckoo_delete(map, &flow);
     }
   } else {
-    struct element elem_list[MAX_NUM_FLOWS];
-    memset(elem_list, 0, sizeof(struct element) * MAX_NUM_FLOWS);
-    bpf_map_update_elem(&my_map, &index, &elem_list, BPF_NOEXIST);
+    // bpf_printk("map miss");
+    if (!remove_session_table) {
+      // bpf_printk("map insert");
+      flowsize_map_cuckoo_insert(map, &flow, &bytes);
+    }
   }
   if (bytes < MAX_FLOW_BYTES) {
     rc = XDP_PASS;

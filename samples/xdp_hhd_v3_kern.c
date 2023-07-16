@@ -1,6 +1,5 @@
 /*
- * heavy hitter detection using local state
- * metadata element: | pkt_i flow | pkt_i length |
+ * heavy hitter detection (shared-state using cuckoo hash)
  */
 #define KBUILD_MODNAME "foo"
 #include <uapi/linux/bpf.h>
@@ -8,12 +7,21 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
-#define MAX_NUM_FLOWS 256
+#define MAX_NUM_FLOWS 1024
 #define MAX_FLOW_BYTES (1 << 10)
 #define RET_ERR -1
+
+/* If define SHARED_CPU_MAP (value does not matter),
+ * cuckoo hash map is shared across CPUs.
+ * Need to include cuckoo hash header after defining SHARED_CPU_MAP
+ */
+#define SHARED_CPU_MAP 1
+#include "lib/cilium_builtin.h"
+#include "lib/cuckoo_hash.h"
 
 struct flow_key {
   u8 protocol;
@@ -21,19 +29,10 @@ struct flow_key {
   __be32 dst_ip;
   u16 src_port;
   u16 dst_port;
-};
+} __attribute__((packed));
 
-struct metadata_elem {
-  struct flow_key flow;
-  u32 bytes;
-};
-
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-  __type(key, struct flow_key);
-  __type(value, u64);
-  __uint(max_entries, MAX_NUM_FLOWS);
-} my_map SEC(".maps");
+/* map size: 1024 = 2 * 512 */
+BPF_CUCKOO_HASH(flowsize_map, struct flow_key, u64, 512)
 
 static inline int parse_udp(void *data, u64 nh_off, void *data_end,
                             u16 *sport, u16 *dport) {
@@ -47,13 +46,13 @@ static inline int parse_udp(void *data, u64 nh_off, void *data_end,
   return 0;
 }
 
-SEC("xdp_hdd")
+SEC("xdp_hhd")
 int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
   struct ethhdr *eth = data;
   struct iphdr *iph;
-  u64 *value;
+  u64 *value, bytes_before;
   struct flow_key flow = {
     .protocol = 0,
     .src_ip = 0,
@@ -61,12 +60,17 @@ int xdp_prog(struct xdp_md *ctx) {
     .src_port = 0,
     .dst_port = 0
   };
-  struct flow_key *flow_tmp;
   u16 h_proto;
   u64 nh_off;
   int rc = XDP_DROP;
-  u64 bytes, md_size;
-  struct metadata_elem *md_elem;
+  bool remove_session_table = false;
+
+  uint32_t zero = 0;
+  struct flowsize_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&flowsize_map, &zero);
+  if (!map) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
 
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
@@ -77,54 +81,55 @@ int xdp_prog(struct xdp_md *ctx) {
     return XDP_DROP;
   }
 
-  /* Parse ipv4 header */
+  /* Parse ipv4 header to get protocol, src_ip, and dst_ip */
   iph = data + nh_off;
   if (iph + 1 > data_end)
     return XDP_DROP;
-  if (iph->protocol != IPPROTO_UDP) {
-    return XDP_DROP;
-  }
-  flow.protocol = IPPROTO_UDP;
+
+  flow.protocol = iph->protocol;
   /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
   flow.src_ip = iph->saddr & 0xf0ffffff;
   flow.dst_ip = iph->daddr;
 
+  /* Parse udp header to get src_port and dst_port */
   nh_off += sizeof(*iph);
-  if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
-    return XDP_DROP;
-  }
-
-  /* Process latest (n-1) packets using metadata */
-  nh_off += sizeof(struct udphdr);
-  md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
-  if (data + nh_off + md_size > data_end)
-    return XDP_DROP;
-  bytes = 0;
-  for (int i = 0; i < NUM_PKTS - 1; i++) {
-    md_elem = data + nh_off;
-    flow_tmp = &md_elem->flow;
-    if (flow_tmp->protocol == flow.protocol &&
-        flow_tmp->src_ip == flow.src_ip &&
-        flow_tmp->dst_ip == flow.dst_ip &&
-        flow_tmp->src_port == flow.src_port &&
-        flow_tmp->dst_port == flow.dst_port) {
-      bytes += (u64)md_elem->bytes;
+  if (iph->protocol == IPPROTO_UDP) {
+    if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
+      return XDP_DROP;
     }
-    nh_off += sizeof(struct metadata_elem);
-  }
-
-  /* Process the assigned packet */
-  /* Calculate packet length */
-  bytes += data_end - data;
-
-  value = bpf_map_lookup_elem(&my_map, &flow);
-  if (value) {
-    bytes += *value;
-    *value = bytes;
+  } else if (iph->protocol == IPPROTO_TCP) {
+    /* Parse tcp header to get src_port and dst_port */
+    struct tcphdr *tcp = data + nh_off;
+    if (tcp + 1 > data_end)
+      return XDP_DROP;
+    flow.src_port = ntohs(tcp->source);
+    flow.dst_port = ntohs(tcp->dest);
+    // check if entry needs to be removed
+    remove_session_table = tcp->fin;
+    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
   } else {
-    bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
+    /* drop packets that are not udp or tcp */
+    return XDP_DROP;
   }
 
+  /* Calculate packet length */
+  u64 bytes = data_end - data;
+  value = flowsize_map_cuckoo_lookup(map, &flow);
+  if (value) {
+    // bpf_printk("map hit");
+    bytes_before = __sync_fetch_and_add(value, bytes);
+    bytes += bytes_before;
+    if (remove_session_table) {
+      // bpf_printk("map remove");
+      flowsize_map_cuckoo_delete(map, &flow);
+    }
+  } else {
+    // bpf_printk("map miss");
+    if (!remove_session_table) {
+      // bpf_printk("map insert");
+      flowsize_map_cuckoo_insert(map, &flow, &bytes);
+    }
+  }
   if (bytes < MAX_FLOW_BYTES) {
     rc = XDP_PASS;
   }
