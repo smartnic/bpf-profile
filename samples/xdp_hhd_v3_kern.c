@@ -1,5 +1,9 @@
 /*
  * heavy hitter detection (shared-state using cuckoo hash)
+ * todo: we need to lock the cuckoo map when modifying. However,
+ * the kernel verifier does not allow to lock the cuckoo map while
+ * using bpf_loop. Error message in the log:
+ *     function calls are not allowed while holding a lock 
  */
 #define KBUILD_MODNAME "foo"
 #include <uapi/linux/bpf.h>
@@ -121,13 +125,17 @@ int xdp_prog(struct xdp_md *ctx) {
     bytes += bytes_before;
     if (remove_session_table) {
       // bpf_printk("map remove");
+      // todo: bpf_spin_lock(&map->lock);
       flowsize_map_cuckoo_delete(map, &flow);
+      // todo: bpf_spin_unlock(&map->lock);
     }
   } else {
     // bpf_printk("map miss");
     if (!remove_session_table) {
       // bpf_printk("map insert");
+      // todo: bpf_spin_lock(&map->lock);
       flowsize_map_cuckoo_insert(map, &flow, &bytes);
+      // todo: bpf_spin_unlock(&map->lock);
     }
   }
   if (bytes < MAX_FLOW_BYTES) {
