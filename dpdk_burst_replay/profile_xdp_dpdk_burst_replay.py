@@ -128,7 +128,7 @@ def get_benchmark_version(prog_name):
 def set_up_configs(benchmark, version, n_cores):
     is_flow_affinity = False
     flow_affinity_version_dic = {
-        BENCHMARK_hhd: "v2",
+        BENCHMARK_hhd: ["v2", "v4"],
     }
     hash_packet_fields_dic = {
         BENCHMARK_hhd: "sdfn",
@@ -140,9 +140,9 @@ def set_up_configs(benchmark, version, n_cores):
     if benchmark not in hash_packet_fields_dic:
         print_log(f"Benchmark {benchmark} not supported. Exit")
         sys.exit(0)
-    flow_affinity_version = flow_affinity_version_dic[benchmark]
+    flow_affinity_versions = flow_affinity_version_dic[benchmark]
     hash_packet_fields = hash_packet_fields_dic[benchmark]
-    if flow_affinity_version == version:
+    if version in flow_affinity_versions:
         is_flow_affinity = True
     print_log(f"is_flow_affinity: {is_flow_affinity}")
     print_log(f"hash_packet_fields: {hash_packet_fields}")
@@ -179,6 +179,7 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores):
         BENCHMARK_hhd: {
             "v1": VERSION_shared_state,
             "v2": VERSION_flow_affinity,
+            "v4": VERSION_flow_affinity,
             "v10": VERSION_shared_nothing,
         },
     }
@@ -346,7 +347,7 @@ if __name__ == "__main__":
                 version_name_list = ["v1", "v2"]
             elif BENCHMARK_hhd in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v2", "v10"]
+                version_name_list = ["v1", "v2", "v4", "v10"]
             elif BENCHMARK_token_bucket in benchmark:
                 LOADER_NAME = "xdpex1"
                 version_name_list = ["v1", "v4"]
