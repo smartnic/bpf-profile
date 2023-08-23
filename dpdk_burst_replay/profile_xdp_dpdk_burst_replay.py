@@ -88,9 +88,14 @@ def clean_environment(client, prog_name):
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
 
 def run_packet_generator(benchmark, version, core_list, pcap_file, client):
-    # send packets for 10000 seconds
+    # send packets
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    config_file = f"config_{timestr}.yaml"
+    config_file_path = f"{PKTGEN_PATH}/dpdk_replay_config/"
     NIC_PCIE = "0000:ca:00.0"
-    client_cmd = f"sudo {PKTGEN_PATH}/dpdk-replay --nbruns 100000000 --numacore 1 --timeout 10000 --stats {NIC_PCIE} {pcap_file} {NIC_PCIE} >log.txt 2>&1 &"
+    client_cmd = f"python3 {PKTGEN_PATH}/create_dpdk_replay_config.py -o {config_file_path} --fname {config_file} --pcap {pcap_file} -n 1 --pcie {NIC_PCIE} --tx_queues 4 --numacore 1"
+    run_unmodified_cmd_on_client(client_cmd, client)
+    client_cmd = f"sudo {PKTGEN_PATH}/dpdk-replay --config {config_file_path}/{config_file} >log_dpdk_replay.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
     # check if packet gen is stable
     client_cmd = CMD_CHECK_PKT_GEN_STABLE
