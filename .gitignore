@@ -3,6 +3,7 @@
 *.txt
 *.pcap.*
 *.pcap
+*.yaml
 .DS_Store
 __pycache__
 samples/build/
