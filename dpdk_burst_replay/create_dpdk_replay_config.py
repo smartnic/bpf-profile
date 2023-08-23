@@ -1,5 +1,5 @@
 import argparse
-CONFIG_FILE = "config.yaml"
+import os
 
 def traces_str(num_cores, pcap, tx_queues):
     item = f"  - path: \"{pcap}\"" + "\n" + f"    tx_queues: {tx_queues}\n"
@@ -15,6 +15,7 @@ def stats_str(pcie):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about data')
     parser.add_argument('-o', dest="output_path", type=str, help='Output path of config file', required=True)
+    parser.add_argument('--fname', dest="fname", type=str, help='Output config file name', required=True)
     parser.add_argument('--pcap', dest="pcap", type=str, help='pcap file path', required=True)
     parser.add_argument('-n', dest="num_cores", type=int, help='Number of cores used for packet generator (greater than 1)', required=True)
     parser.add_argument('--pcie', dest="pcie_addr", type=str, help='NIC PCIe address', required=True)
@@ -32,6 +33,8 @@ if __name__ == "__main__":
     config_str += "slow_mode: False\n"
     config_str += stats_str(args.pcie_addr)
     config_str += f"send_port_pci: {args.pcie_addr}\n"
-    fout = open(f"{args.output_path}/{CONFIG_FILE}", "w")
-    n = fout.write(config_str)
+    if not os.path.exists(args.output_path):
+        os.makedirs(args.output_path)
+    fout = open(f"{args.output_path}/{args.fname}", "w")
+    fout.write(config_str)
     fout.close()
