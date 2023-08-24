@@ -63,7 +63,7 @@ static int get_map_type(char* filename) {
     return HASH_MAP;
   } else if (strstr(filename, "v2")) {
     return PERCPU_MAP;
-  } else if (strstr(filename, "v4")) {
+  } else if (strstr(filename, "v4") || strstr(filename, "v5")) {
     return CUCKOO_HASH_MAP;
   }
   return NOT_FOUND;
