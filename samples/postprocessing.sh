@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_CORES=14
-BPF_PROGS="xdp_token_bucket_v1 xdp_token_bucket_v4 \
+BPF_PROGS="xdp_token_bucket_v1 xdp_token_bucket_v4 xdp_token_bucket_v5 xdp_token_bucket_v6 \
 	xdp_ddos_mitigator_v1 xdp_ddos_mitigator_v2 xdp_ddos_mitigator_v4 xdp_ddos_mitigator_v5 \
 	xdp_hhd_v1 xdp_hhd_v2 xdp_hhd_v4 xdp_hhd_v10 \
 	xdp_portknock_v1 xdp_portknock_v2 \
