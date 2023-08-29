@@ -31,7 +31,7 @@ def gen_pcap_shared_state(num_cores, dst_mac, output_path, input_file):
         src_mac = f"10:10:10:10:10:{format(i % num_cores, '02x')}"
         new_pkt = modify_mac_one_pkt(curr_pkt, src_mac, dst_mac)
         new_pkts.append(new_pkt)
-        if len(new_pkts) >= PKTS_WRITE_SIZE:
+        if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
             wrpcap(output_file, new_pkts, append=True)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
             new_pkts = []

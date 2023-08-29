@@ -113,7 +113,7 @@ def gen_pcap_with_md_hhd(num_cores, dst_mac, output_path, input_file):
             # update pkt_history
             pkt_history = pkt_history[1:]
             pkt_history.append(curr_md)
-        if len(new_pkts) >= PKTS_WRITE_SIZE:
+        if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
             wrpcap(output_file, new_pkts, append=True)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
             new_pkts = []
