@@ -81,7 +81,7 @@ def get_md_from_pkt(pkt):
 # Generator function to read and yield packets one by one
 def read_packets(pcap_file):
     with PcapReader(pcap_file) as pcap_reader:
-        for packet_number, packet in enumerate(pcap_reader, start=1):
+        for packet_number, packet in enumerate(pcap_reader, start=0):
             yield packet_number, packet
 
 def gen_pcap_with_md_hhd(num_cores, dst_mac, output_path, input_file):

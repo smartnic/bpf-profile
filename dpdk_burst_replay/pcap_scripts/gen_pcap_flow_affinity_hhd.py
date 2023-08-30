@@ -9,7 +9,7 @@ from gen_pcap_utils import *
 # Generator function to read and yield packets one by one
 def read_packets(pcap_file):
     with PcapReader(pcap_file) as pcap_reader:
-        for packet_number, packet in enumerate(pcap_reader, start=1):
+        for packet_number, packet in enumerate(pcap_reader, start=0):
             yield packet_number, packet
 
 def modify_mac_one_pkt(curr_pkt, src_mac, dst_mac):
