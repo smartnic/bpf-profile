@@ -2,12 +2,15 @@ import multiprocessing
 import time
 import argparse
 import sys
+import os
 from read_args import read_args_from_yaml
 from gen_pcap_shared_state import gen_pcap_shared_state
 from gen_pcap_flow_affinity_hhd import gen_pcap_flow_affinity_hhd
 from gen_pcap_with_md_hhd import gen_pcap_with_md_hhd
 from gen_pcap_flow_affinity_ddos_mitigator import gen_pcap_flow_affinity_ddos_mitigator
 from gen_pcap_with_md_ddos_mitigator import gen_pcap_with_md_ddos_mitigator
+from gen_pcap_flow_affinity_token_bucket import gen_pcap_flow_affinity_token_bucket
+from gen_pcap_with_md_token_bucket import gen_pcap_with_md_token_bucket
 
 APPROACH_shared = "shared"
 APPROACH_shared_nothing = "shared_nothing"
@@ -15,36 +18,54 @@ APPROACH_flow_affinity = "flow_affinity"
 
 BM_hhd = "hhd"
 BM_ddos_mitigator = "ddos_mitigator"
+BM_token_bucket = "token_bucket"
 
 def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_path, input_file):
+    sleep_dur = 0.1
     print(f"[add_tasks_to_process_pool] {approach} {benchmarks} {input_file}")
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     result_list = []
     if approach == APPROACH_shared:
         for n in range(1, num_cores + 1):
             r = pool.apply_async(gen_pcap_shared_state, args=(n, dst_mac, output_path, input_file, ))
             result_list.append(r)
+            time.sleep(sleep_dur)
     elif approach == APPROACH_flow_affinity:
         for b in benchmarks:
             if b == BM_hhd:
                 r = pool.apply_async(gen_pcap_flow_affinity_hhd,
                                      args=(dst_mac, output_path, input_file, ))
                 result_list.append(r)
-            if b == BM_ddos_mitigator:
+            elif b == BM_ddos_mitigator:
                 dst_ip = "172.16.90.196"
                 r = pool.apply_async(gen_pcap_flow_affinity_ddos_mitigator,
                                      args=(dst_mac, dst_ip, output_path, input_file, ))
                 result_list.append(r)
+            elif b == BM_token_bucket:
+                r = pool.apply_async(gen_pcap_flow_affinity_token_bucket,
+                                     args=(dst_mac, output_path, input_file, ))
+                result_list.append(r)
+            time.sleep(sleep_dur)
     elif approach == APPROACH_shared_nothing:
         for b in benchmarks:
             if b == BM_hhd:
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_hhd, args=(n, dst_mac, output_path, input_file, ))
                     result_list.append(r)
+                    time.sleep(sleep_dur)
             elif b == BM_ddos_mitigator:
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_ddos_mitigator,
                                          args=(n, dst_mac, output_path, input_file, ))
                     result_list.append(r)
+                    time.sleep(sleep_dur)
+            elif b == BM_token_bucket:
+                for n in range(1, num_cores + 1):
+                    r = pool.apply_async(gen_pcap_with_md_token_bucket,
+                                         args=(n, dst_mac, output_path, input_file, ))
+                    result_list.append(r)
+                    time.sleep(sleep_dur)
     return result_list
 
 if __name__ == "__main__":
