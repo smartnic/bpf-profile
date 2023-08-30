@@ -25,14 +25,16 @@ def gen_pcap_flow_affinity_hhd(dst_mac, output_path, input_file):
     src_mac = "10:70:fd:d6:a0:1c"
     new_pkts = []
     output_file = f"{output_path}/xdp_hhd_flow_affinity.pcap"
+    append_flag = False
     for _, pkt in read_packets(input_file):
         new_pkts.append(modify_mac_one_pkt(pkt, src_mac, dst_mac))
         if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
-            wrpcap(output_file, new_pkts, append=True)
+            wrpcap(output_file, new_pkts, append=append_flag)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
             new_pkts = []
+            append_flag = True
     if new_pkts:
-        wrpcap(output_file, new_pkts, append=True)
+        wrpcap(output_file, new_pkts, append=append_flag)
     print(f"[gen_pcap_flow_affinity_hhd] output pcap: {output_file}")
 
 if __name__ == '__main__':

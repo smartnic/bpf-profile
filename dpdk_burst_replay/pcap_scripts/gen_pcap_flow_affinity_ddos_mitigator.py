@@ -30,16 +30,18 @@ def gen_pcap_flow_affinity_ddos_mitigator(dst_mac, dst_ip, output_path, input_fi
     src_mac = "10:70:fd:d6:a0:1c"
     new_pkts = []
     output_file = f"{output_path}/xdp_ddos_mitigator_flow_affinity.pcap"
+    append_flag = False
     for _, pkt in read_packets(input_file):
         new_pkt = modify_mac_ip_one_pkt(pkt, src_mac, dst_mac, dst_ip)
         if new_pkt:
             new_pkts.append(new_pkt)
         if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
-            wrpcap(output_file, new_pkts, append=True)
+            wrpcap(output_file, new_pkts, append=append_flag)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
             new_pkts = []
+            append_flag = True
     if new_pkts:
-        wrpcap(output_file, new_pkts, append=True)
+        wrpcap(output_file, new_pkts, append=append_flag)
     print(f"[gen_pcap_flow_affinity_ddos_mitigator] output pcap: {output_file}")
 
 if __name__ == '__main__':

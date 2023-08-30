@@ -26,17 +26,19 @@ def gen_pcap_shared_state(num_cores, dst_mac, output_path, input_file):
     # input_pkts = rdpcap(input_file)
     new_pkts = list()
     output_file = f"{output_path}/shared_state_{num_cores}.pcap"
+    append_flag = False
     for i, curr_pkt in read_packets(input_file):
         # src_mac is used for rss
         src_mac = f"10:10:10:10:10:{format(i % num_cores, '02x')}"
         new_pkt = modify_mac_one_pkt(curr_pkt, src_mac, dst_mac)
         new_pkts.append(new_pkt)
         if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
-            wrpcap(output_file, new_pkts, append=True)
+            wrpcap(output_file, new_pkts, append=append_flag)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
             new_pkts = []
+            append_flag = True
     if new_pkts:
-        wrpcap(output_file, new_pkts, append=True)
+        wrpcap(output_file, new_pkts, append=append_flag)
         # print(f"Written {len(new_pkts)} packets to {output_pcap}")
     print(f"[gen_pcap_shared_state] output pcap: {output_file}")
 

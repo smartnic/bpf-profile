@@ -89,6 +89,7 @@ def gen_pcap_with_md_hhd(num_cores, dst_mac, output_path, input_file):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     output_file = f"{output_path}/xdp_hhd_shared_nothing_{num_cores}.pcap"
+    append_flag = False
     # input_pkts = rdpcap(input_file)
     new_pkts = list()
     md_initial = MetadataElem()
@@ -114,11 +115,12 @@ def gen_pcap_with_md_hhd(num_cores, dst_mac, output_path, input_file):
             pkt_history = pkt_history[1:]
             pkt_history.append(curr_md)
         if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
-            wrpcap(output_file, new_pkts, append=True)
+            wrpcap(output_file, new_pkts, append=append_flag)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
             new_pkts = []
+            append_flag = True
     if new_pkts:
-        wrpcap(output_file, new_pkts, append=True)
+        wrpcap(output_file, new_pkts, append=append_flag)
     print(f"[gen_pcap_with_md_hhd] output pcap: {output_file}")
 
 
