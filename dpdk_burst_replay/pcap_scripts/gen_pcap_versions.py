@@ -11,6 +11,7 @@ from gen_pcap_flow_affinity_ddos_mitigator import gen_pcap_flow_affinity_ddos_mi
 from gen_pcap_with_md_ddos_mitigator import gen_pcap_with_md_ddos_mitigator
 from gen_pcap_flow_affinity_token_bucket import gen_pcap_flow_affinity_token_bucket
 from gen_pcap_with_md_token_bucket import gen_pcap_with_md_token_bucket
+from process_pcap_file_ddos_srcip import read_src_ip_from_tcp_packets
 
 APPROACH_shared = "shared"
 APPROACH_shared_nothing = "shared_nothing"
@@ -26,6 +27,12 @@ def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_p
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     result_list = []
+
+    if BM_ddos_mitigator in benchmarks:
+        r = pool.apply_async(read_src_ip_from_tcp_packets, args=(input_file, output_path, ))
+        result_list.append(r)
+        time.sleep(sleep_dur)
+
     if approach == APPROACH_shared:
         for n in range(1, num_cores + 1):
             r = pool.apply_async(gen_pcap_shared_state, args=(n, dst_mac, output_path, input_file, ))
