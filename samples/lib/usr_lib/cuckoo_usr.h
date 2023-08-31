@@ -37,6 +37,11 @@ typedef struct {
     size_t hash_cell_size;
     size_t table_size;
     size_t entire_map_size;
+    size_t key_offset;
+    size_t value_offset;
+    size_t hash_cell_array_offset;
+    size_t table1_offset;
+    size_t table2_offset;
 } cuckoo_hashmap_t;
 
 /**

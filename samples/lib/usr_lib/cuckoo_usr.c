@@ -3,7 +3,7 @@
 
 #include "cuckoo_usr.h"
 
-#include "../ebpf/lib/fasthash.h"
+#include "../fasthash.h"
 #include <bpf/bpf.h>
 #include <bpf/btf.h>
 #include <bpf/libbpf.h>
@@ -19,6 +19,10 @@
         _result;                                                                                   \
     })
 
+int roundup(int value, int boundary) {
+    return (value + boundary - 1) / boundary * boundary;
+}
+
 cuckoo_hashmap_t *cuckoo_table_init_by_fd(int map_fd, size_t key_size, size_t value_size,
                                           uint32_t max_entries, bool aligned, cuckoo_error_t *err) {
 
@@ -30,41 +34,50 @@ cuckoo_hashmap_t *cuckoo_table_init_by_fd(int map_fd, size_t key_size, size_t va
     unsigned int num_cpus = 1;
     /* Calculating the size of every hash_cell */
     size_t hash_cell_size = 0;
+    size_t key_offset = sizeof(bool);
+    size_t value_offset = sizeof(bool) + key_size;
     hash_cell_size += sizeof(bool);
     hash_cell_size += key_size;
     hash_cell_size += value_size;
 
     /* Since the BPF structure is aligned to 4, I need to round it if it is not aligned */
     if (aligned) {
-        if (hash_cell_size % 4 != 0) {
-            hash_cell_size = (hash_cell_size / 4 + 1) * 4;
+        if (hash_cell_size % 8 != 0) {
+            hash_cell_size = (hash_cell_size / 8 + 1) * 8;
         }
+        key_offset = 4; // need to fix later, this is for ddos
+        value_offset = 8;
     }
 
     /* Calculating the size of the table inside the map */
     size_t table_size = 0;
+    size_t hash_cell_array_offset = sizeof(int);
     table_size += sizeof(int);
     table_size += (hash_cell_size * max_entries);
 
     /* Since the BPF structure is aligned to 4, I need to round it if it is not aligned */
     if (aligned) {
-        if (table_size % 4 != 0) {
-            table_size = (table_size / 4 + 1) * 4;
+        if (table_size % 8 != 0) {
+            table_size = (table_size / 8 + 1) * 8;
         }
+        hash_cell_array_offset = roundup(sizeof(int), 8);
     }
 
     /* Calculating the size of the map */
     size_t map_size = 0;
+    size_t table1_offset = sizeof(int);
     map_size += sizeof(int);
     map_size += table_size; /* First hash table */
     map_size += table_size; /* Second hash table */
 
     /* Since the BPF structure is aligned to 4, I need to round it if it is not aligned */
     if (aligned) {
-        if (map_size % 4 != 0) {
-            map_size = (map_size / 4 + 1) * 4;
+        if (map_size % 8 != 0) {
+            map_size = (map_size / 8 + 1) * 8;
         }
+        table1_offset = roundup(sizeof(int), 8);
     }
+    size_t table2_offset = table1_offset + table_size;
 
     struct bpf_map_info info;
     __u32 len = sizeof(info);
@@ -135,7 +148,12 @@ cuckoo_hashmap_t *cuckoo_table_init_by_fd(int map_fd, size_t key_size, size_t va
     map->hash_cell_size = hash_cell_size;
     map->table_size = table_size;
     map->entire_map_size = map_size;
-
+    map->key_offset = key_offset;
+    map->value_offset = value_offset;
+    map->hash_cell_array_offset = hash_cell_array_offset;
+    map->table1_offset = table1_offset;
+    map->table2_offset = table2_offset;
+    printf("%d, %d, %d, %d, %d\n", key_offset, value_offset, hash_cell_array_offset, table1_offset, table2_offset);
     return map;
 }
 
@@ -190,17 +208,17 @@ bool cuckoo_insert_loop(const cuckoo_hashmap_t *map, loop_ctx_t *ctx, cuckoo_err
 
     for (int i = 0; i < ctx->loop_cnt; i++) {
         uint32_t idx = ctx->h1 & (map->max_entries - 1);
-        void *elem = ctx->t1_ptr + sizeof(int) + (idx * map->hash_cell_size);
+        void *elem = ctx->t1_ptr + map->hash_cell_array_offset + (idx * map->hash_cell_size);
 
         /* Copy map element into tmp */
         tmp_is_filled = *(bool *)elem;
-        memcpy(tmp_key, elem + sizeof(bool), ctx->key_size);
-        memcpy(tmp_value, elem + sizeof(bool) + ctx->key_size, ctx->value_size);
+        memcpy(tmp_key, elem + map->key_offset, ctx->key_size);
+        memcpy(tmp_value, elem + map->value_offset, ctx->value_size);
 
         /* Copy x into map */
         *(bool *)elem = x_is_filled;
-        memcpy(elem + sizeof(bool), x_key, ctx->key_size);
-        memcpy(elem + sizeof(bool) + ctx->key_size, x_value, ctx->value_size);
+        memcpy(elem + map->key_offset, x_key, ctx->key_size);
+        memcpy(elem + map->value_offset, x_value, ctx->value_size);
 
         if (!tmp_is_filled) {
             // Increase table size
@@ -224,17 +242,17 @@ bool cuckoo_insert_loop(const cuckoo_hashmap_t *map, loop_ctx_t *ctx, cuckoo_err
         ctx->h2 = fasthash32(x_key, ctx->key_size, HASH_SEED_2);
         idx = ctx->h2 & (map->max_entries - 1);
 
-        elem = ctx->t2_ptr + sizeof(int) + (idx * map->hash_cell_size);
+        elem = ctx->t2_ptr + map->hash_cell_array_offset + (idx * map->hash_cell_size);
 
         /* Copy map element into tmp */
         tmp_is_filled = *(bool *)elem;
-        memcpy(tmp_key, elem + sizeof(bool), ctx->key_size);
-        memcpy(tmp_value, elem + sizeof(bool) + ctx->key_size, ctx->value_size);
+        memcpy(tmp_key, elem + map->key_offset, ctx->key_size);
+        memcpy(tmp_value, elem + map->value_offset, ctx->value_size);
 
         /* Copy x into map */
         *(bool *)elem = x_is_filled;
-        memcpy(elem + sizeof(bool), x_key, ctx->key_size);
-        memcpy(elem + sizeof(bool) + ctx->key_size, x_value, ctx->value_size);
+        memcpy(elem + map->key_offset, x_key, ctx->key_size);
+        memcpy(elem + map->value_offset, x_value, ctx->value_size);
 
         if (!tmp_is_filled) {
             // Increase table size
@@ -327,8 +345,8 @@ int cuckoo_insert(const cuckoo_hashmap_t *map, const void *key_to_insert,
     /* If I reach this point, the value pointer contains the entire map */
     for (int i = 0; i < map->num_cpus; i++) {
         void *base_val = value + (i * step);
-        void *table1 = base_val + sizeof(int);
-        void *table2 = table1 + map->table_size;
+        void *table1 = base_val + map->table1_offset;
+        void *table2 = base_val + map->table2_offset;
 
         /*
          * If the element is already there, overwrite and return.
@@ -347,10 +365,10 @@ int cuckoo_insert(const cuckoo_hashmap_t *map, const void *key_to_insert,
         }
 
         /* Let's get the pointer to the value we are interested */
-        void *elem_with_idx = table1 + sizeof(int) + (idx * map->hash_cell_size);
+        void *elem_with_idx = table1 + map->hash_cell_array_offset + (idx * map->hash_cell_size);
         bool elem_is_filled = *(bool *)elem_with_idx;
-        void *elem_key = elem_with_idx + sizeof(bool);
-        void *elem_value = elem_key + map->key_size;
+        void *elem_key = elem_with_idx + map->key_offset;
+        void *elem_value = elem_with_idx + map->value_offset;
         if (elem_is_filled) {
             if (memcmp(key_to_insert, elem_key, map->key_size) == 0) {
                 memcpy(elem_value, value_to_insert, map->value_size);
@@ -373,10 +391,10 @@ int cuckoo_insert(const cuckoo_hashmap_t *map, const void *key_to_insert,
         }
 
         /* Let's get the pointer to the value we are interested */
-        elem_with_idx = table2 + sizeof(int) + (idx * map->hash_cell_size);
+        elem_with_idx = table2 + map->hash_cell_array_offset + (idx * map->hash_cell_size);
         elem_is_filled = *(bool *)elem_with_idx;
-        elem_key = elem_with_idx + sizeof(bool);
-        elem_value = elem_key + map->key_size;
+        elem_key = elem_with_idx + map->key_offset;
+        elem_value = elem_with_idx + map->value_offset;
         if (elem_is_filled) {
             if (memcmp(key_to_insert, elem_key, map->key_size) == 0) {
                 memcpy(elem_value, value_to_insert, map->value_size);
