@@ -18,6 +18,7 @@
 #include <bpf/libbpf.h>
 #include <arpa/inet.h>
 #include "lib/fasthash.h"
+#include "lib/usr_lib/cuckoo_usr.h"
 
 #define NOT_FOUND 0
 #define PERCPU_MAP 1
@@ -89,48 +90,17 @@ static void update_blocklist(int map_fd, int map_type, char* map_key)
   } else if ((map_type == CUCKOO_HASH_MAP) ||
              (map_type == CUCKOO_HASH_MAP_SHARED_CPU)) {
     int map_size = 512;
-    struct cuckoo_hash_cell {
-      bool is_filled;
-      __u32 key;
-      __u64 val;
-    };
-    struct cuckoo_hash_table {
-      int current_size;
-      struct cuckoo_hash_cell elem_list[map_size];
-    };
-    struct cuckoo_hash_map {
-      int current_size;                    /* Current size */
-      struct cuckoo_hash_table t1; /* First hash table */
-      struct cuckoo_hash_table t2; /* Second hash table */
-    };
-    __u32 zero = 0;
-#define HASH_SEED_1 0x2d31e867
-    uint32_t hash1 = fasthash32((void*)&key, sizeof(__u32), HASH_SEED_1);
-    uint32_t idx = hash1 & (map_size - 1);
-    printf("hash1 idx=%d\n", idx);
-    if (map_type == CUCKOO_HASH_MAP_SHARED_CPU) {
-      struct cuckoo_hash_map value;
-      memset(&value, 0, sizeof(struct cuckoo_hash_map));
-      assert(bpf_map_lookup_elem(map_fd, &zero, &value) == 0);
-      value.current_size += 1;
-      value.t1.current_size += 1;
-      value.t1.elem_list[idx].is_filled = true;
-      value.t1.elem_list[idx].key = key;
-      value.t1.elem_list[idx].val = 0;
-      res = bpf_map_update_elem(map_fd, &zero, &value, BPF_ANY);
-    } else if (map_type == CUCKOO_HASH_MAP) {
-      unsigned int nr_cpus = bpf_num_possible_cpus();
-      struct cuckoo_hash_map values[nr_cpus];
-      memset(values, 0, nr_cpus * sizeof(struct cuckoo_hash_map));
-      assert(bpf_map_lookup_elem(map_fd, &zero, values) == 0);
-      for (int i = 0; i < nr_cpus; i++) {
-        values[i].current_size += 1;
-        values[i].t1.current_size += 1;
-        values[i].t1.elem_list[idx].is_filled = true;
-        values[i].t1.elem_list[idx].key = key;
-        values[i].t1.elem_list[idx].val = 0;
-      }
-      res = bpf_map_update_elem(map_fd, &zero, values, BPF_ANY);
+    cuckoo_error_t err_map;
+    memset(&err_map, 0, sizeof(err_map));
+    /* Init userspace cuckoo hashmap */
+    cuckoo_hashmap_t *cuckoo_map = cuckoo_table_init_by_fd(map_fd, sizeof(__u32),
+                                   sizeof(__u64), map_size, true, &err_map);
+    if (cuckoo_map == NULL) {
+      printf("cuckoo_table_init_by_fd failed\n");
+      printf("%s\n", err_map.error_msg);
+      res = -1;
+    } else {
+      res = cuckoo_insert(cuckoo_map, &key, &value, sizeof(key), sizeof(value), &err_map);
     }
   } else {
     res = bpf_map_update_elem(map_fd, &key, &value, BPF_ANY);
