@@ -79,6 +79,7 @@ def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_p
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about parameters')
     parser.add_argument('--config', '-c', dest='config_file', help='Config file name', required=True)
+    new_pcap_filename = "pkts.pcap"
     args = parser.parse_args()
     item_list = read_args_from_yaml(args.config_file)
     t_start = time.time()
@@ -91,7 +92,8 @@ if __name__ == "__main__":
         for item in item_list:
             input_file = item.input_file
             output_path = item.output
-            output_filename = "pkts.pcap"
+            output_filename = new_pcap_filename
+            item.input_file = f"{output_path}/{output_filename}"
             max_pkt_len = item.max_pkt_len
             r = pool.apply_async(truncate_tcp_pkts_and_stats, 
                                  args=(input_file, output_path, output_filename, max_pkt_len, ))
@@ -105,6 +107,7 @@ if __name__ == "__main__":
             print(f"truncated and stats task {c} completes")
             c += 1
 
+    time.sleep(2)
     # Create n_processes multiprocessing Pools, one for each function
     with multiprocessing.Pool(processes=n_processes) as pool:
         result_list = []
