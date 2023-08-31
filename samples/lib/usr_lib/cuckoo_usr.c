@@ -153,7 +153,6 @@ cuckoo_hashmap_t *cuckoo_table_init_by_fd(int map_fd, size_t key_size, size_t va
     map->hash_cell_array_offset = hash_cell_array_offset;
     map->table1_offset = table1_offset;
     map->table2_offset = table2_offset;
-    printf("%d, %d, %d, %d, %d\n", key_offset, value_offset, hash_cell_array_offset, table1_offset, table2_offset);
     return map;
 }
 
