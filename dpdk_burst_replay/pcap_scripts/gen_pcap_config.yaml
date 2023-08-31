@@ -1,6 +1,7 @@
 items:
   - input: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/1flow.pcap
     output: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/tmp/1flow
+    max_pkt_len: 2000, 256
     num_cores: 9
     dst_mac: 10:70:fd:d6:a0:64
     tasks:
@@ -11,6 +12,7 @@ items:
     output: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/tmp/3flow
     num_cores: 9
     dst_mac: 10:70:fd:d6:a0:64
+    max_pkt_len: 2000, 128
     tasks:
       - hhd: shared, flow_affinity, shared_nothing
       - ddos_mitigator: shared, flow_affinity, shared_nothing

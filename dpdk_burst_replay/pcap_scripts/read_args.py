@@ -4,6 +4,7 @@ class WorkItem():
     def __init__(self):
         self.input_file = None
         self.output = None
+        self.max_pkt_len = 0
         self.num_cores = None
         self.dst_mac = None
         self.tasks = {}
@@ -11,10 +12,21 @@ class WorkItem():
     def __str__(self):
         res = f"input_file: {self.input_file}\n"
         res += f"output: {self.output}\n"
+        res += f"max_pkt_len: {self.max_pkt_len}\n"
         res += f"num_cores: {self.num_cores}\n"
         res += f"dst_mac: {self.dst_mac}\n"
         res += f"tasks: {self.tasks}\n"
         return res
+
+    def __copy__(self):
+        x = WorkItem()
+        x.input_file = self.input_file
+        x.output = self.output
+        x.max_pkt_len = self.max_pkt_len
+        x.num_cores = self.num_cores
+        x.dst_mac = self.dst_mac
+        x.tasks = self.tasks
+        return x
 
 
 def read_args_from_yaml(yaml_file):
@@ -25,6 +37,10 @@ def read_args_from_yaml(yaml_file):
     item_list = []
     # Process the data
     for x in data.get("items", []):
+        max_pkt_len_list = []
+        if x.get("max_pkt_len"):
+            max_pkt_len_list = x.get("max_pkt_len").split(",")
+            max_pkt_len_list = [int(l.strip()) for l in max_pkt_len_list]
         item = WorkItem()
         item.input_file = x.get("input")
         item.output = x.get("output")
@@ -40,7 +56,11 @@ def read_args_from_yaml(yaml_file):
                     item.tasks[a].append(benchmark)
                 else:
                     item.tasks[a] = [benchmark]
-        item_list.append(item)
+        for l in max_pkt_len_list:
+            new_item = item.__copy__()
+            new_item.output += f"/max_{l}/"
+            new_item.max_pkt_len = l
+            item_list.append(new_item)
     print("Work item list:")
     for x in item_list:
         print(x)

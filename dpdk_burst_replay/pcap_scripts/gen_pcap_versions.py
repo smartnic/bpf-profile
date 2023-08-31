@@ -12,6 +12,7 @@ from gen_pcap_with_md_ddos_mitigator import gen_pcap_with_md_ddos_mitigator
 from gen_pcap_flow_affinity_token_bucket import gen_pcap_flow_affinity_token_bucket
 from gen_pcap_with_md_token_bucket import gen_pcap_with_md_token_bucket
 from process_pcap_file_ddos_srcip import read_src_ip_from_tcp_packets
+from truncate_tcp_pkts_and_stats import truncate_tcp_pkts_and_stats
 
 APPROACH_shared = "shared"
 APPROACH_shared_nothing = "shared_nothing"
@@ -83,7 +84,27 @@ if __name__ == "__main__":
     t_start = time.time()
     t_shared_state = time.time()
     n_processes = 27
-    # if args.num_cores > n_processes:
+    # create truncated packet traces and dump stats
+    sleep_dur = 0.1
+    with multiprocessing.Pool(processes=n_processes) as pool:
+        result_list = []
+        for item in item_list:
+            input_file = item.input_file
+            output_path = item.output
+            output_filename = "pkts.pcap"
+            max_pkt_len = item.max_pkt_len
+            r = pool.apply_async(truncate_tcp_pkts_and_stats, 
+                                 args=(input_file, output_path, output_filename, max_pkt_len, ))
+            result_list.append(r)
+            time.sleep(sleep_dur)
+        # Wait for subprocesses to complete
+        print(f"# of truncated and stats tasks: {len(result_list)}")
+        c = 1
+        for r in result_list:
+            r.wait()
+            print(f"truncated and stats task {c} completes")
+            c += 1
+
     # Create n_processes multiprocessing Pools, one for each function
     with multiprocessing.Pool(processes=n_processes) as pool:
         result_list = []
