@@ -302,6 +302,7 @@ def test_benchmark(run_id, benchmark, version_name_list,
 # add pcap file
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Information about data')
+    parser.add_argument('-i', dest="pcap_path", type=str, help='Input path of pcap files', required=True)
     parser.add_argument('-o', dest="output_folder", type=str, help='Output path on DUT', required=True)
     parser.add_argument('--o_pktgen', dest="output_folder_pktgen", type=str, default=None, help='Output path on the packet generator, default is the same as output path on DUT', required=False)
     parser.add_argument('-b', dest="benchmark_list", type=str, default="all", help='XDP benchmark list, e.g., xdp_portknock,xdp_hhd. `all` means all benchmarks', required=False)
@@ -337,7 +338,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     PKTGEN_PATH = f"{CLIENT_DIR}/dpdk-burst-replay/src/"
-    pcap_path = f"/data/local/qx51/pkt_trace/trace_10/"
+    pcap_path = args.pcap_path
     version_name_list = []
     version_info_list = []
     t_start_experiments = time.time()
