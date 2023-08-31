@@ -110,24 +110,32 @@ static void update_blocklist(int map_fd, int map_type, char* map_key)
 
 // * key (uint32_t): ipv4 address.
 // * value (u64): used for matched rules counters.
-static void init_blocklist(int map_fd, int map_type)
+static void init_blocklist(int map_fd, int map_type, char* srcip_file)
 {
-  char* key1 = "172.16.90.197";
-  update_blocklist(map_fd, map_type, key1);
-  char* key2 = "172.16.90.198";
-  update_blocklist(map_fd, map_type, key2);
+  FILE *file = fopen(srcip_file, "r");
+  if (file == NULL) {
+    printf("Error opening file\n");
+    return;
+  }
+  char ip[50];
+  while (fgets(ip, sizeof(ip), file) != NULL) {
+    printf("insert ip: %s", ip);
+    update_blocklist(map_fd, map_type, ip);
+  }
+  fclose(file);
 }
 
 int main(int argc, char **argv)
 {
   struct bpf_prog_info info = {};
   __u32 info_len = sizeof(info);
-  const char *optstr = "FSNI";
+  const char *optstr = "FSNIA";
   int prog_fd, map_fd, opt;
   struct bpf_program *prog;
   struct bpf_object *obj;
   struct bpf_map *map;
   char filename[256];
+  char srcip_file[512];
   int err;
   int map_type;
 
@@ -145,6 +153,10 @@ int main(int argc, char **argv)
     case 'I':
       printf("parameter is:%s\n", argv[optind]);
       snprintf(filename, sizeof(filename), "%s_kern.o", argv[optind]);
+      break;
+    case 'A': /* src ip file name */
+      printf("src ip file is:%s\n", argv[optind]);
+      snprintf(srcip_file, sizeof(srcip_file), "%s", argv[optind]);
       break;
     default:
       usage(basename(argv[0]));
@@ -210,7 +222,7 @@ int main(int argc, char **argv)
   prog_id = info.id;
 
   map_type = get_map_type(filename);
-  init_blocklist(map_fd, map_type);
+  init_blocklist(map_fd, map_type, srcip_file);
   while (1) {}
 
   return 0;
