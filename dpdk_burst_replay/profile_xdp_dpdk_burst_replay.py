@@ -28,6 +28,7 @@ BENCHMARK_ddos_mitigator = "ddos_mitigator"
 BENCHMARK_token_bucket = "token_bucket"
 BENCHMARK_nat_dp = "nat_dp"
 BENCHMARK_xdpex1 = "xdpex1"
+BENCHMARK_dummy = "dummy"
 
 CPU_ARM = "arm"
 CPU_INTEL = "intel"
@@ -48,6 +49,8 @@ def get_benchmark_version(prog_name):
         benchmark = BENCHMARK_token_bucket
     elif BENCHMARK_nat_dp in prog_name:
         benchmark = BENCHMARK_nat_dp
+    elif BENCHMARK_dummy in prog_name:
+        benchmark = BENCHMARK_dummy
     else:
         benchmark = BENCHMARK_xdpex1
     versions = ["v10", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
@@ -142,11 +145,13 @@ def set_up_configs(benchmark, version, n_cores):
         BENCHMARK_hhd: ["v2", "v4"],
         BENCHMARK_ddos_mitigator: ["v2", "v5"],
         BENCHMARK_token_bucket: ["v5", "v6"],
+        BENCHMARK_dummy: [],
     }
     hash_packet_fields_dic = {
         BENCHMARK_hhd: "sdfn",
         BENCHMARK_ddos_mitigator: "sd",
         BENCHMARK_token_bucket: "sdfn",
+        BENCHMARK_dummy: "sdfn",
     }
     print_log(f"benchmark: {benchmark}")
     if benchmark not in flow_affinity_version_dic:
@@ -208,6 +213,9 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores):
             "v4": VERSION_shared_nothing,
             "v5": VERSION_flow_affinity,
             "v6": VERSION_flow_affinity,
+        },
+        BENCHMARK_dummy: {
+            "v1": VERSION_shared_state,
         },
     }
     if benchmark not in version_type_dic:
@@ -343,7 +351,7 @@ if __name__ == "__main__":
     if args.benchmark_list == "all":
         benchmark_list = [f"xdp_{BENCHMARK_portknock}", f"xdp_{BENCHMARK_hhd}",
                           f"xdp_{BENCHMARK_token_bucket}", f"xdp_{BENCHMARK_ddos_mitigator}",
-                          f"xdp_{BENCHMARK_nat_dp}"]
+                          f"xdp_{BENCHMARK_nat_dp}", f"xdp_{BENCHMARK_dummy}"]
     else:
         benchmark_list = args.benchmark_list.split(",")
     DISABLE_prog_latency = args.disable_prog_latency
@@ -385,6 +393,9 @@ if __name__ == "__main__":
             elif BENCHMARK_nat_dp in benchmark:
                 LOADER_NAME = "xdp_nat_dp"
                 version_name_list = ["v1", "v3"]
+            elif BENCHMARK_dummy in benchmark:
+                LOADER_NAME = "xdp_dummy"
+                version_name_list = ["v1"]
             else:
                 print_log(f"Benchmark {benchmark} not supported. Exit")
                 sys.exit(0)
