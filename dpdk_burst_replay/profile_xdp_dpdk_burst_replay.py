@@ -35,6 +35,35 @@ CPU_AMD = "amd"
 
 PKTGEN_PATH = None
 
+def get_benchmark_version(prog_name):
+    benchmark = None
+    version = None
+    if BENCHMARK_portknock in prog_name:
+        benchmark = BENCHMARK_portknock
+    elif BENCHMARK_hhd in prog_name:
+        benchmark = BENCHMARK_hhd
+    elif BENCHMARK_ddos_mitigator in prog_name:
+        benchmark = BENCHMARK_ddos_mitigator
+    elif BENCHMARK_token_bucket in prog_name:
+        benchmark = BENCHMARK_token_bucket
+    elif BENCHMARK_nat_dp in prog_name:
+        benchmark = BENCHMARK_nat_dp
+    else:
+        benchmark = BENCHMARK_xdpex1
+    versions = ["v10", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
+    for v in versions:
+        if v in prog_name:
+            version = v
+            break
+    return benchmark, version
+
+def get_prog_load_command(prog_name):
+    benchmark, version = get_benchmark_version(prog_name)
+    cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
+    if benchmark == BENCHMARK_ddos_mitigator:
+        cmd += f" -A ddos_srcip.txt"
+    return cmd
+
 def get_prog_tag():
     cmd = "bpftool prog show | grep xdp"
     try:
@@ -84,7 +113,7 @@ def clean_environment(client, prog_name):
     # stop packet generation
     kill_process_on_client("dpdk-replay", client)
     kill_process_on_client("measure.py", client)
-    loader_cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
+    loader_cmd = get_prog_load_command(prog_name)
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
 
 def run_packet_generator(benchmark, version, core_list, pcap_file, client):
@@ -107,36 +136,17 @@ def pktgen_measure(client, output_path, dur):
     run_cmd_on_client(client_cmd, client)
     time.sleep(dur + 1)
 
-def get_benchmark_version(prog_name):
-    benchmark = None
-    version = None
-    if BENCHMARK_portknock in prog_name:
-        benchmark = BENCHMARK_portknock
-    elif BENCHMARK_hhd in prog_name:
-        benchmark = BENCHMARK_hhd
-    elif BENCHMARK_ddos_mitigator in prog_name:
-        benchmark = BENCHMARK_ddos_mitigator
-    elif BENCHMARK_token_bucket in prog_name:
-        benchmark = BENCHMARK_token_bucket
-    elif BENCHMARK_nat_dp in prog_name:
-        benchmark = BENCHMARK_nat_dp
-    else:
-        benchmark = BENCHMARK_xdpex1
-    versions = ["v10", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
-    for v in versions:
-        if v in prog_name:
-            version = v
-            break
-    return benchmark, version
-
-
 def set_up_configs(benchmark, version, n_cores):
     is_flow_affinity = False
     flow_affinity_version_dic = {
         BENCHMARK_hhd: ["v2", "v4"],
+        BENCHMARK_ddos_mitigator: ["v2", "v5"],
+        BENCHMARK_token_bucket: ["v5", "v6"],
     }
     hash_packet_fields_dic = {
         BENCHMARK_hhd: "sdfn",
+        BENCHMARK_ddos_mitigator: "sd",
+        BENCHMARK_token_bucket: "sdfn",
     }
     print_log(f"benchmark: {benchmark}")
     if benchmark not in flow_affinity_version_dic:
@@ -187,6 +197,18 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores):
             "v4": VERSION_flow_affinity,
             "v10": VERSION_shared_nothing,
         },
+        BENCHMARK_ddos_mitigator: {
+            "v1": VERSION_shared_state,
+            "v2": VERSION_flow_affinity,
+            "v4": VERSION_shared_nothing,
+            "v5": VERSION_flow_affinity,
+        },
+        BENCHMARK_token_bucket: {
+            "v1": VERSION_shared_state,
+            "v4": VERSION_shared_nothing,
+            "v5": VERSION_flow_affinity,
+            "v6": VERSION_flow_affinity,
+        },
     }
     if benchmark not in version_type_dic:
         print_log(f"Benchmark {benchmark} not supported. Exit")
@@ -218,7 +240,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
 
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
-    cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
+    cmd = get_prog_load_command(prog_name)
     run_cmd_on_core(cmd, 0)
 
     # 3. run packet generator
@@ -356,10 +378,10 @@ if __name__ == "__main__":
                 version_name_list = ["v1", "v2", "v4", "v10"]
             elif BENCHMARK_token_bucket in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v4"]
+                version_name_list = ["v4", "v5", "v6"]
             elif BENCHMARK_ddos_mitigator in benchmark:
                 LOADER_NAME = "xdp_ddos_mitigator"
-                version_name_list = ["v1", "v4"]
+                version_name_list = ["v1", "v2", "v4", "v5"]
             elif BENCHMARK_nat_dp in benchmark:
                 LOADER_NAME = "xdp_nat_dp"
                 version_name_list = ["v1", "v3"]
