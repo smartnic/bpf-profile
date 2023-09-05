@@ -39,7 +39,7 @@ def read_args_from_yaml(yaml_file):
     for x in data.get("items", []):
         max_pkt_len_list = []
         if x.get("max_pkt_len"):
-            max_pkt_len_list = x.get("max_pkt_len").split(",")
+            max_pkt_len_list = str(x.get("max_pkt_len")).split(",")
             max_pkt_len_list = [int(l.strip()) for l in max_pkt_len_list]
         item = WorkItem()
         item.input_file = x.get("input")

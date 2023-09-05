@@ -4,6 +4,7 @@ from scapy.all import *
 from scapy.utils import wrpcap
 import argparse
 from gen_pcap_utils import *
+import os
 
 def get_stats_one_pkt(stats, pkt):
     pkt_len = len(pkt)
@@ -42,6 +43,7 @@ def read_packets(pcap_file):
             yield packet_number, packet
 
 def truncate_tcp_pkt(pkt, max_pkt_size):
+    del pkt[TCP].options
     if len(pkt) <= max_pkt_size:
         return pkt
     if not pkt.haslayer(Ether):
@@ -74,6 +76,7 @@ def truncate_tcp_pkts_and_stats(input_file, output_path, output_filename, max_pk
             append_flag = True
     if new_pkts:
         wrpcap(output_file, new_pkts, append=append_flag)
+    print(f"[truncate_tcp_pkts_and_stats] output pcap: {output_path}")
     write_stats(stats, output_path)
 
 
