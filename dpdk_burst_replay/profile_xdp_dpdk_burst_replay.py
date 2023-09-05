@@ -137,7 +137,6 @@ def run_packet_generator(benchmark, version, core_list, pcap_file, client):
 def pktgen_measure(client, output_path, dur):
     client_cmd = f"python3 {PKTGEN_PATH}measure.py -o {output_path} -t {dur} >log_pktgen_measure.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
-    time.sleep(dur + 1)
 
 def set_up_configs(benchmark, version, n_cores):
     is_flow_affinity = False
@@ -244,6 +243,9 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
     benchmark, version = get_benchmark_version(prog_name)
     # 1. print_log test name and environment configurations such as RSS
     print_log(f"Test {prog_name} across {len(core_list)} core(s) for {str(seconds)} seconds...")
+    if exists("tmp"):
+        run_cmd("rm -rf tmp", wait=True)
+    run_cmd("mkdir tmp", wait=True)
     set_up_configs(benchmark, version, len(core_list))
 
     # 2. attach xdp program
@@ -264,13 +266,56 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
         clean_environment(client, prog_name)
         return
 
+    # 4.3 use kernel stats to measure overall latency (nanoseconds)
+    if not DISABLE_prog_latency_ns:
+        if not DISABLE_pktgen_measure_parallel:
+            pktgen_measure(client, f"{output_folder_pktgen}/prog_ns/", seconds)
+        run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=1", wait=True)
+        time.sleep(seconds)
+        run_cmd("sudo sysctl -w kernel.bpf_stats_enabled=0", wait=True)
+        run_cmd("sudo bpftool prog show | grep \"xdp.*run_time_ns\" > tmp/prog_ns.txt", wait=True)
+        time.sleep(20)
+
+    # 4.4 use pcm to measure performance counters
+    if not DISABLE_pcm:
+        flag = False
+        max_times = 3 # try at most 3 times
+        count = 0
+        while count < max_times:
+            if not DISABLE_pktgen_measure_parallel:
+                pktgen_measure(client, f"{output_folder_pktgen}/pcm/", seconds)
+            run_cmd(f"sudo nohup pcm {seconds} -i=1 -csv=tmp/pcm.csv &", wait=False)
+            run_cmd(f"sudo nohup pcm-memory {seconds} -i=1 -csv=tmp/pcm_memory.csv &", wait=False)
+            time.sleep(seconds + 2)
+            # check if measurement is successful
+            file_size = os.path.getsize("tmp/pcm.csv")
+            if file_size > 0:
+                flag = True
+            # check if flag is true
+            if flag:
+                break
+            else:
+                print("pcm measure NOT success: file size = 0")
+                pcm_cmd = "pcm.*csv"
+                run_cmd(f"sudo pkill -f \"{pcm_cmd}\"", wait=True)
+                run_cmd("sudo rm -f tmp/pcm.csv", wait=True)
+                run_cmd("sudo rm -f tmp/pcm_memory.csv", wait=True)
+            count += 1
+        time.sleep(20)
+
     # 4.5 run performance measurement on the packet generator
     if not DISABLE_pktgen_measure:
         pktgen_measure(client, f"{output_folder_pktgen}/no_profile/", seconds)
+        time.sleep(seconds + 1)
         time.sleep(5)
 
     # 5. clean environment
     clean_environment(client, prog_name)
+    time.sleep(5)
+
+    # 6. move the files to the output folder
+    run_cmd("sudo mv tmp/* " + output_folder, wait=True)
+    run_cmd("sudo rm -rf tmp", wait=True)
     time.sleep(5)
 
 def run_tests_versions(prog_name_prefix, core_num_max, duration,
