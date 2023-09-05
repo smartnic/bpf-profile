@@ -14,7 +14,7 @@
 #include "xdp_utils.h"
 
 
-#define MAX_NUM_FLOWS 256
+#define MAX_NUM_FLOWS 1024
 /* (1 >> TOKEN_RATE) packets per nanosecond */
 #define TOKEN_RATE 10
 #define MAX_TOKEN 16 /* MAX_TOKEN >= token_needed */

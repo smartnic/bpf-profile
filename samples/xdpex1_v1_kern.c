@@ -9,7 +9,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);
   __type(key, u32);
   __type(value, long);
-  __uint(max_entries, 256);
+  __uint(max_entries, 1024);
 } my_map SEC(".maps");
 
 SEC("xdpex1")

@@ -10,7 +10,7 @@
 #include <bpf/bpf_helpers.h>
 #include "xdp_utils.h"
 
-#define MAX_NUM_FLOWS 256
+#define MAX_NUM_FLOWS 1024
 #define MAX_FLOW_BYTES (1 << 10)
 #define RET_ERR -1
 

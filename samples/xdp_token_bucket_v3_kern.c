@@ -21,7 +21,7 @@ struct metadata_elem {
   u64 time;          /* 8 bytes */
 } __attribute__((packed));
 
-#define MAX_NUM_FLOWS 256
+#define MAX_NUM_FLOWS 1024
 /* (1 >> TOKEN_RATE) packets per nanosecond */
 #define TOKEN_RATE 10
 #define MAX_TOKEN 16
