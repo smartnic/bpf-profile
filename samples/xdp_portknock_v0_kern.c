@@ -1,4 +1,4 @@
-/* portknocking using multiple cores, shared-state */
+/* portknocking using a single core */
 #define KBUILD_MODNAME "foo"
 #include <uapi/linux/bpf.h>
 #include <linux/if_ether.h>
@@ -26,7 +26,6 @@ enum state {
 
 struct array_elem {
   u32 state;
-  struct bpf_spin_lock lock;
 };
 
 struct {
@@ -101,7 +100,6 @@ int xdp_prog(struct xdp_md *ctx) {
   if (!value) {
     return rc;
   }
-  bpf_spin_lock(&value->lock);
   if (value->state == OPEN) {
     rc = XDP_PASS;
   }
@@ -114,7 +112,6 @@ int xdp_prog(struct xdp_md *ctx) {
   } else {
     value->state = CLOSED_0;
   }
-  bpf_spin_unlock(&value->lock);
 
   /* For all valid packets, bounce them back to the packet generator. */
   swap_src_dst_mac(data);

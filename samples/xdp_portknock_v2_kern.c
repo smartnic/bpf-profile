@@ -1,3 +1,4 @@
+/* portknocking using multiple cores, shared-nothing */
 #define KBUILD_MODNAME "foo"
 #include <uapi/linux/bpf.h>
 #include <linux/if_ether.h>
