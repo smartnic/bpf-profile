@@ -19,6 +19,7 @@ from gen_pcap_utils import *
 #   __be16 ethtype;
 #   struct flow_key flow;
 #   u64 time;
+#   bool tcp_syn_flag;
 #   bool tcp_fin_flag; /* if true: is a tcp fin packet */
 # } __attribute__((packed));
 class MetadataElem():
@@ -30,6 +31,7 @@ class MetadataElem():
     self.src_port = 0
     self.dst_port = 0
     self.time = 0
+    self.tcp_syn_flag = False
     self.tcp_fin_flag = False
 
   def __str__(self):
@@ -40,6 +42,7 @@ class MetadataElem():
     str += f"Source port: {self.src_port}\n"
     str += f"Dest port: {self.dst_port}\n"
     str += f"Time: {self.time}\n"
+    str += f"tcp_syn_flag: {self.tcp_syn_flag}\n"
     str += f"tcp_fin_flag: {self.tcp_fin_flag}"
     return str
 
@@ -52,6 +55,7 @@ class MetadataElem():
     md_bytes += self.src_port.to_bytes(2, 'little')
     md_bytes += self.dst_port.to_bytes(2, 'little')
     md_bytes += self.time.to_bytes(8, 'little')
+    md_bytes += self.tcp_syn_flag.to_bytes(1, 'little')
     md_bytes += self.tcp_fin_flag.to_bytes(1, 'little')
     return md_bytes
 
@@ -66,6 +70,7 @@ def get_md_from_pkt(pkt):
         md_elem.protocol = socket.IPPROTO_TCP
         md_elem.src_port = pkt.getlayer(TCP).sport
         md_elem.dst_port = pkt.getlayer(TCP).dport
+        md_elem.tcp_syn_flag = pkt.getlayer(TCP).flags.S
         md_elem.tcp_fin_flag = pkt.getlayer(TCP).flags.F
     elif pkt.haslayer(UDP):
         md_elem.protocol = socket.IPPROTO_UDP
