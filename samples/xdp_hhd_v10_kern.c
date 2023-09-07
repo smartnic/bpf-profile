@@ -28,6 +28,7 @@ struct metadata_elem {
   __be16 ethtype;
   struct flow_key flow;
   u32 size;
+  bool tcp_syn_flag;
   bool tcp_fin_flag; /* if true: is a tcp fin packet */
 } __attribute__((packed));
 
@@ -55,6 +56,7 @@ int xdp_prog(struct xdp_md *ctx) {
   struct flow_key *md_flow;
   u64 pkt_size;
   u64 nh_off;
+  bool need_session_table = false;
   bool remove_session_table = false;
 
   uint32_t zero = 0;
@@ -79,12 +81,16 @@ int xdp_prog(struct xdp_md *ctx) {
       continue;
     }
     md_flow = &md_elem->flow;
-    if ((md_flow->protocol != IPPROTO_UDP) &&
-        (md_flow->protocol != IPPROTO_TCP)) {
+    if (md_flow->protocol == IPPROTO_UDP) {
+      need_session_table = true;
+      remove_session_table = false;
+    } else if (md_flow->protocol == IPPROTO_TCP) {
+      need_session_table = md_elem->tcp_syn_flag;
+      remove_session_table = md_elem->tcp_fin_flag;
+      // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    } else {
       continue;
     }
-    remove_session_table = md_elem->tcp_fin_flag;
-    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
 
     /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
     md_flow->src_ip &= 0xf0ffffff;
@@ -102,7 +108,7 @@ int xdp_prog(struct xdp_md *ctx) {
     } else {
       // bpf_printk("map miss");
       // bpf_printk("%d: flow not in map, insert. pkt_size: %ld", i, pkt_size);
-      if (!remove_session_table) {
+      if (need_session_table) {
         // bpf_printk("map insert");
         flowsize_map_cuckoo_insert(map, md_flow, &pkt_size);
       }
@@ -150,6 +156,7 @@ int xdp_prog(struct xdp_md *ctx) {
     if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
       return XDP_DROP;
     }
+    need_session_table = true;
   } else if (iph->protocol == IPPROTO_TCP) {
     /* Parse tcp header to get src_port and dst_port */
     struct tcphdr *tcp = data + nh_off;
@@ -160,6 +167,7 @@ int xdp_prog(struct xdp_md *ctx) {
     // check if entry needs to be removed
     remove_session_table = tcp->fin;
     // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    need_session_table = tcp->syn;
   } else {
     /* drop packets that are not udp or tcp */
     return XDP_DROP;
@@ -181,7 +189,7 @@ int xdp_prog(struct xdp_md *ctx) {
   } else {
     // bpf_printk("map miss");
     // bpf_printk("current: flow not in map, insert. pkt_size: %ld", pkt_size);
-    if (!remove_session_table) {
+    if (need_session_table) {
       // bpf_printk("map insert");
       flowsize_map_cuckoo_insert(map, &flow, &pkt_size);
     }

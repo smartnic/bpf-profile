@@ -59,6 +59,7 @@ int xdp_prog(struct xdp_md *ctx) {
   u16 h_proto;
   u64 nh_off;
   int rc = XDP_DROP;
+  bool need_session_table = false;
   bool remove_session_table = false;
 
   nh_off = sizeof(*eth);
@@ -86,6 +87,7 @@ int xdp_prog(struct xdp_md *ctx) {
     if (parse_udp(data, nh_off, data_end, &flow.src_port, &flow.dst_port) == RET_ERR) {
       return XDP_DROP;
     }
+    need_session_table = true;
   } else if (iph->protocol == IPPROTO_TCP) {
     /* Parse tcp header to get src_port and dst_port */
     struct tcphdr *tcp = data + nh_off;
@@ -96,6 +98,7 @@ int xdp_prog(struct xdp_md *ctx) {
     // check if entry needs to be removed
     remove_session_table = tcp->fin;
     // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    need_session_table = tcp->syn;
   } else {
     /* drop packets that are not udp or tcp */
     return XDP_DROP;
@@ -114,7 +117,7 @@ int xdp_prog(struct xdp_md *ctx) {
     }
   } else {
     // bpf_printk("map miss");
-    if (!remove_session_table) {
+    if (need_session_table) {
       // bpf_printk("map insert");
       bpf_map_update_elem(&my_map, &flow, &bytes, BPF_NOEXIST);
     }

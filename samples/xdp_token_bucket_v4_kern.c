@@ -34,6 +34,7 @@ struct metadata_elem {
   __be16 ethtype;
   struct flow_key flow;
   u64 time;
+  bool tcp_syn_flag;
   bool tcp_fin_flag; /* if true: is a tcp fin packet */
 } __attribute__((packed));
 
@@ -67,6 +68,7 @@ int xdp_prog(struct xdp_md* ctx) {
   struct token_elem *token = NULL;
   int rc = XDP_DROP;
   u32 token_needed = 1;
+  bool need_session_table = false;
   bool remove_session_table = false;
 
   uint32_t zero = 0;
@@ -95,12 +97,16 @@ int xdp_prog(struct xdp_md* ctx) {
     if (md->ethtype != htons(ETH_P_IP)) {
       continue;
     }
-    if ((md_flow->protocol != IPPROTO_UDP) &&
-        (md_flow->protocol != IPPROTO_TCP)) {
+    if (md_flow->protocol == IPPROTO_UDP) {
+      need_session_table = true;
+      remove_session_table = false;
+    } else if (md_flow->protocol == IPPROTO_TCP) {
+      need_session_table = md->tcp_syn_flag;
+      remove_session_table = md->tcp_fin_flag;
+      // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    } else {
       continue;
     }
-    remove_session_table = md->tcp_fin_flag;
-    // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
 
     u64 time = md->time;
     md_flow->src_ip &= 0xf0ffffff;
@@ -110,7 +116,7 @@ int xdp_prog(struct xdp_md* ctx) {
     //            md_flow->dst_ip, md_flow->dst_port);
     if (!token) {
       // bpf_printk("token_map miss");
-      if (!remove_session_table) {
+      if (need_session_table) {
         /* set initial state */
         u32 token_remain = MAX_TOKEN - token_needed;
         struct token_elem elem;
@@ -188,6 +194,7 @@ int xdp_prog(struct xdp_md* ctx) {
                   &flow.dst_port) == RET_ERR) {
       return XDP_DROP;
     }
+    need_session_table = true;
   } else if (iph->protocol == IPPROTO_TCP) {
     /* Parse tcp header to get src_port and dst_port */
     struct tcphdr *tcp = data + nh_off;
@@ -198,6 +205,7 @@ int xdp_prog(struct xdp_md* ctx) {
     // check if entry needs to be removed
     remove_session_table = tcp->fin;
     // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+    need_session_table = tcp->syn;
   } else {
     /* drop packets that are not udp or tcp */
     return XDP_DROP;
@@ -210,7 +218,7 @@ int xdp_prog(struct xdp_md* ctx) {
     // bpf_printk("token_map miss");
     /* configure flow initial state in the map */
     rc = XDP_PASS;
-    if (!remove_session_table) {
+    if (need_session_table) {
       u32 token_remain = MAX_TOKEN - token_needed;
       struct token_elem elem;
       elem.num = token_remain;
