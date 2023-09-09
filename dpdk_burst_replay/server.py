@@ -5,6 +5,7 @@ import os
 from os.path import exists
 from multiprocessing import Process
 from measure import wait_until_packet_gen_stable
+from mlffr import measure_mlffr
 import time
 
 CONFIG_file_xl170 = "config.xl170"
@@ -38,6 +39,18 @@ def run_cmd(cmd, wait=True):
     else:
         os.system(cmd)
 
+def measure_benchmark_mlffr(paras_str):
+    paras = paras_str.split()
+    if len(paras) < 5:
+        return False, 0
+    pcap_file = paras[0]
+    measure_time = int(paras[1])
+    rate_high = float(paras[2])
+    rate_low = float(paras[3])
+    precision = float(paras[4])
+    mlffr = measure_mlffr(pcap_file, measure_time, rate_high, rate_low, precision)
+    return True, mlffr
+
 def check_send_packets_stable():
     res = wait_until_packet_gen_stable(60.0)
     return res
@@ -61,6 +74,11 @@ def start_server():
                         s.shutdown(socket.SHUT_RDWR)
                         s.close()
                         break;
+                    elif CMD_MEASURE_MLFFR in data:
+                        paras = data.replace(CMD_MEASURE_MLFFR, "")
+                        res, mlffr = measure_benchmark_mlffr(paras)
+                        print(f"resp: {mlffr}")
+                        conn.sendall(bytes(str(mlffr), 'utf-8'))
                     elif data == CMD_CHECK_PKT_GEN_STABLE:
                         res = check_send_packets_stable()
                         print(f"{CMD_CHECK_PKT_GEN_STABLE} res: {res}")
