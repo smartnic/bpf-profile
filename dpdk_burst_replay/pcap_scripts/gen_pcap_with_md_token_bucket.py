@@ -6,6 +6,8 @@ import argparse
 import os
 from gen_pcap_utils import *
 
+TCP_ONLY = False
+
 # from ctypes import *
 # struct flow_key {
 #   u8 protocol;
@@ -48,13 +50,17 @@ class MetadataElem():
 
   def __bytes__(self):
     md_bytes = b''
-    md_bytes += self.ethtype.to_bytes(2, 'big')
-    md_bytes += self.protocol.to_bytes(1, 'big')
+    if not TCP_ONLY:
+        md_bytes += self.ethtype.to_bytes(2, 'big')
+        md_bytes += self.protocol.to_bytes(1, 'big')
     md_bytes += self.src_ip.to_bytes(4, 'big')
     md_bytes += self.dst_ip.to_bytes(4, 'big')
     md_bytes += self.src_port.to_bytes(2, 'little')
     md_bytes += self.dst_port.to_bytes(2, 'little')
-    md_bytes += self.time.to_bytes(8, 'little')
+    if not TCP_ONLY:
+        md_bytes += self.time.to_bytes(8, 'little')
+    else:
+        md_bytes += self.time.to_bytes(4, 'little')
     md_bytes += self.tcp_syn_flag.to_bytes(1, 'little')
     md_bytes += self.tcp_fin_flag.to_bytes(1, 'little')
     return md_bytes
@@ -91,7 +97,9 @@ def read_packets(pcap_file):
         for packet_number, packet in enumerate(pcap_reader, start=0):
             yield packet_number, packet
 
-def gen_pcap_with_md_token_bucket(num_cores, dst_mac, output_path, input_file):
+def gen_pcap_with_md_token_bucket(num_cores, dst_mac, output_path, input_file, tcp_only):
+    global TCP_ONLY
+    TCP_ONLY = tcp_only
     print(f"start [gen_pcap_with_md_token_bucket] num_cores: {num_cores}")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -137,7 +145,8 @@ if __name__ == '__main__':
     parser.add_argument("--output", "-o", dest="output_path", help="Output file name", required=True)
     parser.add_argument("--num_cores", "-n", dest="num_cores", help="Number of cores used to process packets", type=int, default=1)
     parser.add_argument("--dst_mac", "-d", dest="dst_mac", help="Destination MAC address to use in the generated PCAP file", default="00:00:00:00:00:02")
+    parser.add_argument('--tcp_only', dest='tcp_only', help='Only TCP packets', action='store_true', required=False)
     args = parser.parse_args()
     dst_mac = args.dst_mac
-    gen_pcap_with_md_token_bucket(args.num_cores, dst_mac, args.output_path, args.input_file)
+    gen_pcap_with_md_token_bucket(args.num_cores, dst_mac, args.output_path, args.input_file, args.tcp_only)
 

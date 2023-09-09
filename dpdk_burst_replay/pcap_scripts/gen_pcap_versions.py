@@ -22,9 +22,9 @@ BM_hhd = "hhd"
 BM_ddos_mitigator = "ddos_mitigator"
 BM_token_bucket = "token_bucket"
 
-def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_path, input_file):
+def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_path, input_file, tcp_only):
     sleep_dur = 0.1
-    print(f"[add_tasks_to_process_pool] {approach} {benchmarks} {input_file}")
+    print(f"[add_tasks_to_process_pool] {approach} {benchmarks} {input_file} {tcp_only}")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     result_list = []
@@ -59,19 +59,19 @@ def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_p
         for b in benchmarks:
             if b == BM_hhd:
                 for n in range(1, num_cores + 1):
-                    r = pool.apply_async(gen_pcap_with_md_hhd, args=(n, dst_mac, output_path, input_file, ))
+                    r = pool.apply_async(gen_pcap_with_md_hhd, args=(n, dst_mac, output_path, input_file, tcp_only, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
             elif b == BM_ddos_mitigator:
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_ddos_mitigator,
-                                         args=(n, dst_mac, output_path, input_file, ))
+                                         args=(n, dst_mac, output_path, input_file, tcp_only, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
             elif b == BM_token_bucket:
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_token_bucket,
-                                         args=(n, dst_mac, output_path, input_file, ))
+                                         args=(n, dst_mac, output_path, input_file, tcp_only, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
     return result_list
@@ -114,11 +114,13 @@ if __name__ == "__main__":
         for item in item_list:
             input_file = item.input_file
             output_path = item.output
+            tcp_only = item.tcp_only
             num_cores = item.num_cores
             dst_mac = item.dst_mac
             for approach, benchmarks in item.tasks.items():
                 result_list += add_tasks_to_process_pool(approach, benchmarks, num_cores,
-                                                         dst_mac, output_path, input_file)
+                                                         dst_mac, output_path, input_file,
+                                                         tcp_only)
 
         # Wait for subprocesses to complete
         print(f"# of tasks: {len(result_list)}")

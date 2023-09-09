@@ -5,6 +5,7 @@ class WorkItem():
         self.input_file = None
         self.output = None
         self.max_pkt_len = 0
+        self.tcp_only = False
         self.num_cores = None
         self.dst_mac = None
         self.tasks = {}
@@ -13,6 +14,7 @@ class WorkItem():
         res = f"input_file: {self.input_file}\n"
         res += f"output: {self.output}\n"
         res += f"max_pkt_len: {self.max_pkt_len}\n"
+        res += f"tcp_only: {self.tcp_only}\n"
         res += f"num_cores: {self.num_cores}\n"
         res += f"dst_mac: {self.dst_mac}\n"
         res += f"tasks: {self.tasks}\n"
@@ -23,6 +25,7 @@ class WorkItem():
         x.input_file = self.input_file
         x.output = self.output
         x.max_pkt_len = self.max_pkt_len
+        x.tcp_only = self.tcp_only
         x.num_cores = self.num_cores
         x.dst_mac = self.dst_mac
         x.tasks = self.tasks
@@ -44,6 +47,7 @@ def read_args_from_yaml(yaml_file):
         item = WorkItem()
         item.input_file = x.get("input")
         item.output = x.get("output")
+        item.tcp_only = x.get("tcp_only")
         item.num_cores = int(x.get("num_cores"))
         item.dst_mac = x.get("dst_mac")
         task_list = x.get("tasks", [])

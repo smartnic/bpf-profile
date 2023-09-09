@@ -2,6 +2,7 @@ items:
   - input: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/1flow.pcap
     output: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/tmp/1flow
     max_pkt_len: 2000, 256
+    tcp_only: true
     num_cores: 9
     dst_mac: 10:70:fd:d6:a0:64
     tasks:
@@ -10,6 +11,7 @@ items:
       - token_bucket: shared, flow_affinity, shared_nothing
   - input: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/3flow.pcap
     output: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/tmp/3flow
+    tcp_only: true
     num_cores: 9
     dst_mac: 10:70:fd:d6:a0:64
     max_pkt_len: 2000, 128
