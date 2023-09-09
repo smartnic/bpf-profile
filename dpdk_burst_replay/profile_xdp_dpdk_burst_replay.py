@@ -22,6 +22,7 @@ DISABLE_insn_latency = False
 DISABLE_pcm = False
 DISABLE_pktgen_measure = False
 DISABLE_pktgen_measure_parallel = False
+DISABLE_mlffr = False
 BENCHMARK_portknock = "portknock"
 BENCHMARK_hhd = "hhd"
 BENCHMARK_ddos_mitigator = "ddos_mitigator"
@@ -331,19 +332,77 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
     run_cmd("sudo rm -rf tmp", wait=True)
     time.sleep(5)
 
+
+def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_path, pcap_benchmark):
+    # (prog_name, core_list, client, seconds, output_folder, num_flows):
+    # 1. print test name
+    benchmark, version = get_benchmark_version(prog_name)
+    pcap_file = get_pcap_file(pcap_path, benchmark, version, len(core_list), pcap_benchmark)
+    print_log(f"Test mlffr {prog_name} across {len(core_list)} core(s) for {str(seconds)} seconds using pcap {pcap_file}...")
+    if exists("tmp"):
+        run_cmd("rm -rf tmp", wait=True)
+    run_cmd("mkdir tmp", wait=True)
+    set_up_configs(benchmark, version, len(core_list))
+
+    # 2. attach xdp program
+    run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
+    cmd = get_prog_load_command(prog_name)
+    run_cmd_on_core(cmd, 0)
+
+    # 3. send mlffr measurement command to the packet generator
+    measure_time = seconds
+    rate_high = 85
+    rate_low = 0
+    precision = 0.2
+    paras = f"{pcap_file} {measure_time} {rate_high} {rate_low} {precision}"
+    client_cmd = f"{CMD_MEASURE_MLFFR} {paras}"
+    mlffr = run_unmodified_cmd_on_client(client_cmd, client)
+    print(f"mlffr: {mlffr}")
+    fout = open("tmp/mlffr.txt", "w")
+    line = f"{mlffr}\n"
+    fout.write(line)
+    fout.close()
+
+    # 4. clean environment
+    clean_environment(client, prog_name)
+
+    # 5. move the files to the output folder
+    run_cmd("sudo mv tmp/* " + output_folder, wait=True)
+    time.sleep(3)
+    run_cmd("sudo rm -rf tmp", wait=True)
+    time.sleep(2)
+
+
 def run_tests_versions(prog_name_prefix, core_num_max, duration,
                        output_folder, output_folder_pktgen, run_id, pcap_path, pcap_benchmark):
-    if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_pktgen_measure:
+    if DISABLE_prog_latency_ns and DISABLE_pcm and DISABLE_pktgen_measure:
         return
     core_list = []
     for i in range(1, core_num_max + 1):
         core_list.append(i)
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
-        run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
+        if not os.path.exists(output_folder_i):
+            run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
         output_folder_i_pktgen = output_folder_pktgen + "/" + str(i) + "/" + str(run_id)
         run_test(prog_name, core_list, CLIENT, duration, output_folder_i,
             output_folder_i_pktgen, pcap_path, pcap_benchmark)
+
+
+def run_mlffr_versions(prog_name_prefix, core_num_max, duration,
+                       output_folder, run_id, pcap_path, pcap_benchmark):
+    if DISABLE_mlffr:
+        return
+    core_list = []
+    for i in range(1, core_num_max + 1):
+        core_list.append(i)
+        prog_name = f"{prog_name_prefix}_p{i}"
+        output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
+        if not os.path.exists(output_folder_i):
+            run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
+        measure_mlffr(prog_name, core_list, CLIENT, duration, output_folder_i,
+            pcap_path, pcap_benchmark)
+
 
 def read_machine_info_from_file(input_file):
     client = None
@@ -382,6 +441,8 @@ def test_benchmark(run_id, benchmark, version_name_list,
         if BENCHMARK_dummy in benchmark:
             output_folder_version_dut = f"{output_folder}/{pcap_benchmark}"
             output_folder_version_pktgen = f"{output_folder_pktgen}/{pcap_benchmark}"
+        run_mlffr_versions(prog_name_prefix, num_cores_max, duration,
+            output_folder_version_dut, run_id, pcap_path, pcap_benchmark)
         run_tests_versions(prog_name_prefix, num_cores_max, duration,
             output_folder_version_dut, output_folder_version_pktgen, run_id,
             pcap_path, pcap_benchmark)
@@ -406,6 +467,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_pcm', action='store_true', help='Disable pcm measurement', required=False)
     parser.add_argument('--disable_pktgen_measure_parallel', action='store_true', help='Disable pktgen measurement while measuring other metrics: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_pktgen_measure', action='store_true', help='Disable pktgen measurement: round-trip latency and throughput', required=False)
+    parser.add_argument('--disable_mlffr', action='store_true', help='Disable measuring MLFFR', required=False)
     args = parser.parse_args()
     if args.output_folder_pktgen is None:
         args.output_folder_pktgen = args.output_folder
@@ -421,6 +483,7 @@ if __name__ == "__main__":
     DISABLE_pcm = args.disable_pcm
     DISABLE_pktgen_measure_parallel = args.disable_pktgen_measure_parallel
     DISABLE_pktgen_measure = args.disable_pktgen_measure
+    DISABLE_mlffr = args.disable_mlffr
     if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_pktgen_measure and DISABLE_mlffr:
         sys.exit(0)
     # read client and server_iface from config.xl170
