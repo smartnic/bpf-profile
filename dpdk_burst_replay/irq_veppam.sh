@@ -25,10 +25,12 @@ pkill irqbalance
 echo " --- Align IRQs : mlx5 ---"
 core_list=(9 10 11 12 13 14 15 1 2 3 4 5 6 7)
 # irq numbers may be different on different machines
-irq_list_pungai=(225 226 227 228 229 230 231 232 233 234 235 236 237 238)
+irq_list_pungai=(268 269 270 271 272 273 274 275 276 277 278 279 280 281)
 irq_list=("${irq_list_pungai[@]}")
+echo $irq_list
 num=14
 for i in $(seq 0 $(($num - 1))); do
+    echo $i
     core=$((1 << ${core_list[$i]}))
     core_hex="$(printf '%08x' $core)"
     irq_num=${irq_list[$i]}
