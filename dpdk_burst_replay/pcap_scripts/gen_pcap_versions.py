@@ -12,7 +12,7 @@ from gen_pcap_with_md_ddos_mitigator import gen_pcap_with_md_ddos_mitigator
 from gen_pcap_flow_affinity_token_bucket import gen_pcap_flow_affinity_token_bucket
 from gen_pcap_with_md_token_bucket import gen_pcap_with_md_token_bucket
 from process_pcap_file_ddos_srcip import read_src_ip_from_tcp_packets
-from truncate_tcp_pkts_and_stats import truncate_tcp_pkts_and_stats
+from preprocessing import preprocessing
 
 APPROACH_shared = "shared"
 APPROACH_shared_nothing = "shared_nothing"
@@ -22,9 +22,10 @@ BM_hhd = "hhd"
 BM_ddos_mitigator = "ddos_mitigator"
 BM_token_bucket = "token_bucket"
 
-def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_path, input_file, tcp_only):
+def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_path,
+    input_file, tcp_only, pkt_len):
     sleep_dur = 0.1
-    print(f"[add_tasks_to_process_pool] {approach} {benchmarks} {input_file} {tcp_only}")
+    print(f"[add_tasks_to_process_pool] {approach} {benchmarks} {input_file} {tcp_only} {pkt_len}")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     result_list = []
@@ -36,42 +37,42 @@ def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_p
 
     if approach == APPROACH_shared:
         for n in range(1, num_cores + 1):
-            r = pool.apply_async(gen_pcap_shared_state, args=(n, dst_mac, output_path, input_file, ))
+            r = pool.apply_async(gen_pcap_shared_state, args=(n, dst_mac, output_path, input_file, pkt_len, ))
             result_list.append(r)
             time.sleep(sleep_dur)
     elif approach == APPROACH_flow_affinity:
         for b in benchmarks:
             if b == BM_hhd:
                 r = pool.apply_async(gen_pcap_flow_affinity_hhd,
-                                     args=(dst_mac, output_path, input_file, ))
+                                     args=(dst_mac, output_path, input_file, pkt_len, ))
                 result_list.append(r)
             elif b == BM_ddos_mitigator:
                 dst_ip = "172.16.90.196"
                 r = pool.apply_async(gen_pcap_flow_affinity_ddos_mitigator,
-                                     args=(dst_mac, dst_ip, output_path, input_file, ))
+                                     args=(dst_mac, dst_ip, output_path, input_file, pkt_len, ))
                 result_list.append(r)
             elif b == BM_token_bucket:
                 r = pool.apply_async(gen_pcap_flow_affinity_token_bucket,
-                                     args=(dst_mac, output_path, input_file, ))
+                                     args=(dst_mac, output_path, input_file, pkt_len, ))
                 result_list.append(r)
             time.sleep(sleep_dur)
     elif approach == APPROACH_shared_nothing:
         for b in benchmarks:
             if b == BM_hhd:
                 for n in range(1, num_cores + 1):
-                    r = pool.apply_async(gen_pcap_with_md_hhd, args=(n, dst_mac, output_path, input_file, tcp_only, ))
+                    r = pool.apply_async(gen_pcap_with_md_hhd, args=(n, dst_mac, output_path, input_file, tcp_only, pkt_len, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
             elif b == BM_ddos_mitigator:
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_ddos_mitigator,
-                                         args=(n, dst_mac, output_path, input_file, tcp_only, ))
+                                         args=(n, dst_mac, output_path, input_file, tcp_only, pkt_len, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
             elif b == BM_token_bucket:
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_token_bucket,
-                                         args=(n, dst_mac, output_path, input_file, tcp_only, ))
+                                         args=(n, dst_mac, output_path, input_file, tcp_only, pkt_len, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
     return result_list
@@ -94,9 +95,8 @@ if __name__ == "__main__":
             output_path = item.output
             output_filename = new_pcap_filename
             item.input_file = f"{output_path}/{output_filename}"
-            max_pkt_len = item.max_pkt_len
-            r = pool.apply_async(truncate_tcp_pkts_and_stats, 
-                                 args=(input_file, output_path, output_filename, max_pkt_len, ))
+            r = pool.apply_async(preprocessing,
+                                 args=(input_file, output_path, output_filename, ))
             result_list.append(r)
             time.sleep(sleep_dur)
         # Wait for subprocesses to complete
@@ -117,10 +117,11 @@ if __name__ == "__main__":
             tcp_only = item.tcp_only
             num_cores = item.num_cores
             dst_mac = item.dst_mac
+            pkt_len = item.pkt_len
             for approach, benchmarks in item.tasks.items():
                 result_list += add_tasks_to_process_pool(approach, benchmarks, num_cores,
                                                          dst_mac, output_path, input_file,
-                                                         tcp_only)
+                                                         tcp_only, pkt_len)
 
         # Wait for subprocesses to complete
         print(f"# of tasks: {len(result_list)}")

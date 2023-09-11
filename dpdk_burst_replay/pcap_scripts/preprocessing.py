@@ -125,20 +125,16 @@ def read_packets(pcap_file):
         for packet_number, packet in enumerate(pcap_reader, start=0):
             yield packet_number, packet
 
-def truncate_tcp_pkt(pkt, max_pkt_size):
-    del pkt[TCP].options
-    if len(pkt) <= max_pkt_size:
-        return pkt
-    if not pkt.haslayer(Ether):
+def create_new_tcp_pkt(pkt):
+    flow_key = get_flow_key(pkt)
+    if not flow_key:
         return None
-    if not pkt.haslayer(IP):
-        return None
-    if not pkt.haslayer(TCP):
-        return None
-    max_payload_len = len(pkt[Raw].load) - (len(pkt) - max_pkt_size)
-    pkt[Raw].load = pkt[Raw].load[:max_payload_len]
-    pkt[IP].len = max_pkt_size - len(Ether())
-    return pkt
+    src_ip = f"{ipaddress.IPv4Address(flow_key.src_ip)}"
+    dst_ip = f"{ipaddress.IPv4Address(flow_key.dst_ip)}"
+    new_pkt = Ether(src="00:11:22:33:44:55", dst="66:77:88:99:AA:BB", type=0x0800) / \
+              IP(src=src_ip, dst=dst_ip, proto=6) / \
+              TCP(sport=flow_key.src_port, dport=flow_key.dst_port)
+    return new_pkt
 
 
 def get_pkts_modify_dic(stats):
@@ -160,11 +156,11 @@ def update_tcp_flags(pkts_modify_dic, pkt, idx):
     elif flag == TCP_FIN:
         pkt[TCP].flags = 'F'
     else:
-        pkt[TCP].flags = 'A'
+        pkt[TCP].flags = 'S'
     return pkt
 
 
-def truncate_tcp_pkts_and_stats(input_file, output_path, output_filename, max_pkt_size):
+def preprocessing(input_file, output_path, output_filename):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     new_pkts = list()
@@ -184,7 +180,7 @@ def truncate_tcp_pkts_and_stats(input_file, output_path, output_filename, max_pk
             continue
         if not curr_pkt.haslayer(TCP):
             continue
-        new_pkt = truncate_tcp_pkt(curr_pkt, max_pkt_size)
+        new_pkt = create_new_tcp_pkt(curr_pkt)
         new_pkt = update_tcp_flags(pkts_modify_dic, new_pkt, idx)
         if new_pkt:
             new_pkts.append(new_pkt)
@@ -194,7 +190,7 @@ def truncate_tcp_pkts_and_stats(input_file, output_path, output_filename, max_pk
             append_flag = True
     if new_pkts:
         wrpcap(output_file, new_pkts, append=append_flag)
-    print(f"[truncate_tcp_pkts_and_stats] output pcap: {output_path}")
+    print(f"[preprocessing] output pcap: {output_path}")
     write_stats(stats, output_path)
 
 
@@ -203,7 +199,6 @@ if __name__ == '__main__':
     parser.add_argument('--input', '-i', dest='input_file', help='Input file name', required=True)
     parser.add_argument("--output", "-o", dest="output_path", help="Output path name", required=True)
     parser.add_argument("--output_fname", dest="output_filename", help="Output file name", required=True)
-    parser.add_argument("--max_pkt_size", "-s", dest="max_pkt_size", type=int, help="Max pkt size", required=True)
     args = parser.parse_args()
-    truncate_tcp_pkts_and_stats(args.input_file, args.output_path, args.output_filename, args.max_pkt_size)
+    preprocessing(args.input_file, args.output_path, args.output_filename)
 

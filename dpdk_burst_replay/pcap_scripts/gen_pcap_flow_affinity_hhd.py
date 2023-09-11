@@ -17,7 +17,7 @@ def modify_mac_one_pkt(curr_pkt, src_mac, dst_mac):
               curr_pkt[Ether].payload
     return new_pkt
 
-def gen_pcap_flow_affinity_hhd(dst_mac, output_path, input_file):
+def gen_pcap_flow_affinity_hhd(dst_mac, output_path, input_file, pkt_len):
     print("start [gen_pcap_flow_affinity_hhd]")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -27,7 +27,10 @@ def gen_pcap_flow_affinity_hhd(dst_mac, output_path, input_file):
     output_file = f"{output_path}/xdp_hhd_flow_affinity.pcap"
     append_flag = False
     for _, pkt in read_packets(input_file):
-        new_pkts.append(modify_mac_one_pkt(pkt, src_mac, dst_mac))
+        new_pkt = modify_mac_one_pkt(pkt, src_mac, dst_mac)
+        if new_pkt:
+            new_pkt = modify_pkt_size(new_pkt, pkt_len)
+            new_pkts.append(new_pkt)
         if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
             wrpcap(output_file, new_pkts, append=append_flag)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
@@ -42,6 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--input', '-i', dest='input_file', help='Input file name', required=True)
     parser.add_argument("--output", "-o", dest="output_path", help="Output file name", required=True)
     parser.add_argument("--dst_mac", "-d", dest="dst_mac", help="Destination MAC address to use in the generated PCAP file", default="00:00:00:00:00:02")
+    parser.add_argument("--pkt_len", dest="pkt_len", help="Pkt len", type=int, default=64)
     args = parser.parse_args()
     dst_mac = args.dst_mac
-    gen_pcap_flow_affinity_hhd(dst_mac, args.output_path, args.input_file)
+    gen_pcap_flow_affinity_hhd(dst_mac, args.output_path, args.input_file, args.pkt_len)

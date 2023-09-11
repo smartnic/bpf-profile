@@ -1,21 +1,21 @@
 items:
-  - input: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/1flow.pcap
-    output: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/tmp/1flow
-    max_pkt_len: 2000, 256
+  - input: /common/home/qx51/pcap_files_mtu1500_0905/20flow.pcap
+    output: /common/home/qx51/pcap_files_mtu1500_0905/20flow_tcp/
+    num_cores: 14
     tcp_only: true
-    num_cores: 9
     dst_mac: 10:70:fd:d6:a0:64
+    pkt_len: 192
     tasks:
       - hhd: shared, flow_affinity, shared_nothing
-      - ddos_mitigator: shared, flow_affinity, shared_nothing
       - token_bucket: shared, flow_affinity, shared_nothing
-  - input: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/3flow.pcap
-    output: /data/local/qx51/bpf-profile/dpdk_burst_replay/pcap_scripts/tmp/3flow
+      - ddos_mitigator: shared, flow_affinity, shared_nothing
+  - input: /common/home/qx51/pcap_files_mtu1500_0905/20flow.pcap
+    output: /common/home/qx51/pcap_files_mtu1500_0905/20flow_tcp/
+    num_cores: 14
     tcp_only: true
-    num_cores: 9
     dst_mac: 10:70:fd:d6:a0:64
-    max_pkt_len: 2000, 128
+    pkt_len: 128
     tasks:
       - hhd: shared, flow_affinity, shared_nothing
-      - ddos_mitigator: shared, flow_affinity, shared_nothing
       - token_bucket: shared, flow_affinity, shared_nothing
+      - ddos_mitigator: shared, flow_affinity, shared_nothing

@@ -19,7 +19,7 @@ def modify_mac_one_pkt(curr_pkt, src_mac, dst_mac):
     return new_pkt
 
 
-def gen_pcap_shared_state(num_cores, dst_mac, output_path, input_file):
+def gen_pcap_shared_state(num_cores, dst_mac, output_path, input_file, pkt_len):
     print(f"start [gen_pcap_shared_state] num_cores: {num_cores}")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -31,7 +31,9 @@ def gen_pcap_shared_state(num_cores, dst_mac, output_path, input_file):
         # src_mac is used for rss
         src_mac = f"10:10:10:10:10:{format(i % num_cores, '02x')}"
         new_pkt = modify_mac_one_pkt(curr_pkt, src_mac, dst_mac)
-        new_pkts.append(new_pkt)
+        if new_pkt:
+            new_pkt = modify_pkt_size(new_pkt, pkt_len)
+            new_pkts.append(new_pkt)
         if len(new_pkts) >= PKTS_WRITE_MAX_NUM:
             wrpcap(output_file, new_pkts, append=append_flag)
             # print(f"Written {len(new_pkts)} packets to {output_pcap}")
@@ -49,9 +51,10 @@ if __name__ == '__main__':
     parser.add_argument("--output", "-o", dest="output_path", help="Output file name", required=True)
     parser.add_argument("--num_cores", "-n", dest="num_cores", help="Number of cores used to process packets", type=int, default=1)
     parser.add_argument("--dst_mac", "-d", dest="dst_mac", help="Destination MAC address to use in the generated PCAP file", default="00:00:00:00:00:02")
+    parser.add_argument("--pkt_len", dest="pkt_len", help="Pkt len", type=int, default=64)
     args = parser.parse_args()
     t_start = time.time()
-    gen_pcap_shared_state(args.num_cores, args.dst_mac, args.output_path, args.input_file)
+    gen_pcap_shared_state(args.num_cores, args.dst_mac, args.output_path, args.input_file, args.pkt_len)
     time_cost = time.time() - t_start
     print(f"shared_state {args.num_cores} time_cost: {time_cost}")
 

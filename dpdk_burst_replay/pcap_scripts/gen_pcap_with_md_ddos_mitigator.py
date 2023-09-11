@@ -44,7 +44,7 @@ def read_packets(pcap_file):
         for packet_number, packet in enumerate(pcap_reader, start=0):
             yield packet_number, packet
 
-def gen_pcap_with_md_ddos_mitigator(num_cores, dst_mac, output_path, input_file, tcp_only):
+def gen_pcap_with_md_ddos_mitigator(num_cores, dst_mac, output_path, input_file, tcp_only, pkt_len):
     global TCP_ONLY
     TCP_ONLY = tcp_only
     print(f"start [gen_pcap_with_md_ddos_mitigator] num_cores: {num_cores}")
@@ -70,6 +70,7 @@ def gen_pcap_with_md_ddos_mitigator(num_cores, dst_mac, output_path, input_file,
         new_pkt = Ether(dst = dst_mac, src = src_mac, type=ETH_P_IP) / \
                   md_bytes / \
                   curr_pkt
+        new_pkt = modify_pkt_size(new_pkt, pkt_len)
         new_pkts.append(new_pkt)
         if num_cores > 1:
             curr_md = get_md_from_pkt(curr_pkt)
@@ -93,6 +94,7 @@ if __name__ == '__main__':
     parser.add_argument("--num_cores", "-n", dest="num_cores", help="Number of cores used to process packets", type=int, default=1)
     parser.add_argument("--dst_mac", "-d", dest="dst_mac", help="Destination MAC address to use in the generated PCAP file", default="00:00:00:00:00:02")
     parser.add_argument('--tcp_only', dest='tcp_only', help='Only TCP packets', action='store_true', required=False)
+    parser.add_argument("--pkt_len", dest="pkt_len", help="Pkt len", type=int, default=64)
     args = parser.parse_args()
     dst_mac = args.dst_mac
-    gen_pcap_with_md_ddos_mitigator(args.num_cores, dst_mac, args.output_path, args.input_file, args.tcp_only)
+    gen_pcap_with_md_ddos_mitigator(args.num_cores, dst_mac, args.output_path, args.input_file, args.tcp_only, args.pkt_len)
