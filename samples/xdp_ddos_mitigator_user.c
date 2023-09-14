@@ -64,7 +64,7 @@ static int get_map_type(char* filename) {
     return HASH_MAP;
   } else if (strstr(filename, "v2")) {
     return PERCPU_MAP;
-  } else if (strstr(filename, "v4") || strstr(filename, "v5")) {
+  } else if (strstr(filename, "v4") || strstr(filename, "v5") || strstr(filename, "v6")) {
     return CUCKOO_HASH_MAP;
   }
   return NOT_FOUND;
@@ -110,17 +110,29 @@ static void update_blocklist(int map_fd, int map_type, char* map_key)
 
 // * key (uint32_t): ipv4 address.
 // * value (u64): used for matched rules counters.
-static void init_blocklist(int map_fd, int map_type, char* srcip_file)
+static void init_blocklist(int map_fd, int map_type, char* srcip_file, int max_ips)
 {
   FILE *file = fopen(srcip_file, "r");
   if (file == NULL) {
     printf("Error opening file\n");
     return;
   }
-  char ip[50];
-  while (fgets(ip, sizeof(ip), file) != NULL) {
-    printf("insert ip: %s", ip);
+  char line[50];
+  char* ip;
+  int count = 0;
+  bool first_line = true;
+  while (fgets(line, sizeof(line), file) != NULL) {
+    if (first_line) {
+      first_line = false;
+      continue;
+    }
+    ip = strtok(line, " ");
+    printf("insert ip: %s\n", ip);
     update_blocklist(map_fd, map_type, ip);
+    count++;
+    if (count >= max_ips) {
+      break;
+    }
   }
   fclose(file);
 }
@@ -129,7 +141,7 @@ int main(int argc, char **argv)
 {
   struct bpf_prog_info info = {};
   __u32 info_len = sizeof(info);
-  const char *optstr = "FSNIA";
+  const char *optstr = "FSNIAP";
   int prog_fd, map_fd, opt;
   struct bpf_program *prog;
   struct bpf_object *obj;
@@ -138,6 +150,7 @@ int main(int argc, char **argv)
   char srcip_file[512];
   int err;
   int map_type;
+  int max_ips = 100;
 
   while ((opt = getopt(argc, argv, optstr)) != -1) {
     switch (opt) {
@@ -157,6 +170,10 @@ int main(int argc, char **argv)
     case 'A': /* src ip file name */
       printf("src ip file is:%s\n", argv[optind]);
       snprintf(srcip_file, sizeof(srcip_file), "%s", argv[optind]);
+      break;
+    case 'P':
+      printf("max number of ips is %d\n", atoi(argv[optind]));
+      max_ips = atoi(argv[optind]);
       break;
     default:
       usage(basename(argv[0]));
@@ -222,7 +239,7 @@ int main(int argc, char **argv)
   prog_id = info.id;
 
   map_type = get_map_type(filename);
-  init_blocklist(map_fd, map_type, srcip_file);
+  init_blocklist(map_fd, map_type, srcip_file, max_ips);
   while (1) {}
 
   return 0;
