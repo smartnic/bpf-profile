@@ -5,6 +5,8 @@ from scapy.utils import wrpcap
 import argparse
 from gen_pcap_utils import *
 import os
+from ccdf import ccdf
+import numpy as np
 
 NO_TCP_FLAGS = 0
 TCP_SYN = 1
@@ -64,6 +66,9 @@ class FlowVal():
         str += f"last_pkt: {self.last_pkt}"
         return str
 
+    def __lt__(self, other):
+        return self.num_pkts <= other.num_pkts
+
 
 def get_flow_key(pkt):
     flow_key = FlowKey()
@@ -97,14 +102,41 @@ def get_stats_one_pkt(stats, pkt, idx):
     return stats
 
 
+def write_srcip_stats(stats, output_path):
+    srcip_stats = dict()
+    for k, v in stats.items():
+        srcip = k.src_ip
+        if srcip in srcip_stats:
+            srcip_stats[srcip] += v.num_pkts
+        else:
+            srcip_stats[srcip] = v.num_pkts
+    sorted_dict = dict(sorted(srcip_stats.items(), key=lambda item: item[1], reverse=True))
+    packet_counts = []
+    for _, v in sorted_dict.items():
+        packet_counts.append(v)
+    ccdf(np.array(packet_counts), f"{output_path}/ccdf_srcip.pdf", "srcips")
+    output_file = f"{output_path}/stats_srcip.txt"
+    with open(output_file, "w") as file:
+        file.write(f"{len(sorted_dict)} srcips, {sum(packet_counts)} packets\n")
+        for k in sorted_dict.keys():
+            file.write(f"{ipaddress.IPv4Address(k)} {srcip_stats[k]}\n")
+
+
 def write_stats(stats, output_path):
-    keys = list(stats.keys())
-    keys.sort()
+    # Sort the dictionary based on values in descending order
+    sorted_dict = dict(sorted(stats.items(), key=lambda item: item[1], reverse=True))
+    packet_counts = []
+    for _, v in sorted_dict.items():
+        packet_counts.append(v.num_pkts)
+    ccdf(np.array(packet_counts), f"{output_path}/ccdf.pdf", "flows")
     output_file = f"{output_path}/stats.txt"
     with open(output_file, "w") as file:
-        file.write(f"{len(keys)} flows\n")
-        for k in keys:
+        file.write(f"{len(sorted_dict)} flows, {sum(packet_counts)} packets\n")
+        for k in sorted_dict.keys():
             file.write(f"{k}: {stats[k]}\n")
+    # stats of srcip
+    write_srcip_stats(stats, output_path)
+
 
 def extract_header_payload(input_pkts):
     header_list = []
