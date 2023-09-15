@@ -7,6 +7,8 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
+#include "lib/cilium_builtin.h"
+#include "lib/cuckoo_hash.h"
 #include "xdp_utils.h"
 
 enum state {
@@ -16,8 +18,6 @@ enum state {
   OPEN,
 };
 
-#define SPORT_MIN 53
-#define SPORT_MAX 63
 #define PORT_1 100
 #define PORT_2 101
 #define PORT_3 102
@@ -28,89 +28,90 @@ struct array_elem {
   u32 state;
 };
 
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __type(key, u32);
-  __type(value, struct array_elem);
-  __uint(max_entries, 1);
-} port_state SEC(".maps");
+BPF_CUCKOO_HASH(port_state_map, u32, struct array_elem, 512)
 
-static int parse_ipv4(void *data, u64 *nh_off, void *data_end) {
-  struct iphdr *iph = data + *nh_off;
-
-  if (iph + 1 > data_end)
-    return RET_ERR;
-
-  *nh_off += sizeof(*iph);
-  return iph->protocol;
-}
-
-static inline int parse_udp(void *data, u64 nh_off, void *data_end,
-                            u16 *dport) {
-  struct udphdr *udph = data + nh_off;
-
-  if (udph + 1 > data_end)
-    return RET_ERR;
-
-  // *sport = ntohs(udph->source);
-  *dport = ntohs(udph->dest);
-  return 0;
+static inline u32 get_new_state(u32 state, u16 dst_port) {
+  if (state == CLOSED_0 && dst_port == PORT_1) {
+    state = CLOSED_1;
+  } else if (state == CLOSED_1 && dst_port == PORT_2) {
+    state = CLOSED_2;
+  } else if (state == CLOSED_2 && dst_port == PORT_3) {
+    state = OPEN;
+  } else {
+    state = CLOSED_0;
+  }
+  return state;
 }
 
 SEC("xdp_portknock")
 int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
-  struct ethhdr *eth = data;
-  struct array_elem *value;
+  struct iphdr *iph;
+  struct array_elem* value;
   u16 h_proto;
   u64 nh_off;
-  int ipproto;
-  u16 dport;
   int rc = XDP_DROP;
-  int state_id = 0;
-
+  bool need_session_table = false;
+  bool remove_session_table = false;
+  u16 dst_port;
+  u32 src_ip;
+  struct ethhdr *eth = data;
   nh_off = sizeof(*eth);
   if (data + nh_off > data_end)
-    return rc;
+    return XDP_DROP;
 
   h_proto = eth->h_proto;
   if (h_proto != htons(ETH_P_IP)) {
-    return rc;
-  }
-
-  ipproto = parse_ipv4(data, &nh_off, data_end);
-  if (ipproto == IPPROTO_UDP) {
-    if (parse_udp(data, nh_off, data_end, &dport) == RET_ERR) {
-      return rc;
-    }
-  } else if (ipproto == IPPROTO_TCP) {
-    /* Parse tcp header to get dst_port */
-    struct tcphdr *tcp = data + nh_off;
-    if (tcp + 1 > data_end)
-      return XDP_DROP;
-    dport = ntohs(tcp->dest);
-    // bpf_printk("dport: %d", dport);
-  } else {
-    /* drop packets that are not udp or tcp */
     return XDP_DROP;
   }
 
-  value = bpf_map_lookup_elem(&port_state, &state_id);
+  /* Parse ipv4 header to get protocol, src_ip */
+  iph = data + nh_off;
+  if (iph + 1 > data_end)
+    return XDP_DROP;
+
+  if (iph->protocol != IPPROTO_TCP) {
+    return XDP_DROP;
+  }
+  src_ip = iph->saddr;
+
+  nh_off += sizeof(*iph);
+  /* Parse tcp header to get dst_port */
+  struct tcphdr *tcp = data + nh_off;
+  if (tcp + 1 > data_end)
+    return XDP_DROP;
+  dst_port = ntohs(tcp->dest);
+  // check if entry needs to be removed
+  remove_session_table = tcp->fin;
+  // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+  need_session_table = tcp->syn;
+
+  uint32_t zero = 0;
+  struct port_state_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&port_state_map, &zero);
+  if (!map) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
+  struct array_elem* port_state_ptr = port_state_map_cuckoo_lookup(map, &src_ip);
   if (!value) {
-    return rc;
-  }
-  if (value->state == OPEN) {
-    rc = XDP_PASS;
-  }
-  if (value->state == CLOSED_0 && dport == PORT_1) {
-    value->state = CLOSED_1;
-  } else if (value->state == CLOSED_1 && dport == PORT_2) {
-    value->state = CLOSED_2;
-  } else if (value->state == CLOSED_2 && dport == PORT_3) {
-    value->state = OPEN;
+    uint32_t new_state = CLOSED_0;
+    if (dst_port == PORT_1) {
+      new_state = CLOSED_1;
+    }
+    if (need_session_table) {
+      struct array_elem elem;
+      elem.state = new_state;
+      port_state_map_cuckoo_insert(map, &src_ip, &elem);
+    }
   } else {
-    value->state = CLOSED_0;
+    value->state = get_new_state(value->state, dst_port);
+    if (value->state == OPEN) {
+      rc = XDP_PASS;
+    }
+    if (remove_session_table) {
+      port_state_map_cuckoo_delete(map, &src_ip);
+    }
   }
 
   /* For all valid packets, bounce them back to the packet generator. */
