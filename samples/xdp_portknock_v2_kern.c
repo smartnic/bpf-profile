@@ -7,6 +7,8 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 #include <bpf/bpf_helpers.h>
+#include "lib/cilium_builtin.h"
+#include "lib/cuckoo_hash.h"
 #include "xdp_utils.h"
 
 enum state {
@@ -16,8 +18,6 @@ enum state {
   OPEN,
 };
 
-#define SPORT_MIN 53
-#define SPORT_MAX 63
 #define PORT_1 100
 #define PORT_2 101
 #define PORT_3 102
@@ -25,47 +25,24 @@ enum state {
 #define RET_ERR -1
 
 struct metadata_elem {
-  __be16 ethtype;
-  u8 ipproto;
-  u16 dport;      /* 4 bytes */
+  u32 src_ip;
+  u16 dst_port;      /* 4 bytes */
+  bool tcp_syn_flag;
+  bool tcp_fin_flag; /* if true: is a tcp fin packet */
 } __attribute__((packed));
 
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __type(key, u32);
-  __type(value, u32);
-  __uint(max_entries, 1);
-} port_state SEC(".maps");
+struct array_elem {
+  u32 state;
+};
 
-static int parse_ipv4(void *data, u64 *nh_off, void *data_end) {
-  struct iphdr *iph = data + *nh_off;
+BPF_CUCKOO_HASH(port_state_map, u32, struct array_elem, 512)
 
-  if (iph + 1 > data_end)
-    return RET_ERR;
-
-  *nh_off += sizeof(*iph);
-  return iph->protocol;
-}
-
-static inline int parse_udp(void *data, u64 *nh_off, void *data_end,
-                            u16 *dport) {
-  struct udphdr *udph = data + *nh_off;
-
-  if (udph + 1 > data_end)
-    return RET_ERR;
-
-  *nh_off += sizeof(*udph);
-  // *sport = ntohs(udph->source);
-  *dport = ntohs(udph->dest);
-  return 0;
-}
-
-static inline u32 get_new_state(u32 state, u16 dport) {
-  if (state == CLOSED_0 && dport == PORT_1) {
+static inline u32 get_new_state(u32 state, u16 dst_port) {
+  if (state == CLOSED_0 && dst_port == PORT_1) {
     state = CLOSED_1;
-  } else if (state == CLOSED_1 && dport == PORT_2) {
+  } else if (state == CLOSED_1 && dst_port == PORT_2) {
     state = CLOSED_2;
-  } else if (state == CLOSED_2 && dport == PORT_3) {
+  } else if (state == CLOSED_2 && dst_port == PORT_3) {
     state = OPEN;
   } else {
     state = CLOSED_0;
@@ -77,80 +54,115 @@ SEC("xdp_portknock")
 int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
-  u16 dport;
-  int state_id = 0;
-  u32 *value, state;
-
-  value = bpf_map_lookup_elem(&port_state, &state_id);
-  if (!value) {
-    return XDP_DROP;
-  }
-
-  /* Process the previous packets using metadata */
-  struct metadata_elem* md;
-  int dummy_header_size = sizeof(struct ethhdr);
-  void* md_start = data + dummy_header_size;
-  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
-  /* safety check of accessing metadata */
-  if (md_start + md_size > data_end) {
-    return XDP_DROP;
-  }
-  state = *value;
-  /* read metadata element */
-  // bpf_printk("initial state: %d", state);
-  for (int i = 0; i < NUM_PKTS - 1; i++) {
-    md = md_start + i * sizeof(struct metadata_elem);
-    if (md->ethtype != htons(ETH_P_IP)) {
-      continue;
-    }
-    if ((md->ipproto != IPPROTO_UDP) &&
-        (md->ipproto != IPPROTO_TCP)) {
-      continue;
-    }
-    dport = md->dport;
-    state = get_new_state(state, dport);
-    // bpf_printk("%d, dport: %d, state: %d", i, dport, state);
-  }
-
-  /* Process the assigned packet */
-  u64 nh_off = dummy_header_size + md_size;
-  struct ethhdr *eth = data + nh_off;
+  struct iphdr *iph;
+  struct array_elem* value;
   u16 h_proto;
-  int ipproto;
+  u64 nh_off;
   int rc = XDP_DROP;
+  bool need_session_table = false;
+  bool remove_session_table = false;
+  u16 dst_port;
+  u32 src_ip;
 
+  uint32_t zero = 0;
+  struct port_state_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&port_state_map, &zero);
+  if (!map) {
+    // bpf_printk("map not found");
+    return XDP_DROP;
+  }
+
+  struct array_elem *port_state_ptr;
+  /* Process latest (n-1) packets using metadata */
+  int dummy_header_size = sizeof(struct ethhdr);
+  int md_offset = dummy_header_size;
+  void* md_start = data + md_offset;
+  u64 md_size = (NUM_PKTS - 1) * sizeof(struct metadata_elem);
+  if (md_start + md_size > data_end)
+    return XDP_DROP;
+
+  u32 curr_state;
+  struct metadata_elem* md_elem;
+  for (int i = 0; i < NUM_PKTS - 1; i++) {
+    md_elem = md_start + i * sizeof(struct metadata_elem);
+    need_session_table = md_elem->tcp_syn_flag;
+    remove_session_table = md_elem->tcp_fin_flag;
+    src_ip = md_elem->src_ip;
+    dst_port = md_elem->dst_port;
+    port_state_ptr = port_state_map_cuckoo_lookup(map, &src_ip);
+    if (!port_state_ptr) {
+      uint32_t new_state = CLOSED_0;
+      if (dst_port == PORT_1) {
+        new_state = CLOSED_1;
+      }
+      if (need_session_table) {
+        struct array_elem elem;
+        elem.state = new_state;
+        port_state_map_cuckoo_insert(map, &src_ip, &elem);
+      }
+    } else {
+      port_state_ptr->state = get_new_state(port_state_ptr->state, dst_port);
+      if (remove_session_table) {
+        port_state_map_cuckoo_delete(map, &src_ip);
+      }
+    }
+  }
+
+  /* Process the current packet */
+  remove_session_table = false;
+  need_session_table = false;
+  nh_off = dummy_header_size + md_size;
+  void* pkt_start = data + nh_off;
+  struct ethhdr *eth = pkt_start;
   nh_off += sizeof(*eth);
   if (data + nh_off > data_end)
-    return rc;
+    return XDP_DROP;
 
   h_proto = eth->h_proto;
   if (h_proto != htons(ETH_P_IP)) {
-    return rc;
-  }
-
-  ipproto = parse_ipv4(data, &nh_off, data_end);
-  if (ipproto == IPPROTO_UDP) {
-    if (parse_udp(data, &nh_off, data_end, &dport) == RET_ERR) {
-      return rc;
-    }
-  } else if (ipproto == IPPROTO_TCP) {
-    /* Parse tcp header to get dst_port */
-    struct tcphdr *tcp = data + nh_off;
-    if (tcp + 1 > data_end)
-      return XDP_DROP;
-    dport = ntohs(tcp->dest);
-  } else {
-    /* drop packets that are not udp or tcp */
     return XDP_DROP;
   }
 
-  if (state == OPEN) {
-    rc = XDP_PASS;
-  }
-  state = get_new_state(state, dport);
+  /* Parse ipv4 header to get protocol, src_ip */
+  iph = data + nh_off;
+  if (iph + 1 > data_end)
+    return XDP_DROP;
 
-  *value = state;
-  // bpf_printk("pkt, dport: %d, state: %d\n", dport, state);
+  if (iph->protocol != IPPROTO_TCP) {
+    return XDP_DROP;
+  }
+  src_ip = iph->saddr;
+
+  nh_off += sizeof(*iph);
+  /* Parse tcp header to get dst_port */
+  struct tcphdr *tcp = data + nh_off;
+  if (tcp + 1 > data_end)
+    return XDP_DROP;
+  dst_port = ntohs(tcp->dest);
+  // check if entry needs to be removed
+  remove_session_table = tcp->fin;
+  // bpf_printk("fin_flag (remove entry): %s", remove_session_table ? "true" : "false");
+  need_session_table = tcp->syn;
+
+  port_state_ptr = port_state_map_cuckoo_lookup(map, &src_ip);
+  if (!value) {
+    uint32_t new_state = CLOSED_0;
+    if (dst_port == PORT_1) {
+      new_state = CLOSED_1;
+    }
+    if (need_session_table) {
+      struct array_elem elem;
+      elem.state = new_state;
+      port_state_map_cuckoo_insert(map, &src_ip, &elem);
+    }
+  } else {
+    value->state = get_new_state(value->state, dst_port);
+    if (value->state == OPEN) {
+      rc = XDP_PASS;
+    }
+    if (remove_session_table) {
+      port_state_map_cuckoo_delete(map, &src_ip);
+    }
+  }
 
   /* For all valid packets, bounce them back to the packet generator. */
   swap_src_dst_mac(data);
@@ -158,3 +170,4 @@ int xdp_prog(struct xdp_md *ctx) {
 }
 
 char _license[] SEC("license") = "GPL";
+
