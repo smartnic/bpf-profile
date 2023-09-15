@@ -54,7 +54,7 @@ def get_benchmark_version(prog_name):
         benchmark = BENCHMARK_dummy
     else:
         benchmark = BENCHMARK_xdpex1
-    versions = ["v10", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
+    versions = ["v10", "v11", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
     for v in versions:
         if v in prog_name:
             version = v
@@ -65,7 +65,7 @@ def get_prog_load_command(prog_name):
     benchmark, version = get_benchmark_version(prog_name)
     cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     if benchmark == BENCHMARK_ddos_mitigator:
-        cmd += f" -A ddos_srcip.txt"
+        cmd += f" -A stats_srcip.txt -P 100"
     return cmd
 
 def get_prog_tag():
@@ -201,18 +201,21 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             "v2": VERSION_flow_affinity,
             "v4": VERSION_flow_affinity,
             "v10": VERSION_shared_nothing,
+            "v11": VERSION_shared_nothing,
         },
         BENCHMARK_ddos_mitigator: {
             "v1": VERSION_shared_state,
             "v2": VERSION_flow_affinity,
             "v4": VERSION_shared_nothing,
             "v5": VERSION_flow_affinity,
+            "v6": VERSION_shared_nothing,
         },
         BENCHMARK_token_bucket: {
             "v1": VERSION_shared_state,
             "v4": VERSION_shared_nothing,
             "v5": VERSION_flow_affinity,
             "v6": VERSION_flow_affinity,
+            "v7": VERSION_shared_nothing,
         },
         BENCHMARK_dummy: {
             "v1": VERSION_shared_state,
@@ -509,13 +512,13 @@ if __name__ == "__main__":
                 version_name_list = ["v1", "v2"]
             elif BENCHMARK_hhd in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v2", "v4", "v10"]
+                version_name_list = ["v1", "v4", "v11"]
             elif BENCHMARK_token_bucket in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v4", "v5", "v6"]
+                version_name_list = ["v1", "v7", "v6"]
             elif BENCHMARK_ddos_mitigator in benchmark:
                 LOADER_NAME = "xdp_ddos_mitigator"
-                version_name_list = ["v1", "v2", "v4", "v5"]
+                version_name_list = ["v1", "v5", "v6"]
             elif BENCHMARK_nat_dp in benchmark:
                 LOADER_NAME = "xdp_nat_dp"
                 version_name_list = ["v1", "v3"]
