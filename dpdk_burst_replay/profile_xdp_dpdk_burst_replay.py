@@ -15,6 +15,7 @@ LOADER_NAME = ""
 CLIENT=""
 SERVER_IFACE = ""
 MAX_RX_QUEUES = 32
+NUM_SRCIP_DDOS = 0
 
 DISABLE_prog_latency = False
 DISABLE_prog_latency_ns = False
@@ -65,7 +66,7 @@ def get_prog_load_command(prog_name):
     benchmark, version = get_benchmark_version(prog_name)
     cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     if benchmark == BENCHMARK_ddos_mitigator:
-        cmd += f" -A stats_srcip.txt -P 100"
+        cmd += f" -A stats_srcip.txt -P {NUM_SRCIP_DDOS}"
     return cmd
 
 def get_prog_tag():
@@ -481,6 +482,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_pktgen_measure_parallel', action='store_true', help='Disable pktgen measurement while measuring other metrics: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_pktgen_measure', action='store_true', help='Disable pktgen measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_mlffr', action='store_true', help='Disable measuring MLFFR', required=False)
+    parser.add_argument('--n_srcip_ddos', dest="n_srcip_ddos", type=int, help='# of srcips inserted into ddos blocklist', default=100)
     args = parser.parse_args()
     if args.output_folder_pktgen is None:
         args.output_folder_pktgen = args.output_folder
@@ -497,6 +499,7 @@ if __name__ == "__main__":
     DISABLE_pktgen_measure_parallel = args.disable_pktgen_measure_parallel
     DISABLE_pktgen_measure = args.disable_pktgen_measure
     DISABLE_mlffr = args.disable_mlffr
+    NUM_SRCIP_DDOS = args.n_srcip_ddos
     if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_pktgen_measure and DISABLE_mlffr:
         sys.exit(0)
     # read client and server_iface from config.xl170
