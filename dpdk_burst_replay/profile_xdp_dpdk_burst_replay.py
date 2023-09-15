@@ -470,6 +470,7 @@ if __name__ == "__main__":
     parser.add_argument('--o_pktgen', dest="output_folder_pktgen", type=str, default=None, help='Output path on the packet generator, default is the same as output path on DUT', required=False)
     parser.add_argument('-b', dest="benchmark_list", type=str, default="all", help='XDP benchmark list, e.g., xdp_portknock,xdp_hhd. `all` means all benchmarks', required=False)
     parser.add_argument('-r', dest="num_runs", type=int, help='Total number of runs (greater than 1)', required=True)
+    parser.add_argument('--start_rid', dest="start_rid", type=int, help='Start run id', default=0)
     parser.add_argument('--nc_max', dest="num_cores_max", type=int, help='Maximum number of cores (greater than 1)', required=True)
     parser.add_argument('--nc_min', dest="num_cores_min", type=int, help='Minimum number of cores (greater than nc_max)', default=1)
     parser.add_argument('-d', dest="duration", type=int, help='Duration for each test. Unit: seconds', required=True)
@@ -509,7 +510,7 @@ if __name__ == "__main__":
     version_info_list = []
     pcap_benchmark_list = [] # this is only for xdp_dummy
     t_start_experiments = time.time()
-    for run_id in range(0, args.num_runs):
+    for run_id in range(args.start_rid, args.start_rid + args.num_runs):
         print_log(f"Run {run_id} starts......")
         t_start = time.time()
         for benchmark in benchmark_list:
