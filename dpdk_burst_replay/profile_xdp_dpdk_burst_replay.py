@@ -384,13 +384,13 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_pat
     time.sleep(2)
 
 
-def run_tests_versions(prog_name_prefix, core_num_max, duration,
+def run_tests_versions(prog_name_prefix, core_num_min, core_num_max, duration,
                        output_folder, output_folder_pktgen, run_id, pcap_path, pcap_benchmark):
     if DISABLE_prog_latency_ns and DISABLE_pcm and DISABLE_pktgen_measure:
         return
     core_list = []
     for i in range(1, core_num_max + 1):
-        core_list.append(i)
+        core_list = [x for x in range(1, i + 1)]
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
         if not os.path.exists(output_folder_i):
@@ -400,13 +400,13 @@ def run_tests_versions(prog_name_prefix, core_num_max, duration,
             output_folder_i_pktgen, pcap_path, pcap_benchmark)
 
 
-def run_mlffr_versions(prog_name_prefix, core_num_max, duration,
+def run_mlffr_versions(prog_name_prefix, core_num_min, core_num_max, duration,
                        output_folder, run_id, pcap_path, pcap_benchmark):
     if DISABLE_mlffr:
         return
     core_list = []
-    for i in range(1, core_num_max + 1):
-        core_list.append(i)
+    for i in range(core_num_min, core_num_max + 1):
+        core_list = [x for x in range(1, i + 1)]
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
         if not os.path.exists(output_folder_i):
@@ -440,8 +440,8 @@ def read_machine_info_from_file(input_file):
     return client, server_iface, client_dir
 
 def test_benchmark(run_id, benchmark, version_name_list,
-    num_cores_max, duration, output_folder, output_folder_pktgen,
-    pcap_path, pcap_benchmark):
+    num_cores_min, num_cores_max, duration, output_folder,
+    output_folder_pktgen, pcap_path, pcap_benchmark):
     print_log(f"Benchmark {benchmark} run {run_id} starts......")
     t_start = time.time()
     for version in version_name_list:
@@ -452,9 +452,9 @@ def test_benchmark(run_id, benchmark, version_name_list,
         if BENCHMARK_dummy in benchmark:
             output_folder_version_dut = f"{output_folder}/{pcap_benchmark}"
             output_folder_version_pktgen = f"{output_folder_pktgen}/{pcap_benchmark}"
-        run_mlffr_versions(prog_name_prefix, num_cores_max, duration,
+        run_mlffr_versions(prog_name_prefix, num_cores_min, num_cores_max, duration,
             output_folder_version_dut, run_id, pcap_path, pcap_benchmark)
-        run_tests_versions(prog_name_prefix, num_cores_max, duration,
+        run_tests_versions(prog_name_prefix, num_cores_min, num_cores_max, duration,
             output_folder_version_dut, output_folder_version_pktgen, run_id,
             pcap_path, pcap_benchmark)
         time_cost_v = time.time() - t_start_v
@@ -471,6 +471,7 @@ if __name__ == "__main__":
     parser.add_argument('-b', dest="benchmark_list", type=str, default="all", help='XDP benchmark list, e.g., xdp_portknock,xdp_hhd. `all` means all benchmarks', required=False)
     parser.add_argument('-r', dest="num_runs", type=int, help='Total number of runs (greater than 1)', required=True)
     parser.add_argument('--nc_max', dest="num_cores_max", type=int, help='Maximum number of cores (greater than 1)', required=True)
+    parser.add_argument('--nc_min', dest="num_cores_min", type=int, help='Minimum number of cores (greater than nc_max)', default=1)
     parser.add_argument('-d', dest="duration", type=int, help='Duration for each test. Unit: seconds', required=True)
     parser.add_argument('--disable_prog_latency', action='store_true', help='Disable prog latency measurement', required=False)
     parser.add_argument('--disable_prog_latency_ns', action='store_true', help='Disable prog latency (nanoseconds, use kernel stats) measurement', required=False)
@@ -541,13 +542,13 @@ if __name__ == "__main__":
             pcap_benchmark_list = [string[4:] for string in pcap_benchmark_list]
             print_log(f"Test benchmark {benchmark}")
             string = f"{run_id} {benchmark} {LOADER_NAME}"
-            string += f" {version_name_list} {args.num_cores_max}"
+            string += f" {version_name_list} {args.num_cores_min} {args.num_cores_max}"
             string += f" {args.duration} {output_folder} {output_folder_pktgen}"
             print_log(string)
             for pcap_benchmark in pcap_benchmark_list:
                 test_benchmark(run_id, benchmark, version_name_list,
-                    args.num_cores_max, args.duration, output_folder,
-                    output_folder_pktgen, pcap_path, pcap_benchmark)
+                    args.num_cores_min, args.num_cores_max, args.duration,
+                    output_folder, output_folder_pktgen, pcap_path, pcap_benchmark)
         time_cost = time.time() - t_start
         print_log(f"Run {run_id} ends. time_cost: {time_cost}")
     time_cost = time.time() - t_start_experiments
