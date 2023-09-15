@@ -145,12 +145,14 @@ def set_up_configs(benchmark, version, n_cores):
         BENCHMARK_hhd: ["v2", "v4"],
         BENCHMARK_ddos_mitigator: ["v2", "v5"],
         BENCHMARK_token_bucket: ["v5", "v6"],
+        BENCHMARK_portknock: ["v4"],
         BENCHMARK_dummy: [],
     }
     hash_packet_fields_dic = {
         BENCHMARK_hhd: "sdfn",
         BENCHMARK_ddos_mitigator: "sd",
         BENCHMARK_token_bucket: "sdfn",
+        BENCHMARK_portknock: "sd",
         BENCHMARK_dummy: "sdfn",
     }
     print_log(f"benchmark: {benchmark}")
@@ -217,6 +219,11 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             "v6": VERSION_flow_affinity,
             "v7": VERSION_shared_nothing,
         },
+        BENCHMARK_portknock: {
+            "v1": VERSION_shared_state,
+            "v2": VERSION_shared_nothing,
+            "v4": VERSION_flow_affinity,
+        },
         BENCHMARK_dummy: {
             "v1": VERSION_shared_state,
         },
@@ -242,9 +249,10 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
     else:
         # shared-nothing versions
         dummy_pcap_file_dic = {
-            BENCHMARK_hhd: "v10",
-            BENCHMARK_ddos_mitigator: "v4",
-            BENCHMARK_token_bucket: "v4",
+            BENCHMARK_hhd: "v11",
+            BENCHMARK_ddos_mitigator: "v6",
+            BENCHMARK_token_bucket: "v7",
+            BENCHMARK_portknock: "v2",
         }
         if pcap_benchmark not in dummy_pcap_file_dic:
             print_log(f"Benchmark {benchmark} for pcap benchmark {pcap_benchmark} not supported. Exit")
@@ -509,7 +517,7 @@ if __name__ == "__main__":
             output_folder_pktgen = f"{args.output_folder_pktgen}/{benchmark}"
             if BENCHMARK_portknock in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v2"]
+                version_name_list = ["v1", "v2", "v4"]
             elif BENCHMARK_hhd in benchmark:
                 LOADER_NAME = "xdpex1"
                 version_name_list = ["v1", "v4", "v11"]
@@ -525,7 +533,7 @@ if __name__ == "__main__":
             elif BENCHMARK_dummy in benchmark:
                 LOADER_NAME = "xdp_dummy"
                 version_name_list = ["v1"]
-                pcap_benchmark_list = ["xdp_dummy", "xdp_hhd", "xdp_ddos_mitigator", "xdp_token_bucket"]
+                pcap_benchmark_list = ["xdp_dummy", "xdp_hhd", "xdp_ddos_mitigator", "xdp_token_bucket", "xdp_portknock"]
             else:
                 print_log(f"Benchmark {benchmark} not supported. Exit")
                 sys.exit(0)
