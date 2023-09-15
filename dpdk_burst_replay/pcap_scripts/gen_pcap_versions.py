@@ -11,6 +11,8 @@ from gen_pcap_flow_affinity_ddos_mitigator import gen_pcap_flow_affinity_ddos_mi
 from gen_pcap_with_md_ddos_mitigator import gen_pcap_with_md_ddos_mitigator
 from gen_pcap_flow_affinity_token_bucket import gen_pcap_flow_affinity_token_bucket
 from gen_pcap_with_md_token_bucket import gen_pcap_with_md_token_bucket
+from gen_pcap_flow_affinity_portknock import gen_pcap_flow_affinity_portknock
+from gen_pcap_with_md_portknock import gen_pcap_with_md_portknock
 from process_pcap_file_ddos_srcip import read_src_ip_from_tcp_packets
 from preprocessing import preprocessing
 
@@ -21,6 +23,7 @@ APPROACH_flow_affinity = "flow_affinity"
 BM_hhd = "hhd"
 BM_ddos_mitigator = "ddos_mitigator"
 BM_token_bucket = "token_bucket"
+BM_portknock = "portknock"
 
 def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_path,
     input_file, tcp_only, pkt_len):
@@ -55,6 +58,11 @@ def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_p
                 r = pool.apply_async(gen_pcap_flow_affinity_token_bucket,
                                      args=(dst_mac, output_path, input_file, pkt_len, ))
                 result_list.append(r)
+            elif b == BM_portknock:
+                dst_ip = "172.16.90.196"
+                r = pool.apply_async(gen_pcap_flow_affinity_portknock,
+                                     args=(dst_mac, dst_ip, output_path, input_file, pkt_len, ))
+                result_list.append(r)
             time.sleep(sleep_dur)
     elif approach == APPROACH_shared_nothing:
         for b in benchmarks:
@@ -72,6 +80,12 @@ def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_p
             elif b == BM_token_bucket:
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_token_bucket,
+                                         args=(n, dst_mac, output_path, input_file, tcp_only, pkt_len, ))
+                    result_list.append(r)
+                    time.sleep(sleep_dur)
+            elif b == BM_portknock:
+                for n in range(1, num_cores + 1):
+                    r = pool.apply_async(gen_pcap_with_md_portknock,
                                          args=(n, dst_mac, output_path, input_file, tcp_only, pkt_len, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
@@ -108,6 +122,7 @@ if __name__ == "__main__":
             c += 1
 
     time.sleep(2)
+
     # Create n_processes multiprocessing Pools, one for each function
     with multiprocessing.Pool(processes=n_processes) as pool:
         result_list = []
