@@ -55,7 +55,6 @@ int xdp_prog(struct xdp_md *ctx) {
   void *data_end = (void *)(long)ctx->data_end;
   void *data = (void *)(long)ctx->data;
   struct iphdr *iph;
-  struct array_elem* value;
   u16 h_proto;
   u64 nh_off;
   int rc = XDP_DROP;
@@ -144,7 +143,7 @@ int xdp_prog(struct xdp_md *ctx) {
   need_session_table = tcp->syn;
 
   port_state_ptr = port_state_map_cuckoo_lookup(map, &src_ip);
-  if (!value) {
+  if (!port_state_ptr) {
     uint32_t new_state = CLOSED_0;
     if (dst_port == PORT_1) {
       new_state = CLOSED_1;
@@ -155,8 +154,8 @@ int xdp_prog(struct xdp_md *ctx) {
       port_state_map_cuckoo_insert(map, &src_ip, &elem);
     }
   } else {
-    value->state = get_new_state(value->state, dst_port);
-    if (value->state == OPEN) {
+    port_state_ptr->state = get_new_state(port_state_ptr->state, dst_port);
+    if (port_state_ptr->state == OPEN) {
       rc = XDP_PASS;
     }
     if (remove_session_table) {
