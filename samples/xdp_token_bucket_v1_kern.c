@@ -92,7 +92,7 @@ int xdp_prog(struct xdp_md* ctx) {
   flow.protocol = iph->protocol;
   /* Zero out the least significant 4 bits as they are
      used for RSS (note: src_ip is be32) */
-  flow.src_ip = iph->saddr & 0xf0ffffff;
+  flow.src_ip = iph->saddr;
   flow.dst_ip = iph->daddr;
   nh_off += sizeof(*iph);
   if (iph->protocol == IPPROTO_UDP) {

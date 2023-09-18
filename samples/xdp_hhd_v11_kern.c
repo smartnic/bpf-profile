@@ -67,7 +67,7 @@ int xdp_prog(struct xdp_md *ctx) {
     need_session_table = md_elem->tcp_syn_flag;
     remove_session_table = md_elem->tcp_fin_flag;
     /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
-    md_flow->src_ip &= 0xf0ffffff;
+    // md_flow->src_ip &= 0xf0ffffff;
     flow_size_ptr = flowsize_map_cuckoo_lookup(map, md_flow);
     pkt_size = md_elem->size;
     if (flow_size_ptr) {
@@ -119,7 +119,7 @@ int xdp_prog(struct xdp_md *ctx) {
     return XDP_DROP;
 
   /* Zero out the least significant 4 bits as they are used for RSS (note: src_ip is be32) */
-  flow.src_ip = iph->saddr & 0xf0ffffff;
+  flow.src_ip = iph->saddr;
   flow.dst_ip = iph->daddr;
 
   /* Parse udp header to get src_port and dst_port */
