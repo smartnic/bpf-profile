@@ -30,7 +30,11 @@ BENCHMARK_ddos_mitigator = "ddos_mitigator"
 BENCHMARK_token_bucket = "token_bucket"
 BENCHMARK_nat_dp = "nat_dp"
 BENCHMARK_xdpex1 = "xdpex1"
+BENCHMARK_conntrack = "conntrack"
 BENCHMARK_dummy = "dummy"
+
+RSS_HASHKEY_default = "7c:cb:76:f5:0d:62:88:d5:af:6b:87:fd:45:22:20:09:7d:14:59:7a:f1:7e:8e:91:da:c7:85:5d:c4:18:a1:ac:51:77:df:74:33:39:7d:c4"
+RSS_HASHKEY_symmetric = "6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a:6d:5a"
 
 CPU_ARM = "arm"
 CPU_INTEL = "intel"
@@ -51,6 +55,8 @@ def get_benchmark_version(prog_name):
         benchmark = BENCHMARK_token_bucket
     elif BENCHMARK_nat_dp in prog_name:
         benchmark = BENCHMARK_nat_dp
+    elif BENCHMARK_conntrack in prog_name:
+        benchmark = BENCHMARK_conntrack
     elif BENCHMARK_dummy in prog_name:
         benchmark = BENCHMARK_dummy
     else:
@@ -62,11 +68,18 @@ def get_benchmark_version(prog_name):
             break
     return benchmark, version
 
-def get_prog_load_command(prog_name):
+def get_prog_load_command(prog_name, num_cores):
     benchmark, version = get_benchmark_version(prog_name)
     cmd = f"./{LOADER_NAME} -I {prog_name} -N {SERVER_IFACE}"
     if benchmark == BENCHMARK_ddos_mitigator:
         cmd += f" -A stats_srcip.txt -P {NUM_SRCIP_DDOS}"
+    if benchmark == BENCHMARK_conntrack:
+        if version == "v1":
+            cmd = f"./conntrack -p -1 {SERVER_IFACE} -r -l 0 -q"
+        elif version == "v2":
+            cmd = f"./conntrack_cuckoo -p -1 {SERVER_IFACE} -r -l 0 -f -q"
+        elif version == "v3":
+            cmd = f"./conntrack_cuckoo -p -1 {SERVER_IFACE} -r -l 0 -n {num_cores} -q"
     return cmd
 
 def get_prog_tag():
@@ -113,12 +126,12 @@ def kill_process_on_client(process, client):
     client_cmd = f"pkill -f {process} >/dev/null 2>&1 &"
     run_cmd_on_client(client_cmd, client)
 
-def clean_environment(client, prog_name):
+def clean_environment(client, prog_name, num_cores):
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     # stop packet generation
     kill_process_on_client("dpdk-replay", client)
     kill_process_on_client("measure.py", client)
-    loader_cmd = get_prog_load_command(prog_name)
+    loader_cmd = get_prog_load_command(prog_name, num_cores)
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
 
 def run_packet_generator(pcap_file, client):
@@ -147,6 +160,7 @@ def set_up_configs(benchmark, version, n_cores):
         BENCHMARK_ddos_mitigator: ["v2", "v5"],
         BENCHMARK_token_bucket: ["v5", "v6"],
         BENCHMARK_portknock: ["v4"],
+        BENCHMARK_conntrack: ["v2"],
         BENCHMARK_dummy: [],
     }
     hash_packet_fields_dic = {
@@ -154,6 +168,7 @@ def set_up_configs(benchmark, version, n_cores):
         BENCHMARK_ddos_mitigator: "sd",
         BENCHMARK_token_bucket: "sdfn",
         BENCHMARK_portknock: "sd",
+        BENCHMARK_conntrack: "sdfn",
         BENCHMARK_dummy: "sdfn",
     }
     print_log(f"benchmark: {benchmark}")
@@ -177,6 +192,11 @@ def set_up_configs(benchmark, version, n_cores):
         run_cmd(f"ethtool -L {SERVER_IFACE} combined {n_cores}")
         # 3. set up packet fields for hash function
         run_cmd(f"ethtool -N {SERVER_IFACE} rx-flow-hash tcp4 {hash_packet_fields}")
+        # 4. configure RSS hash key
+        rss_hash_key = RSS_HASHKEY_default
+        if benchmark == BENCHMARK_conntrack:
+            rss_hash_key = RSS_HASHKEY_symmetric
+        run_cmd(f"ethtool -X {SERVER_IFACE} hkey {rss_hash_key}")
     else:
         # 1. delete RSS rules (delete all possible rules)
         run_cmd(f"bash rss_delete.sh {SERVER_IFACE} 0 1023")
@@ -190,6 +210,7 @@ def set_up_configs(benchmark, version, n_cores):
     run_cmd(f"ethtool --show-nfc {SERVER_IFACE}")
     run_cmd(f"ethtool -l {SERVER_IFACE}")
     run_cmd(f"ethtool -n {SERVER_IFACE} rx-flow-hash tcp4")
+    run_cmd(f"ethtool -x {SERVER_IFACE}")
 
 def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
     # shared_state: shared_state_[#cores].pcap
@@ -225,6 +246,11 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             "v2": VERSION_shared_nothing,
             "v4": VERSION_flow_affinity,
         },
+        BENCHMARK_conntrack: {
+            "v1": VERSION_shared_state,
+            "v2": VERSION_flow_affinity,
+            "v3": VERSION_shared_nothing,
+        },
         BENCHMARK_dummy: {
             "v1": VERSION_shared_state,
         },
@@ -254,6 +280,7 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             BENCHMARK_ddos_mitigator: "v6",
             BENCHMARK_token_bucket: "v7",
             BENCHMARK_portknock: "v2",
+            BENCHMARK_conntrack: "v3",
         }
         if pcap_benchmark not in dummy_pcap_file_dic:
             print_log(f"Benchmark {benchmark} for pcap benchmark {pcap_benchmark} not supported. Exit")
@@ -278,7 +305,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
 
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
-    cmd = get_prog_load_command(prog_name)
+    cmd = get_prog_load_command(prog_name, len(core_list))
     run_cmd_on_core(cmd, 0)
 
     # 3. run packet generator
@@ -289,7 +316,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
         tag = get_prog_tag()
     except:
         print_log(f"ERROR: not able to get the tag of {prog_name}. Test stop...")
-        clean_environment(client, prog_name)
+        clean_environment(client, prog_name, len(core_list))
         return
 
     # 4.3 use kernel stats to measure overall latency (nanoseconds)
@@ -336,7 +363,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
         time.sleep(5)
 
     # 5. clean environment
-    clean_environment(client, prog_name)
+    clean_environment(client, prog_name, len(core_list))
     time.sleep(5)
 
     # 6. move the files to the output folder
@@ -358,14 +385,14 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_pat
 
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
-    cmd = get_prog_load_command(prog_name)
+    cmd = get_prog_load_command(prog_name, len(core_list))
     run_cmd_on_core(cmd, 0)
 
     # 3. send mlffr measurement command to the packet generator
     measure_time = seconds
-    rate_high = 85
-    rate_low = 0
-    precision = 0.2
+    rate_high = 55
+    rate_low = 5
+    precision = 0.4
     paras = f"{pcap_file} {measure_time} {rate_high} {rate_low} {precision}"
     client_cmd = f"{CMD_MEASURE_MLFFR} {paras}"
     mlffr = run_unmodified_cmd_on_client(client_cmd, client)
@@ -376,7 +403,7 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_pat
     fout.close()
 
     # 4. clean environment
-    clean_environment(client, prog_name)
+    clean_environment(client, prog_name, len(core_list))
 
     # 5. move the files to the output folder
     run_cmd("sudo mv tmp/* " + output_folder, wait=True)
@@ -489,7 +516,8 @@ if __name__ == "__main__":
     if args.benchmark_list == "all":
         benchmark_list = [f"xdp_{BENCHMARK_portknock}", f"xdp_{BENCHMARK_hhd}",
                           f"xdp_{BENCHMARK_token_bucket}", f"xdp_{BENCHMARK_ddos_mitigator}",
-                          f"xdp_{BENCHMARK_nat_dp}", f"xdp_{BENCHMARK_dummy}"]
+                          f"xdp_{BENCHMARK_nat_dp}", f"xdp_{BENCHMARK_conntrack}",
+                          f"xdp_{BENCHMARK_dummy}"]
     else:
         benchmark_list = args.benchmark_list.split(",")
     DISABLE_prog_latency = args.disable_prog_latency
@@ -535,6 +563,10 @@ if __name__ == "__main__":
             elif BENCHMARK_nat_dp in benchmark:
                 LOADER_NAME = "xdp_nat_dp"
                 version_name_list = ["v1", "v3"]
+            elif BENCHMARK_conntrack in benchmark:
+                LOADER_NAME = None
+                # add v1 later
+                version_name_list = ["v2", "v3"]
             elif BENCHMARK_dummy in benchmark:
                 LOADER_NAME = "xdp_dummy"
                 version_name_list = ["v1"]
