@@ -202,7 +202,7 @@ int main(int argc, char **argv)
   prog_id = info.id;
 
   // poll_stats(map_fd, 1);
-  init_maps(map_fd);
+  // init_maps(map_fd);
   while (1) {}
 
   return 0;
