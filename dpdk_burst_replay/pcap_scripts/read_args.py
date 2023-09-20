@@ -4,31 +4,37 @@ class WorkItem():
     def __init__(self):
         self.input_file = None
         self.output = None
+        self.max_flows = 0
         self.pkt_len = 0
         self.tcp_only = False
         self.num_cores = None
         self.dst_mac = None
         self.tasks = {}
+        self.input_file_conntrack = None
 
     def __str__(self):
         res = f"input_file: {self.input_file}\n"
         res += f"output: {self.output}\n"
+        res += f"max_flows: {self.max_flows}\n"
         res += f"pkt_len: {self.pkt_len}\n"
         res += f"tcp_only: {self.tcp_only}\n"
         res += f"num_cores: {self.num_cores}\n"
         res += f"dst_mac: {self.dst_mac}\n"
         res += f"tasks: {self.tasks}\n"
+        res += f"input_file_conntrack: {self.input_file_conntrack}\n"
         return res
 
     def __copy__(self):
         x = WorkItem()
         x.input_file = self.input_file
         x.output = self.output
+        x.max_flows = self.max_flows
         x.pkt_len = self.pkt_len
         x.tcp_only = self.tcp_only
         x.num_cores = self.num_cores
         x.dst_mac = self.dst_mac
         x.tasks = self.tasks
+        x.input_file_conntrack = self.input_file_conntrack
         return x
 
 
@@ -47,6 +53,7 @@ def read_args_from_yaml(yaml_file):
         item = WorkItem()
         item.input_file = x.get("input")
         item.output = x.get("output")
+        item.max_flows = int(x.get("max_flows"))
         item.tcp_only = x.get("tcp_only")
         item.num_cores = int(x.get("num_cores"))
         item.dst_mac = x.get("dst_mac")
