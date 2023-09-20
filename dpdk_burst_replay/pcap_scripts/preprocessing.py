@@ -11,6 +11,7 @@ import numpy as np
 NO_TCP_FLAGS = 0
 TCP_SYN = 1
 TCP_FIN = 2
+NO_LIMIT_n_flows = -1
 
 class FlowKey():
     def __init__(self):
@@ -114,12 +115,17 @@ def write_srcip_stats(stats, output_path):
     packet_counts = []
     for _, v in sorted_dict.items():
         packet_counts.append(v)
+    total_pkts = sum(packet_counts)
     ccdf(np.array(packet_counts), f"{output_path}/ccdf_srcip.pdf", "srcips")
     output_file = f"{output_path}/stats_srcip.txt"
     with open(output_file, "w") as file:
-        file.write(f"{len(sorted_dict)} srcips, {sum(packet_counts)} packets\n")
+        file.write(f"{len(sorted_dict)} srcips, {total_pkts} packets\n")
+        accumulative_pkts = 0
         for k in sorted_dict.keys():
-            file.write(f"{ipaddress.IPv4Address(k)} {srcip_stats[k]}\n")
+            n_pkts = srcip_stats[k]
+            accumulative_pkts += n_pkts
+            accumulative_pkts_percent = accumulative_pkts / total_pkts
+            file.write(f"{ipaddress.IPv4Address(k)} {n_pkts} {accumulative_pkts_percent}\n")
 
 
 def write_stats(stats, output_path):
@@ -128,14 +134,20 @@ def write_stats(stats, output_path):
     packet_counts = []
     for _, v in sorted_dict.items():
         packet_counts.append(v.num_pkts)
+    total_pkts = sum(packet_counts)
     ccdf(np.array(packet_counts), f"{output_path}/ccdf.pdf", "flows")
     output_file = f"{output_path}/stats.txt"
+    accumulative_pkts = 0
     with open(output_file, "w") as file:
-        file.write(f"{len(sorted_dict)} flows, {sum(packet_counts)} packets\n")
+        file.write(f"{len(sorted_dict)} flows, {total_pkts} packets\n")
         for k in sorted_dict.keys():
-            file.write(f"{k}: {stats[k]}\n")
+            n_pkts = stats[k].num_pkts
+            accumulative_pkts += n_pkts
+            accumulative_pkts_percent = accumulative_pkts / total_pkts
+            file.write(f"{k}: {stats[k]} {accumulative_pkts_percent}\n")
     # stats of srcip
     write_srcip_stats(stats, output_path)
+    return sorted_dict
 
 
 def extract_header_payload(input_pkts):
@@ -172,6 +184,7 @@ def create_new_tcp_pkt(pkt):
 def get_pkts_modify_dic(stats):
     pkts_modify_dic = {}
     for val in stats.values():
+        # if val.first_pkt == val.last_pkt, update to TCP_FIN
         pkts_modify_dic[val.first_pkt] = TCP_SYN
         pkts_modify_dic[val.last_pkt] = TCP_FIN
     return pkts_modify_dic
@@ -192,12 +205,12 @@ def update_tcp_flags(pkts_modify_dic, pkt, idx):
     return pkt
 
 
-def preprocessing(input_file, output_path, output_filename):
+def preprocessing(input_file, output_path, output_filename, n_flows):
+    print(f"[preprocessing] {input_file} {n_flows}")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     new_pkts = list()
     output_file = f"{output_path}/{output_filename}"
-    append_flag = False
     stats = {}
     for idx, curr_pkt in read_packets(input_file):
         if not curr_pkt.haslayer(IP):
@@ -205,12 +218,33 @@ def preprocessing(input_file, output_path, output_filename):
         if not curr_pkt.haslayer(TCP):
             continue
         stats = get_stats_one_pkt(stats, curr_pkt, idx)
-
     pkts_modify_dic = get_pkts_modify_dic(stats)
+    # Sort the dictionary based on values in descending order
+    sorted_flow_dic = dict(sorted(stats.items(), key=lambda item: item[1], reverse=True))
+    if n_flows == NO_LIMIT_n_flows or n_flows > len(sorted_flow_dic):
+        n_flows = len(sorted_flow_dic)
+    # filered_flows = list(sorted_flow_dic.keys())[:n_flows]
+    # filtered_flows_stats = {}
+    # for flow in filered_flows:
+    #     filtered_flows_stats[flow] = stats[flow]
+    # use sample
+    filered_flows = []
+    filtered_flows_stats = {}
+    gap = int(len(sorted_flow_dic) / n_flows)
+    sorted_flows = list(sorted_flow_dic.keys())
+    for i in range(n_flows):
+        filered_flows.append(sorted_flows[i*gap])
+    for flow in filered_flows:
+        filtered_flows_stats[flow] = stats[flow]
+
+    append_flag = False
     for idx, curr_pkt in read_packets(input_file):
         if not curr_pkt.haslayer(IP):
             continue
         if not curr_pkt.haslayer(TCP):
+            continue
+        flow = get_flow_key(curr_pkt)
+        if flow not in filered_flows:
             continue
         new_pkt = create_new_tcp_pkt(curr_pkt)
         new_pkt = update_tcp_flags(pkts_modify_dic, new_pkt, idx)
@@ -223,7 +257,7 @@ def preprocessing(input_file, output_path, output_filename):
     if new_pkts:
         wrpcap(output_file, new_pkts, append=append_flag)
     print(f"[preprocessing] output pcap: {output_path}")
-    write_stats(stats, output_path)
+    write_stats(filtered_flows_stats, output_path)
 
 
 if __name__ == '__main__':
@@ -231,6 +265,7 @@ if __name__ == '__main__':
     parser.add_argument('--input', '-i', dest='input_file', help='Input file name', required=True)
     parser.add_argument("--output", "-o", dest="output_path", help="Output path name", required=True)
     parser.add_argument("--output_fname", dest="output_filename", help="Output file name", required=True)
+    parser.add_argument("--max_flows", dest="n_flows", help="Max number of flows", type=int, default=-1)
     args = parser.parse_args()
-    preprocessing(args.input_file, args.output_path, args.output_filename)
+    preprocessing(args.input_file, args.output_path, args.output_filename, args.n_flows)
 
