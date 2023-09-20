@@ -192,11 +192,6 @@ def set_up_configs(benchmark, version, n_cores):
         run_cmd(f"ethtool -L {SERVER_IFACE} combined {n_cores}")
         # 3. set up packet fields for hash function
         run_cmd(f"ethtool -N {SERVER_IFACE} rx-flow-hash tcp4 {hash_packet_fields}")
-        # 4. configure RSS hash key
-        rss_hash_key = RSS_HASHKEY_default
-        if benchmark == BENCHMARK_conntrack:
-            rss_hash_key = RSS_HASHKEY_symmetric
-        run_cmd(f"ethtool -X {SERVER_IFACE} hkey {rss_hash_key}")
     else:
         # 1. delete RSS rules (delete all possible rules)
         run_cmd(f"bash rss_delete.sh {SERVER_IFACE} 0 1023")
@@ -204,7 +199,11 @@ def set_up_configs(benchmark, version, n_cores):
         run_cmd(f"ethtool -L {SERVER_IFACE} combined {MAX_RX_QUEUES}")
         # 3. add RSS rules
         run_cmd(f"bash rss.sh {SERVER_IFACE}")
-
+    # 4. configure RSS hash key
+    rss_hash_key = RSS_HASHKEY_default
+    if benchmark == BENCHMARK_conntrack and is_flow_affinity:
+        rss_hash_key = RSS_HASHKEY_symmetric
+    run_cmd(f"ethtool -X {SERVER_IFACE} hkey {rss_hash_key}")
 
     print_log(f"Display configurations: {benchmark}, {version}, {n_cores}")
     run_cmd(f"ethtool --show-nfc {SERVER_IFACE}")
