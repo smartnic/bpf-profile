@@ -135,7 +135,7 @@ def clean_environment(client, prog_name, num_cores):
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
     run_cmd(f"pkill -f click", wait=True)
 
-def run_packet_generator(pcap_file, client):
+def run_packet_generator(pcap_file, tx_rate, client):
     # send packets
     timestr = time.strftime("%Y%m%d-%H%M%S")
     config_file = f"config_{timestr}.yaml"
@@ -143,7 +143,7 @@ def run_packet_generator(pcap_file, client):
     NIC_PCIE = "0000:ca:00.0"
     client_cmd = f"python3 {PKTGEN_PATH}/create_dpdk_replay_config.py -o {config_file_path} --fname {config_file} --pcap {pcap_file} -n 1 --pcie {NIC_PCIE} --tx_queues 4 --numacore 1"
     run_unmodified_cmd_on_client(client_cmd, client)
-    client_cmd = f"sudo {PKTGEN_PATH}/dpdk-replay --config {config_file_path}/{config_file} >log_dpdk_replay.txt 2>&1 &"
+    client_cmd = f"python3 {PKTGEN_PATH}/create_dpdk_replay_config.py --max_mpps {tx_rate} -o {config_file_path} --fname {config_file} --pcap {pcap_file} -n 1 --pcie {NIC_PCIE} --tx_queues 4 --numacore 1"
     run_cmd_on_client(client_cmd, client)
     # check if packet gen is stable
     client_cmd = CMD_CHECK_PKT_GEN_STABLE
@@ -322,7 +322,7 @@ def run_rsspp(num_cores):
     run_cmd_on_core(f"./click kernel.click.{num_cores} -j 7", 7)
 
 
-def run_test(prog_name, core_list, client, seconds, output_folder,
+def run_test(prog_name, core_list, tx_rate, client, seconds, output_folder,
     output_folder_pktgen, pcap_path, pcap_benchmark):
     benchmark, version = get_benchmark_version(prog_name)
     n_cores = len(core_list)
@@ -340,7 +340,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
     run_cmd_on_core(cmd, 7)
 
     # 3. run packet generator
-    run_packet_generator(pcap_file, client)
+    run_packet_generator(pcap_file, tx_rate, client)
 
     # 4. measure the xdp prorgam
     try:
@@ -447,19 +447,19 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_pat
     time.sleep(2)
 
 
-def run_tests_versions(prog_name_prefix, core_num_min, core_num_max, duration,
+def run_tests_versions(prog_name_prefix, core_num_min, core_num_max, duration, tx_rate,
                        output_folder, output_folder_pktgen, run_id, pcap_path, pcap_benchmark):
     if DISABLE_prog_latency_ns and DISABLE_pcm and DISABLE_pktgen_measure:
         return
     core_list = []
-    for i in range(1, core_num_max + 1):
+    for i in range(core_num_min, core_num_max + 1):
         core_list = [x for x in range(1, i + 1)]
         prog_name = f"{prog_name_prefix}_p{i}"
         output_folder_i = output_folder + "/" + str(i) + "/" + str(run_id)
         if not os.path.exists(output_folder_i):
             run_cmd("sudo mkdir -p " + output_folder_i, wait=True)
         output_folder_i_pktgen = output_folder_pktgen + "/" + str(i) + "/" + str(run_id)
-        run_test(prog_name, core_list, CLIENT, duration, output_folder_i,
+        run_test(prog_name, core_list, tx_rate, CLIENT, duration, output_folder_i,
             output_folder_i_pktgen, pcap_path, pcap_benchmark)
 
 
@@ -503,7 +503,7 @@ def read_machine_info_from_file(input_file):
     return client, server_iface, client_dir
 
 def test_benchmark(run_id, benchmark, version_name_list,
-    num_cores_min, num_cores_max, duration, output_folder,
+    num_cores_min, num_cores_max, duration, tx_rate_list, output_folder,
     output_folder_pktgen, pcap_path, pcap_benchmark):
     print_log(f"Benchmark {benchmark} run {run_id} starts......")
     t_start = time.time()
@@ -517,11 +517,19 @@ def test_benchmark(run_id, benchmark, version_name_list,
             output_folder_version_pktgen = f"{output_folder_pktgen}/{pcap_benchmark}"
         run_mlffr_versions(prog_name_prefix, num_cores_min, num_cores_max, duration,
             output_folder_version_dut, run_id, pcap_path, pcap_benchmark)
-        run_tests_versions(prog_name_prefix, num_cores_min, num_cores_max, duration,
-            output_folder_version_dut, output_folder_version_pktgen, run_id,
-            pcap_path, pcap_benchmark)
         time_cost_v = time.time() - t_start_v
-        print_log(f"Run {run_id} {version} test ends. time_cost: {time_cost_v}")
+        print_log(f"Run {run_id} {version} mlffr test ends. time_cost: {time_cost_v}")
+    for tx_rate in tx_rate_list:
+        for version in version_name_list:
+            t_start_v = time.time()
+            prog_name_prefix = f"{benchmark}_{version}"
+            output_folder_version_dut = f"{output_folder}/{tx_rate}/{version}"
+            output_folder_version_pktgen = f"{output_folder_pktgen}/{tx_rate}/{version}"
+            run_tests_versions(prog_name_prefix, num_cores_min, num_cores_max, duration, tx_rate,
+                output_folder_version_dut, output_folder_version_pktgen, run_id,
+                pcap_path, pcap_benchmark)
+            time_cost_v = time.time() - t_start_v
+            print_log(f"Run {run_id} {version} {tx_rate} test ends. time_cost: {time_cost_v}")
     time_cost = time.time() - t_start
     print_log(f"Benchmark {benchmark} run {run_id} ends. time_cost: {time_cost}")
 
@@ -545,6 +553,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_pktgen_measure', action='store_true', help='Disable pktgen measurement: round-trip latency and throughput', required=False)
     parser.add_argument('--disable_mlffr', action='store_true', help='Disable measuring MLFFR', required=False)
     parser.add_argument('--n_srcip_ddos', dest="n_srcip_ddos", type=int, help='# of srcips inserted into ddos blocklist', default=100)
+    parser.add_argument('--tx_rate_list', dest="tx_rate_list", default="-1", help='TX rate (Mpps) list when pktgen is trex, e.g., 1,3. The default list is [1].', required=False)
     args = parser.parse_args()
     if args.output_folder_pktgen is None:
         args.output_folder_pktgen = args.output_folder
@@ -563,6 +572,7 @@ if __name__ == "__main__":
     DISABLE_pktgen_measure = args.disable_pktgen_measure
     DISABLE_mlffr = args.disable_mlffr
     NUM_SRCIP_DDOS = args.n_srcip_ddos
+    tx_rate_list = args.tx_rate_list.split(',') # it won't be used by mlffr
     if DISABLE_prog_latency and DISABLE_prog_latency_ns and DISABLE_insn_latency and DISABLE_pcm and DISABLE_pktgen_measure and DISABLE_mlffr:
         sys.exit(0)
     # read client and server_iface from config.xl170
@@ -618,7 +628,7 @@ if __name__ == "__main__":
             print_log(string)
             for pcap_benchmark in pcap_benchmark_list:
                 test_benchmark(run_id, benchmark, version_name_list,
-                    args.num_cores_min, args.num_cores_max, args.duration,
+                    args.num_cores_min, args.num_cores_max, args.duration, tx_rate_list,
                     output_folder, output_folder_pktgen, pcap_path, pcap_benchmark)
         time_cost = time.time() - t_start
         print_log(f"Run {run_id} ends. time_cost: {time_cost}")
