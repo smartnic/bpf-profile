@@ -74,7 +74,7 @@ def get_prog_load_command(prog_name, num_cores):
     if benchmark == BENCHMARK_ddos_mitigator:
         cmd += f" -A stats_srcip.txt -P {NUM_SRCIP_DDOS}"
     if benchmark == BENCHMARK_conntrack:
-        if version == "v1":
+        if version == "v1" or version == "v4":
             cmd = f"./conntrack -p -1 {SERVER_IFACE} -r -l 0 -q"
         elif version == "v2":
             cmd = f"./conntrack_cuckoo -p -1 {SERVER_IFACE} -r -l 0 -f -q"
@@ -133,6 +133,7 @@ def clean_environment(client, prog_name, num_cores):
     kill_process_on_client("measure.py", client)
     loader_cmd = get_prog_load_command(prog_name, num_cores)
     run_cmd(f"pkill -f \"{loader_cmd}\"", wait=True)
+    run_cmd(f"pkill -f click", wait=True)
 
 def run_packet_generator(pcap_file, client):
     # send packets
@@ -153,8 +154,30 @@ def pktgen_measure(client, output_path, dur):
     client_cmd = f"python3 {PKTGEN_PATH}measure.py -o {output_path} -t {dur} >log_pktgen_measure.txt 2>&1 &"
     run_cmd_on_client(client_cmd, client)
 
+
+def check_is_rsspp(benchmark, version):
+    rsspp_version_dic = {
+        BENCHMARK_hhd: [],
+        BENCHMARK_ddos_mitigator: [],
+        BENCHMARK_token_bucket: ["v8"],
+        BENCHMARK_portknock: [],
+        BENCHMARK_conntrack: ["v4"],
+        BENCHMARK_dummy: [],    
+    }
+    print_log(f"benchmark: {benchmark}")
+    if benchmark not in rsspp_version_dic:
+        print_log(f"Benchmark {benchmark} not supported. Exit")
+        sys.exit(0)
+    rsspp_versions = rsspp_version_dic[benchmark]
+    is_rsspp = False
+    if version in rsspp_versions:
+        is_rsspp = True
+    return is_rsspp
+
+
 def set_up_configs(benchmark, version, n_cores):
     is_flow_affinity = False
+    is_rsspp = False
     flow_affinity_version_dic = {
         BENCHMARK_hhd: ["v2", "v4"],
         BENCHMARK_ddos_mitigator: ["v2", "v5"],
@@ -180,28 +203,29 @@ def set_up_configs(benchmark, version, n_cores):
         sys.exit(0)
     flow_affinity_versions = flow_affinity_version_dic[benchmark]
     hash_packet_fields = hash_packet_fields_dic[benchmark]
+    is_rsspp = check_is_rsspp(benchmark, version)
     if version in flow_affinity_versions:
         is_flow_affinity = True
     print_log(f"is_flow_affinity: {is_flow_affinity}")
+    print_log(f"is_rsspp: {is_rsspp}")
     print_log(f"hash_packet_fields: {hash_packet_fields}")
 
-    if is_flow_affinity:
-        # 1. delete RSS rules (delete all possible rules)
-        run_cmd(f"bash rss_delete.sh {SERVER_IFACE} 0 1023")
+    # 1. delete RSS rules (delete all possible rules)
+    run_cmd(f"bash rss_delete.sh {SERVER_IFACE} 0 1023")
+    run_cmd(f"sudo ethtool -X {SERVER_IFACE} default")
+    if is_flow_affinity or is_rsspp:
         # 2. set up # of rx queues
         run_cmd(f"ethtool -L {SERVER_IFACE} combined {n_cores}")
         # 3. set up packet fields for hash function
         run_cmd(f"ethtool -N {SERVER_IFACE} rx-flow-hash tcp4 {hash_packet_fields}")
     else:
-        # 1. delete RSS rules (delete all possible rules)
-        run_cmd(f"bash rss_delete.sh {SERVER_IFACE} 0 1023")
         # 2. set up # of rx queues (actually we can enable all queues)
         run_cmd(f"ethtool -L {SERVER_IFACE} combined {MAX_RX_QUEUES}")
         # 3. add RSS rules
         run_cmd(f"bash rss.sh {SERVER_IFACE}")
     # 4. configure RSS hash key
     rss_hash_key = RSS_HASHKEY_default
-    if benchmark == BENCHMARK_conntrack and is_flow_affinity:
+    if benchmark == BENCHMARK_conntrack and (is_flow_affinity or is_rsspp):
         rss_hash_key = RSS_HASHKEY_symmetric
     run_cmd(f"ethtool -X {SERVER_IFACE} hkey {rss_hash_key}")
 
@@ -218,6 +242,7 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
     VERSION_shared_state = "shared_state"
     VERSION_flow_affinity = "flow_affinity"
     VERSION_shared_nothing = "shared_nothing"
+    VERSION_rsspp = "rsspp"
     version_type_dic = {
         BENCHMARK_hhd: {
             "v1": VERSION_shared_state,
@@ -249,6 +274,7 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             "v1": VERSION_shared_state,
             "v2": VERSION_flow_affinity,
             "v3": VERSION_shared_nothing,
+            "v4": VERSION_rsspp,
         },
         BENCHMARK_dummy: {
             "v1": VERSION_shared_state,
@@ -266,6 +292,8 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
         if version_type == VERSION_shared_state:
             pcap_name = f"{version_type}_{n_cores}.pcap"
         elif version_type == VERSION_flow_affinity:
+            pcap_name = f"xdp_{benchmark}_flow_affinity.pcap"
+        elif version_type == VERSION_rsspp:
             pcap_name = f"xdp_{benchmark}_flow_affinity.pcap"
         elif version_type == VERSION_shared_nothing:
             pcap_name = f"xdp_{benchmark}_shared_nothing_{n_cores}.pcap"
@@ -290,6 +318,10 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
     return pcap_file
 
 
+def run_rsspp(num_cores):
+    run_cmd_on_core(f"./click kernel.click.{num_cores} -j 7", 7)
+
+
 def run_test(prog_name, core_list, client, seconds, output_folder,
     output_folder_pktgen, pcap_path, pcap_benchmark):
     benchmark, version = get_benchmark_version(prog_name)
@@ -305,7 +337,7 @@ def run_test(prog_name, core_list, client, seconds, output_folder,
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = get_prog_load_command(prog_name, len(core_list))
-    run_cmd_on_core(cmd, 0)
+    run_cmd_on_core(cmd, 7)
 
     # 3. run packet generator
     run_packet_generator(pcap_file, client)
@@ -385,7 +417,11 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_pat
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = get_prog_load_command(prog_name, len(core_list))
-    run_cmd_on_core(cmd, 0)
+    run_cmd_on_core(cmd, 7)
+
+    is_rsspp = check_is_rsspp(benchmark, version)
+    if is_rsspp:
+        run_rsspp(len(core_list))
 
     # 3. send mlffr measurement command to the packet generator
     measure_time = seconds
@@ -564,8 +600,8 @@ if __name__ == "__main__":
                 version_name_list = ["v1", "v3"]
             elif BENCHMARK_conntrack in benchmark:
                 LOADER_NAME = None
-                # add v1 later
-                version_name_list = ["v2", "v3"]
+                # v4: RSS++
+                version_name_list = ["v1", "v2", "v4", "v3"]
             elif BENCHMARK_dummy in benchmark:
                 LOADER_NAME = "xdp_dummy"
                 version_name_list = ["v1"]
