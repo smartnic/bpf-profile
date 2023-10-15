@@ -61,7 +61,7 @@ def get_benchmark_version(prog_name):
         benchmark = BENCHMARK_dummy
     else:
         benchmark = BENCHMARK_xdpex1
-    versions = ["v10", "v11", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
+    versions = ["v10", "v11", "v12", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"]
     for v in versions:
         if v in prog_name:
             version = v
@@ -157,12 +157,12 @@ def pktgen_measure(client, output_path, dur):
 
 def check_is_rsspp(benchmark, version):
     rsspp_version_dic = {
-        BENCHMARK_hhd: [],
-        BENCHMARK_ddos_mitigator: [],
+        BENCHMARK_hhd: ["v12"],
+        BENCHMARK_ddos_mitigator: ["v7"],
         BENCHMARK_token_bucket: ["v8"],
-        BENCHMARK_portknock: [],
+        BENCHMARK_portknock: ["v5"],
         BENCHMARK_conntrack: ["v4"],
-        BENCHMARK_dummy: [],    
+        BENCHMARK_dummy: [],
     }
     print_log(f"benchmark: {benchmark}")
     if benchmark not in rsspp_version_dic:
@@ -250,6 +250,7 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             "v4": VERSION_flow_affinity,
             "v10": VERSION_shared_nothing,
             "v11": VERSION_shared_nothing,
+            "v12": VERSION_rsspp,
         },
         BENCHMARK_ddos_mitigator: {
             "v1": VERSION_shared_state,
@@ -257,6 +258,7 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             "v4": VERSION_shared_nothing,
             "v5": VERSION_flow_affinity,
             "v6": VERSION_shared_nothing,
+            "v7": VERSION_rsspp,
         },
         BENCHMARK_token_bucket: {
             "v1": VERSION_shared_state,
@@ -264,11 +266,13 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
             "v5": VERSION_flow_affinity,
             "v6": VERSION_flow_affinity,
             "v7": VERSION_shared_nothing,
+            "v8": VERSION_rsspp,
         },
         BENCHMARK_portknock: {
             "v1": VERSION_shared_state,
             "v2": VERSION_shared_nothing,
             "v4": VERSION_flow_affinity,
+            "v5": VERSION_rsspp,
         },
         BENCHMARK_conntrack: {
             "v1": VERSION_shared_state,
@@ -319,7 +323,7 @@ def get_pcap_file(pcap_path, benchmark, version, n_cores, pcap_benchmark):
 
 
 def run_rsspp(num_cores):
-    run_cmd_on_core(f"./click kernel.click.{num_cores} -j 7", 7)
+    run_cmd_on_core(f"./click kernel.click.{num_cores} -j {num_cores}", 0)
 
 
 def run_test(prog_name, core_list, tx_rate, client, seconds, output_folder,
@@ -337,7 +341,7 @@ def run_test(prog_name, core_list, tx_rate, client, seconds, output_folder,
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = get_prog_load_command(prog_name, len(core_list))
-    run_cmd_on_core(cmd, 7)
+    run_cmd_on_core(cmd, 0)
 
     # 3. run packet generator
     run_packet_generator(pcap_file, tx_rate, client)
@@ -417,7 +421,7 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_pat
     # 2. attach xdp program
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = get_prog_load_command(prog_name, len(core_list))
-    run_cmd_on_core(cmd, 7)
+    run_cmd_on_core(cmd, 0)
 
     is_rsspp = check_is_rsspp(benchmark, version)
     if is_rsspp:
@@ -595,16 +599,16 @@ if __name__ == "__main__":
             output_folder_pktgen = f"{args.output_folder_pktgen}/{benchmark}"
             if BENCHMARK_portknock in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v2", "v4"]
+                version_name_list = ["v1", "v2", "v4", "v5"]
             elif BENCHMARK_hhd in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v4", "v11"]
+                version_name_list = ["v1", "v4", "v11", "v12"]
             elif BENCHMARK_token_bucket in benchmark:
                 LOADER_NAME = "xdpex1"
-                version_name_list = ["v1", "v7", "v6"]
+                version_name_list = ["v1", "v7", "v6", "v8"]
             elif BENCHMARK_ddos_mitigator in benchmark:
                 LOADER_NAME = "xdp_ddos_mitigator"
-                version_name_list = ["v1", "v5", "v6"]
+                version_name_list = ["v1", "v5", "v6", "v7"]
             elif BENCHMARK_nat_dp in benchmark:
                 LOADER_NAME = "xdp_nat_dp"
                 version_name_list = ["v1", "v3"]
