@@ -2,6 +2,10 @@
 #define _XDP_UTILS_H
 #endif
 
+#ifndef BPF_LOOP_MAX
+#define BPF_LOOP_MAX (1 << 23)
+#endif
+
 static inline void swap_src_dst_mac(void *data) {
   unsigned short *p = data;
   unsigned short dst[3];
