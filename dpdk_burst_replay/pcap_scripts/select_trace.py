@@ -85,36 +85,24 @@ def select_trace_idx_range(
     if len(packet_labels) <= 0 or max_flow_count <= 0:
         raise AssertionError("Invalid input")
 
-    flow_end_index_map = {}
-    for index, flow_id in enumerate(packet_labels):
-        flow_end_index_map[flow_id] = index
-
     range_start, range_end = 0, 0
     start_idx = 0
     flow_id_map_pkt_count_within_range = collections.defaultdict(int)
-    # key: flow_id; value: start_idx ---> end_idx, # packets with this flow_id
-    # [1, 2, 3, 2, 1], start_idx = 1, end_idx = 3
-    # {'2': 2, '3': 1 }
 
     for end_index, flow_id in enumerate(packet_labels):
-        # find the smallest start_idx that complies your condition if we force the end of the selected is end_idx
-        if flow_end_index_map[flow_id] != end_index:
-            flow_id_map_pkt_count_within_range[flow_id] += 1
-        else:
-            flow_id_map_pkt_count_within_range.pop(flow_id, None)
+        flow_id_map_pkt_count_within_range[flow_id] += 1
 
         if len(flow_id_map_pkt_count_within_range) > max_flow_count:
+            # st
             while (
                 start_idx < end_index
                 and len(flow_id_map_pkt_count_within_range) > max_flow_count
             ):
-                start_flow_id = packet_labels[start_idx]
-                if start_flow_id in flow_id_map_pkt_count_within_range:
-                    flow_id_map_pkt_count_within_range[start_flow_id] -= 1
-                    if flow_id_map_pkt_count_within_range[start_flow_id] == 0:
-                        flow_id_map_pkt_count_within_range.pop(
-                            start_flow_id, None
-                        )
+                flow_id_map_pkt_count_within_range[packet_labels[start_idx]] -= 1
+                if flow_id_map_pkt_count_within_range[packet_labels[start_idx]] == 0:
+                    flow_id_map_pkt_count_within_range.pop(
+                        packet_labels[start_idx], None
+                    )
                 start_idx += 1
 
         if end_index - start_idx > range_end - range_start:
@@ -165,13 +153,13 @@ def get_packet_labels_from_pcap_file(pcap_file, output_path, max_flow_count):
 
 
 if __name__ == "__main__":
-    # packet_labels = [1, 2, 2, 1, 1, 3, 3, 1, 1, 4, 4, 2, 1, 1]
-    # max_flow_count = 3
-    # range_start, range_end = select_trace_idx_range(packet_labels, max_flow_count)
-    # print(range_start, range_end)
-    # print(packet_labels[range_start: range_end+1])
-    pcap_file = "/common/home/qx51/caida_pkt_trace/caida/pcap/pt4/192/pkts.pcap"
-    output_path = "tmp4/"
-    max_flow_count = 200
-    get_packet_labels_from_pcap_file(pcap_file, output_path, max_flow_count)
+    packet_labels = [1, 2, 2, 1, 1, 3, 3, 1, 1, 4, 4, 2, 1, 1]
+    max_flow_count = 3
+    range_start, range_end = select_trace_idx_range(packet_labels, max_flow_count)
+    print(range_start, range_end)
+    print(packet_labels[range_start: range_end+1])
+    # pcap_file = "/common/home/qx51/caida_pkt_trace/caida/pcap/pt4/192/pkts.pcap"
+    # output_path = "tmp4/"
+    # max_flow_count = 200
+    # get_packet_labels_from_pcap_file(pcap_file, output_path, max_flow_count)
 
