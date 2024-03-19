@@ -1,0 +1,80 @@
+          <idle>-0       [008] ..s2. 4779131.291024: bpf_trace_printk: 
+
+          <idle>-0       [008] ..s2. 4779131.291030: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] ..s2. 4779131.291031: bpf_trace_printk: cur_pkt_id: 1
+          <idle>-0       [008] ..s2. 4779131.291032: bpf_trace_printk: [add_metadata_to_log] add pkt 1 to ring[0]
+          <idle>-0       [008] ..s2. 4779131.291034: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [008] ..s2. 4779131.291034: bpf_trace_printk: [add_metadata_to_log] next_loc: 1, pkt_min: 1 pkt_max: 1
+          <idle>-0       [008] ..s2. 4779131.291036: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+           <...>-2065224 [009] ..s1. 4779131.292250: bpf_trace_printk: 
+
+           <...>-2065224 [009] ..s1. 4779131.292254: bpf_trace_printk: Receive a packet on cpu 9
+           <...>-2065224 [009] ..s1. 4779131.292254: bpf_trace_printk: cur_pkt_id: 2
+           <...>-2065224 [009] ..s1. 4779131.292255: bpf_trace_printk: [add_metadata_to_log] add pkt 1 to ring[0]
+           <...>-2065224 [009] ..s1. 4779131.292256: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 1, tcp_fin_flag: 0
+           <...>-2065224 [009] ..s1. 4779131.292258: bpf_trace_printk: [add_metadata_to_log] next_loc: 1, pkt_min: 1 pkt_max: 1
+           <...>-2065224 [009] ..s1. 4779131.292259: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+           <...>-2065224 [009] ..s1. 4779131.292260: bpf_trace_printk: [add_metadata_to_log] add pkt 2 to ring[1]
+           <...>-2065224 [009] ..s1. 4779131.292260: bpf_trace_printk: src ip c0a80164, dst port: 101, tcp_syn_flag: 0, tcp_fin_flag: 0
+           <...>-2065224 [009] ..s1. 4779131.292261: bpf_trace_printk: [add_metadata_to_log] next_loc: 2, pkt_min: 1 pkt_max: 2
+           <...>-2065224 [009] ..s1. 4779131.292261: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.293091: bpf_trace_printk: 
+
+          <idle>-0       [008] ..s2. 4779131.293093: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] ..s2. 4779131.293094: bpf_trace_printk: cur_pkt_id: 3
+          <idle>-0       [008] ..s2. 4779131.293094: bpf_trace_printk: [add_metadata_to_log] add pkt 2 to ring[1]
+          <idle>-0       [008] ..s2. 4779131.293095: bpf_trace_printk: src ip c0a80164, dst port: 101, tcp_syn_flag: 0, tcp_fin_flag: 0
+          <idle>-0       [008] ..s2. 4779131.293097: bpf_trace_printk: [add_metadata_to_log] next_loc: 2, pkt_min: 1 pkt_max: 2
+          <idle>-0       [008] ..s2. 4779131.293098: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.293099: bpf_trace_printk: [add_metadata_to_log] add pkt 3 to ring[2]
+          <idle>-0       [008] ..s2. 4779131.293100: bpf_trace_printk: src ip c0a80164, dst port: 102, tcp_syn_flag: 0, tcp_fin_flag: 0
+          <idle>-0       [008] ..s2. 4779131.293100: bpf_trace_printk: [add_metadata_to_log] next_loc: 3, pkt_min: 1 pkt_max: 3
+          <idle>-0       [008] ..s2. 4779131.293101: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+           <...>-2065224 [009] ..s1. 4779131.294020: bpf_trace_printk: 
+
+           <...>-2065224 [009] ..s1. 4779131.294022: bpf_trace_printk: Receive a packet on cpu 9
+           <...>-2065224 [009] ..s1. 4779131.294022: bpf_trace_printk: cur_pkt_id: 4
+           <...>-2065224 [009] ..s1. 4779131.294023: bpf_trace_printk: [add_metadata_to_log] add pkt 3 to ring[2]
+           <...>-2065224 [009] ..s1. 4779131.294023: bpf_trace_printk: src ip c0a80164, dst port: 102, tcp_syn_flag: 0, tcp_fin_flag: 0
+           <...>-2065224 [009] ..s1. 4779131.294024: bpf_trace_printk: [add_metadata_to_log] next_loc: 3, pkt_min: 1 pkt_max: 3
+           <...>-2065224 [009] ..s1. 4779131.294025: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+           <...>-2065224 [009] ..s1. 4779131.294026: bpf_trace_printk: [add_metadata_to_log] add pkt 4 to ring[3]
+           <...>-2065224 [009] ..s1. 4779131.294027: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 0, tcp_fin_flag: 0
+           <...>-2065224 [009] ..s1. 4779131.294027: bpf_trace_printk: [add_metadata_to_log] next_loc: 4, pkt_min: 1 pkt_max: 4
+           <...>-2065224 [009] ..s1. 4779131.294028: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.294809: bpf_trace_printk: 
+
+          <idle>-0       [008] ..s2. 4779131.294811: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] ..s2. 4779131.294811: bpf_trace_printk: cur_pkt_id: 5
+          <idle>-0       [008] ..s2. 4779131.294811: bpf_trace_printk: [add_metadata_to_log] add pkt 4 to ring[3]
+          <idle>-0       [008] ..s2. 4779131.294812: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 0, tcp_fin_flag: 0
+          <idle>-0       [008] ..s2. 4779131.294813: bpf_trace_printk: [add_metadata_to_log] next_loc: 4, pkt_min: 1 pkt_max: 4
+          <idle>-0       [008] ..s2. 4779131.294814: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.294815: bpf_trace_printk: [add_metadata_to_log] add pkt 5 to ring[4]
+          <idle>-0       [008] ..s2. 4779131.294816: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 0, tcp_fin_flag: 0
+          <idle>-0       [008] ..s2. 4779131.294816: bpf_trace_printk: [add_metadata_to_log] next_loc: 5, pkt_min: 1 pkt_max: 5
+          <idle>-0       [008] ..s2. 4779131.294817: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+        cpptools-2065224 [009] ..s1. 4779131.295582: bpf_trace_printk: 
+
+        cpptools-2065224 [009] ..s1. 4779131.295584: bpf_trace_printk: Receive a packet on cpu 9
+        cpptools-2065224 [009] ..s1. 4779131.295585: bpf_trace_printk: cur_pkt_id: 6
+        cpptools-2065224 [009] ..s1. 4779131.295585: bpf_trace_printk: [add_metadata_to_log] add pkt 5 to ring[4]
+        cpptools-2065224 [009] ..s1. 4779131.295586: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 0, tcp_fin_flag: 0
+        cpptools-2065224 [009] ..s1. 4779131.295587: bpf_trace_printk: [add_metadata_to_log] next_loc: 5, pkt_min: 1 pkt_max: 5
+        cpptools-2065224 [009] ..s1. 4779131.295587: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+        cpptools-2065224 [009] ..s1. 4779131.295587: bpf_trace_printk: [add_metadata_to_log] add pkt 6 to ring[5]
+        cpptools-2065224 [009] ..s1. 4779131.295591: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 0, tcp_fin_flag: 0
+        cpptools-2065224 [009] ..s1. 4779131.295591: bpf_trace_printk: [add_metadata_to_log] next_loc: 6, pkt_min: 1 pkt_max: 6
+        cpptools-2065224 [009] ..s1. 4779131.295592: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.296360: bpf_trace_printk: 
+
+          <idle>-0       [008] ..s2. 4779131.296362: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] ..s2. 4779131.296362: bpf_trace_printk: cur_pkt_id: 7
+          <idle>-0       [008] ..s2. 4779131.296363: bpf_trace_printk: [add_metadata_to_log] add pkt 6 to ring[5]
+          <idle>-0       [008] ..s2. 4779131.296363: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 0, tcp_fin_flag: 0
+          <idle>-0       [008] ..s2. 4779131.296364: bpf_trace_printk: [add_metadata_to_log] next_loc: 6, pkt_min: 1 pkt_max: 6
+          <idle>-0       [008] ..s2. 4779131.296364: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.296365: bpf_trace_printk: [add_metadata_to_log] add pkt 7 to ring[6]
+          <idle>-0       [008] ..s2. 4779131.296366: bpf_trace_printk: src ip c0a80164, dst port: 100, tcp_syn_flag: 0, tcp_fin_flag: 1
+          <idle>-0       [008] ..s2. 4779131.296367: bpf_trace_printk: [add_metadata_to_log] next_loc: 7, pkt_min: 1 pkt_max: 7
+          <idle>-0       [008] ..s2. 4779131.296368: bpf_trace_printk: [update_state_by_metadata] remove state 1 for src ip 6401a8c0
