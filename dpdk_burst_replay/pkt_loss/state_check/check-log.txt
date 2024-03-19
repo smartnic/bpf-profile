@@ -1,3 +1,4 @@
+commit: 10fe4bc5376969b0fff16d2391409cf8ba898f68
 log-0.log
 qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[008\].* state " log-0.log
           <idle>-0       [008] ..s2. 4779131.291036: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
