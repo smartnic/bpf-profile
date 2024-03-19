@@ -170,6 +170,7 @@ always-y += xdp_portknock_v1_kern.o
 always-y += xdp_portknock_v2_kern.o
 # always-y += xdp_portknock_v3_kern.o
 always-y += xdp_portknock_v4_kern.o
+always-y += xdp_portknock_v6_kern.o
 always-y += xdp_ddos_mitigator_v1_kern.o
 always-y += xdp_ddos_mitigator_v2_kern.o
 # always-y += xdp_ddos_mitigator_v3_kern.o

@@ -1,12 +1,9 @@
 #!/bin/bash
 NUM_CORES=14
-BPF_PROGS="xdp_token_bucket_v1 xdp_token_bucket_v4 xdp_token_bucket_v5 xdp_token_bucket_v6 xdp_token_bucket_v7 \
-	xdp_ddos_mitigator_v1 xdp_ddos_mitigator_v2 xdp_ddos_mitigator_v4 xdp_ddos_mitigator_v5 xdp_ddos_mitigator_v6 \
-	xdp_hhd_v1 xdp_hhd_v2 xdp_hhd_v4 xdp_hhd_v10 xdp_hhd_v11 \
-	xdp_portknock_v1 xdp_portknock_v2 xdp_portknock_v4 \
-	xdp_nat_dp_v1 xdp_nat_dp_v3 \
-	xdp_dummy_v1 \
-	xdp_cuckoo_hash_v1"
+BPF_PROGS="xdp_token_bucket_v1 xdp_token_bucket_v6 xdp_token_bucket_v7 xdp_token_bucket_v8 \
+	xdp_ddos_mitigator_v1 xdp_ddos_mitigator_v5 xdp_ddos_mitigator_v6 xdp_ddos_mitigator_v7 \
+	xdp_hhd_v1 xdp_hhd_v4 xdp_hhd_v11 xdp_hhd_v12 \
+	xdp_portknock_v1 xdp_portknock_v2 xdp_portknock_v4 xdp_portknock_v6"
 rm -f *.o
 for prog in $BPF_PROGS
 do

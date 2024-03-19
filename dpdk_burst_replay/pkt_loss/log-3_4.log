@@ -1,0 +1,113 @@
+          <idle>-0       [008] ..s2. 4749980.930741: bpf_trace_printk: 
+
+          <idle>-0       [008] .Ns2. 4749980.930757: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] .Ns2. 4749980.930760: bpf_trace_printk: cur_pkt_id: 1
+          <idle>-0       [008] .Ns2. 4749980.930763: bpf_trace_printk: [add_metadata_to_log] add pkt 1 to ring[0]
+          <idle>-0       [008] .Ns2. 4749980.930767: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [008] .Ns2. 4749980.930770: bpf_trace_printk: [add_metadata_to_log] next_loc: 1, pkt_min: 1 pkt_max: 1
+          <idle>-0       [009] ..s2. 4749980.931879: bpf_trace_printk: 
+
+          <idle>-0       [009] ..s2. 4749980.931883: bpf_trace_printk: Receive a packet on cpu 9
+          <idle>-0       [009] ..s2. 4749980.931883: bpf_trace_printk: cur_pkt_id: 2
+          <idle>-0       [009] ..s2. 4749980.931884: bpf_trace_printk: [add_metadata_to_log] add pkt 1 to ring[0]
+          <idle>-0       [009] ..s2. 4749980.931886: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.931887: bpf_trace_printk: [add_metadata_to_log] next_loc: 1, pkt_min: 1 pkt_max: 1
+          <idle>-0       [009] ..s2. 4749980.931888: bpf_trace_printk: [add_metadata_to_log] add pkt 2 to ring[1]
+          <idle>-0       [009] ..s2. 4749980.931888: bpf_trace_printk: src ip ac105ac5, dst port: 13502, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.931889: bpf_trace_printk: [add_metadata_to_log] next_loc: 2, pkt_min: 1 pkt_max: 2
+          <idle>-0       [008] ..s2. 4749980.934563: bpf_trace_printk: 
+
+          <idle>-0       [008] .Ns2. 4749980.934572: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] .Ns2. 4749980.934574: bpf_trace_printk: cur_pkt_id: 5
+          <idle>-0       [008] .Ns2. 4749980.934576: bpf_trace_printk: Detect packet loss, need to recover pkts [2, 3]
+          <idle>-0       [008] .Ns2. 4749980.934577: bpf_trace_printk: init LOST_FLAGS: 0x300
+          <idle>-0       [008] .Ns2. 4749980.934580: bpf_trace_printk: [handle_one_packet_loss] next pkt to recover: 2, lost_pkt_max: 3
+          <idle>-0       [008] .Ns2. 4749980.934581: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [008] .Ns2. 4749980.934583: bpf_trace_printk: [add_metadata_to_log] add lost pkt 2 to ring[1]
+          <idle>-0       [008] .Ns2. 4749980.934585: bpf_trace_printk: [add_metadata_to_log] next_loc: 2, pkt_min: 1 pkt_max: 2
+          <idle>-0       [008] .Ns2. 4749980.934587: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 2 from core 9
+          <idle>-0       [008] .Ns2. 4749980.934591: bpf_trace_printk: src ip ac105ac5, dst port: 13502, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [008] .Ns2. 4749980.934593: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+          <idle>-0       [008] .Ns2. 4749980.934595: bpf_trace_printk: [handle_one_packet_loss] next pkt to recover: 3, lost_pkt_max: 3
+          <idle>-0       [008] .Ns2. 4749980.934596: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [008] .Ns2. 4749980.934598: bpf_trace_printk: [add_metadata_to_log] add lost pkt 3 to ring[2]
+          <idle>-0       [008] .Ns2. 4749980.934600: bpf_trace_printk: [add_metadata_to_log] next_loc: 3, pkt_min: 1 pkt_max: 3
+          <idle>-0       [009] ..s2. 4749980.935424: bpf_trace_printk: 
+
+          <idle>-0       [009] ..s2. 4749980.935425: bpf_trace_printk: Receive a packet on cpu 9
+          <idle>-0       [009] ..s2. 4749980.935426: bpf_trace_printk: cur_pkt_id: 6
+          <idle>-0       [009] ..s2. 4749980.935427: bpf_trace_printk: Detect packet loss, need to recover pkts [3, 4]
+          <idle>-0       [009] ..s2. 4749980.935427: bpf_trace_printk: init LOST_FLAGS: 0x300
+          <idle>-0       [009] ..s2. 4749980.935428: bpf_trace_printk: [handle_one_packet_loss] next pkt to recover: 3, lost_pkt_max: 4
+          <idle>-0       [009] ..s2. 4749980.935429: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [009] ..s2. 4749980.935430: bpf_trace_printk: [add_metadata_to_log] add lost pkt 3 to ring[2]
+          <idle>-0       [008] .Ns2. 4749980.935430: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 9
+          <idle>-0       [009] ..s2. 4749980.935430: bpf_trace_printk: [add_metadata_to_log] next_loc: 3, pkt_min: 1 pkt_max: 3
+          <idle>-0       [008] .Ns2. 4749980.935431: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+          <idle>-0       [008] .Ns2. 4749980.935431: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+          <idle>-0       [009] ..s2. 4749980.935431: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 8
+          <idle>-0       [008] .Ns2. 4749980.935431: bpf_trace_printk: [handle_one_packet_loss] next pkt to recover: 4, lost_pkt_max: 3
+          <idle>-0       [008] .Ns2. 4749980.935432: bpf_trace_printk: [handle_packet_loss] SUCCEED
+          <idle>-0       [009] ..s2. 4749980.935432: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+          <idle>-0       [008] .Ns2. 4749980.935432: bpf_trace_printk: [add_metadata_to_log] add pkt 4 to ring[3]
+          <idle>-0       [008] .Ns2. 4749980.935433: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.935433: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+          <idle>-0       [008] .Ns2. 4749980.935433: bpf_trace_printk: [add_metadata_to_log] next_loc: 4, pkt_min: 1 pkt_max: 4
+          <idle>-0       [008] .Ns2. 4749980.935433: bpf_trace_printk: [add_metadata_to_log] add pkt 5 to ring[4]
+          <idle>-0       [008] .Ns2. 4749980.935434: bpf_trace_printk: src ip ac105ac5, dst port: 13502, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.935434: bpf_trace_printk: [handle_one_packet_loss] next pkt to recover: 4, lost_pkt_max: 4
+          <idle>-0       [008] .Ns2. 4749980.935434: bpf_trace_printk: [add_metadata_to_log] next_loc: 5, pkt_min: 1 pkt_max: 5
+          <idle>-0       [009] ..s2. 4749980.935435: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 4
+          <idle>-0       [009] ..s2. 4749980.935436: bpf_trace_printk: [add_metadata_to_log] add lost pkt 4 to ring[3]
+          <idle>-0       [009] ..s2. 4749980.935436: bpf_trace_printk: [add_metadata_to_log] next_loc: 4, pkt_min: 1 pkt_max: 4
+          <idle>-0       [009] ..s2. 4749980.935437: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 4 from core 8
+          <idle>-0       [009] ..s2. 4749980.935440: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.935441: bpf_trace_printk: [handle_one_packet_loss] recover pkt 4 SUCCEED
+          <idle>-0       [009] ..s2. 4749980.935442: bpf_trace_printk: [handle_one_packet_loss] next pkt to recover: 5, lost_pkt_max: 4
+          <idle>-0       [009] ..s2. 4749980.935442: bpf_trace_printk: [handle_packet_loss] SUCCEED
+          <idle>-0       [009] ..s2. 4749980.935443: bpf_trace_printk: [add_metadata_to_log] add pkt 5 to ring[4]
+          <idle>-0       [009] ..s2. 4749980.935444: bpf_trace_printk: src ip ac105ac5, dst port: 13502, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.935445: bpf_trace_printk: [add_metadata_to_log] next_loc: 5, pkt_min: 1 pkt_max: 5
+          <idle>-0       [009] ..s2. 4749980.935446: bpf_trace_printk: [add_metadata_to_log] add pkt 6 to ring[5]
+          <idle>-0       [009] ..s2. 4749980.935447: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.935448: bpf_trace_printk: [add_metadata_to_log] next_loc: 6, pkt_min: 1 pkt_max: 6
+          <idle>-0       [008] ..s2. 4749980.936285: bpf_trace_printk: 
+
+          <idle>-0       [008] .Ns2. 4749980.936287: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] .Ns2. 4749980.936287: bpf_trace_printk: cur_pkt_id: 7
+          <idle>-0       [008] .Ns2. 4749980.936287: bpf_trace_printk: [add_metadata_to_log] add pkt 6 to ring[5]
+          <idle>-0       [008] .Ns2. 4749980.936288: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [008] .Ns2. 4749980.936288: bpf_trace_printk: [add_metadata_to_log] next_loc: 6, pkt_min: 1 pkt_max: 6
+          <idle>-0       [008] .Ns2. 4749980.936289: bpf_trace_printk: [add_metadata_to_log] add pkt 7 to ring[6]
+          <idle>-0       [008] .Ns2. 4749980.936289: bpf_trace_printk: src ip ac105ac5, dst port: 14014, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [008] .Ns2. 4749980.936289: bpf_trace_printk: [add_metadata_to_log] next_loc: 7, pkt_min: 1 pkt_max: 7
+          <idle>-0       [009] ..s2. 4749980.937159: bpf_trace_printk: 
+
+          <idle>-0       [009] ..s2. 4749980.937162: bpf_trace_printk: Receive a packet on cpu 9
+          <idle>-0       [009] ..s2. 4749980.937162: bpf_trace_printk: cur_pkt_id: 8
+          <idle>-0       [009] ..s2. 4749980.937163: bpf_trace_printk: [add_metadata_to_log] add pkt 7 to ring[6]
+          <idle>-0       [009] ..s2. 4749980.937165: bpf_trace_printk: src ip ac105ac5, dst port: 14014, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.937166: bpf_trace_printk: [add_metadata_to_log] next_loc: 7, pkt_min: 1 pkt_max: 7
+          <idle>-0       [009] ..s2. 4749980.937167: bpf_trace_printk: [add_metadata_to_log] add pkt 8 to ring[7]
+          <idle>-0       [009] ..s2. 4749980.937168: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.937169: bpf_trace_printk: [add_metadata_to_log] next_loc: 0, pkt_min: 1 pkt_max: 8
+          <idle>-0       [008] ..s2. 4749980.938073: bpf_trace_printk: 
+
+          <idle>-0       [008] .Ns2. 4749980.938074: bpf_trace_printk: Receive a packet on cpu 8
+          <idle>-0       [008] .Ns2. 4749980.938074: bpf_trace_printk: cur_pkt_id: 9
+          <idle>-0       [008] .Ns2. 4749980.938075: bpf_trace_printk: [add_metadata_to_log] add pkt 8 to ring[7]
+          <idle>-0       [008] .Ns2. 4749980.938075: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [008] .Ns2. 4749980.938075: bpf_trace_printk: [add_metadata_to_log] next_loc: 0, pkt_min: 1 pkt_max: 8
+          <idle>-0       [008] .Ns2. 4749980.938076: bpf_trace_printk: [add_metadata_to_log] add pkt 9 to ring[0]
+          <idle>-0       [008] .Ns2. 4749980.938076: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [008] .Ns2. 4749980.938077: bpf_trace_printk: [add_metadata_to_log] next_loc: 1, pkt_min: 2 pkt_max: 9
+          <idle>-0       [009] ..s2. 4749980.938902: bpf_trace_printk: 
+
+          <idle>-0       [009] ..s2. 4749980.938904: bpf_trace_printk: Receive a packet on cpu 9
+          <idle>-0       [009] ..s2. 4749980.938905: bpf_trace_printk: cur_pkt_id: 10
+          <idle>-0       [009] ..s2. 4749980.938906: bpf_trace_printk: [add_metadata_to_log] add pkt 9 to ring[0]
+          <idle>-0       [009] ..s2. 4749980.938908: bpf_trace_printk: src ip ac105ac6, dst port: 47635, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.938909: bpf_trace_printk: [add_metadata_to_log] next_loc: 1, pkt_min: 2 pkt_max: 9
+          <idle>-0       [009] ..s2. 4749980.938910: bpf_trace_printk: [add_metadata_to_log] add pkt 10 to ring[1]
+          <idle>-0       [009] ..s2. 4749980.938911: bpf_trace_printk: src ip ac105ac5, dst port: 14014, tcp_syn_flag: 1, tcp_fin_flag: 0
+          <idle>-0       [009] ..s2. 4749980.938912: bpf_trace_printk: [add_metadata_to_log] next_loc: 2, pkt_min: 3 pkt_max: 10

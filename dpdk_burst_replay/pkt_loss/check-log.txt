@@ -1,0 +1,149 @@
+commit: 
+log-1.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[008\].*loss.*pkt [1-9]" log-1.log
+          <idle>-0       [008] ..s2. 4749761.234503: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 1
+          <idle>-0       [008] ..s2. 4749761.234505: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 1 from core 9
+          <idle>-0       [008] ..s2. 4749761.234507: bpf_trace_printk: [handle_one_packet_loss] recover pkt 1 SUCCEED
+
+log-2.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[009\].*loss.*pkt [1-9]" log-2.log
+          <idle>-0       [009] ..s2. 4749773.356387: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 1
+          <idle>-0       [009] ..s2. 4749773.356395: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 1 from core 8
+          <idle>-0       [009] ..s2. 4749773.356402: bpf_trace_printk: [handle_one_packet_loss] recover pkt 1 SUCCEED
+          <idle>-0       [009] ..s2. 4749773.356408: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [009] ..s2. 4749773.356416: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 2 from core 8
+          <idle>-0       [009] ..s2. 4749773.356421: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+
+log-1_2.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[008\].*loss.*pkt [1-9]" log-1_2.log
+          <idle>-0       [008] ..s2. 4749907.579635: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 1
+          <idle>-0       [008] ..s2. 4749907.580518: bpf_trace_printk: [handle_packet_loss] pkt 1 is lost at core 9
+          <idle>-0       [008] ..s2. 4749907.580521: bpf_trace_printk: [handle_packet_loss] pkt 1 lost at all cores. Don't need to recover state
+          <idle>-0       [008] ..s2. 4749907.580522: bpf_trace_printk: [handle_one_packet_loss] recover pkt 1 SUCCEED
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[009\].*loss.*pkt [1-9]" log-1_2.log
+          <idle>-0       [009] ..s2. 4749907.580516: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 1
+          <idle>-0       [009] ..s2. 4749907.580519: bpf_trace_printk: [handle_packet_loss] pkt 1 is lost at core 8
+          <idle>-0       [009] ..s2. 4749907.580520: bpf_trace_printk: [handle_packet_loss] pkt 1 lost at all cores. Don't need to recover state
+          <idle>-0       [009] ..s2. 4749907.580521: bpf_trace_printk: [handle_one_packet_loss] recover pkt 1 SUCCEED
+          <idle>-0       [009] ..s2. 4749907.580522: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [009] ..s2. 4749907.580525: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 2 from core 8
+          <idle>-0       [009] ..s2. 4749907.580527: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+
+log-3.log
+51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[008\].*loss.*pkt [1-9]" log-3.log
+          <idle>-0       [008] ..s2. 4749954.778881: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [008] ..s2. 4749954.778887: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 2 from core 9
+          <idle>-0       [008] ..s2. 4749954.778890: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+          <idle>-0       [008] ..s2. 4749954.778894: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [008] ..s2. 4749954.778898: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 3 from core 9
+          <idle>-0       [008] ..s2. 4749954.778900: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+
+log-4.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "loss.*pkt [1-9]" log-4.log
+          <idle>-0       [009] ..s2. 4749968.215568: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [009] ..s2. 4749968.215571: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 3 from core 8
+          <idle>-0       [009] ..s2. 4749968.215573: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+          <idle>-0       [009] ..s2. 4749968.215575: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 4
+          <idle>-0       [009] ..s2. 4749968.215578: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 4 from core 8
+          <idle>-0       [009] ..s2. 4749968.215579: bpf_trace_printk: [handle_one_packet_loss] recover pkt 4 SUCCEED
+
+log-3_4.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[008\].*loss.*pkt [1-9]" log-3_4.log
+          <idle>-0       [008] .Ns2. 4749980.934581: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [008] .Ns2. 4749980.934587: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 2 from core 9
+          <idle>-0       [008] .Ns2. 4749980.934593: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+          <idle>-0       [008] .Ns2. 4749980.934596: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [008] .Ns2. 4749980.935430: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 9
+          <idle>-0       [008] .Ns2. 4749980.935431: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+          <idle>-0       [008] .Ns2. 4749980.935431: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[009\].*loss.*pkt [1-9]" log-3_4.log
+          <idle>-0       [009] ..s2. 4749980.935429: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [009] ..s2. 4749980.935431: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 8
+          <idle>-0       [009] ..s2. 4749980.935432: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+          <idle>-0       [009] ..s2. 4749980.935433: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+          <idle>-0       [009] ..s2. 4749980.935435: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 4
+          <idle>-0       [009] ..s2. 4749980.935437: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 4 from core 8
+          <idle>-0       [009] ..s2. 4749980.935441: bpf_trace_printk: [handle_one_packet_loss] recover pkt 4 SUCCEED
+
+log-1_3.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[008\].*loss.*pkt [1-9]" log-1_3.log
+           <...>-2001359 [008] ..s1. 4750013.159236: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 1
+           <...>-2001359 [008] ..s1. 4750013.159240: bpf_trace_printk: [handle_packet_loss] pkt 1 is lost at core 9
+           <...>-2001359 [008] ..s1. 4750013.159241: bpf_trace_printk: [handle_packet_loss] pkt 1 lost at all cores. Don't need to recover state
+           <...>-2001359 [008] ..s1. 4750013.159242: bpf_trace_printk: [handle_one_packet_loss] recover pkt 1 SUCCEED
+           <...>-2001359 [008] ..s1. 4750013.159243: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+           <...>-2001359 [008] ..s1. 4750013.159246: bpf_trace_printk: [handle_packet_loss] pkt 2 is lost at core 9
+           <...>-2001359 [008] ..s1. 4750013.159247: bpf_trace_printk: [handle_packet_loss] pkt 2 lost at all cores. Don't need to recover state
+           <...>-2001359 [008] ..s1. 4750013.159248: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+           <...>-2001359 [008] ..s1. 4750013.159249: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+           <...>-2001359 [008] ..s1. 4750013.159252: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 3 from core 9
+           <...>-2001359 [008] ..s1. 4750013.159254: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[009\].*loss.*pkt [1-9]" log-1_3.log
+          <idle>-0       [009] ..s2. 4750013.158325: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 1
+          <idle>-0       [009] ..s2. 4750013.159240: bpf_trace_printk: [handle_packet_loss] pkt 1 is lost at core 8
+          <idle>-0       [009] ..s2. 4750013.159241: bpf_trace_printk: [handle_packet_loss] pkt 1 lost at all cores. Don't need to recover state
+          <idle>-0       [009] ..s2. 4750013.159241: bpf_trace_printk: [handle_one_packet_loss] recover pkt 1 SUCCEED
+          <idle>-0       [009] ..s2. 4750013.159243: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [009] ..s2. 4750013.159244: bpf_trace_printk: [handle_packet_loss] pkt 2 is lost at core 8
+          <idle>-0       [009] ..s2. 4750013.159244: bpf_trace_printk: [handle_packet_loss] pkt 2 lost at all cores. Don't need to recover state
+          <idle>-0       [009] ..s2. 4750013.159245: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+
+log-2_4.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[008\].*loss.*pkt [1-9]" log-2_4.log
+          <idle>-0       [008] ..s2. 4750249.551282: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [008] .Ns2. 4750249.552148: bpf_trace_printk: [handle_packet_loss] pkt 2 is lost at core 9
+          <idle>-0       [008] .Ns2. 4750249.552149: bpf_trace_printk: [handle_packet_loss] pkt 2 lost at all cores. Don't need to recover state
+          <idle>-0       [008] .Ns2. 4750249.552150: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+          <idle>-0       [008] .Ns2. 4750249.552151: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [008] .Ns2. 4750249.552152: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 9
+          <idle>-0       [008] .Ns2. 4750249.552152: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+          <idle>-0       [008] .Ns2. 4750249.552153: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[009\].*loss.*pkt [1-9]" log-2_4.log
+        cpptools-2001359 [009] ..s1. 4750249.552143: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 1
+        cpptools-2001359 [009] ..s1. 4750249.552145: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 1 from core 8
+        cpptools-2001359 [009] ..s1. 4750249.552146: bpf_trace_printk: [handle_one_packet_loss] recover pkt 1 SUCCEED
+        cpptools-2001359 [009] ..s1. 4750249.552147: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+        cpptools-2001359 [009] ..s1. 4750249.552149: bpf_trace_printk: [handle_packet_loss] pkt 2 is lost at core 8
+        cpptools-2001359 [009] ..s1. 4750249.552149: bpf_trace_printk: [handle_packet_loss] pkt 2 lost at all cores. Don't need to recover state
+        cpptools-2001359 [009] ..s1. 4750249.552150: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+        cpptools-2001359 [009] ..s1. 4750249.552151: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+        cpptools-2001359 [009] ..s1. 4750249.552152: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 8
+        cpptools-2001359 [009] ..s1. 4750249.552153: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+        cpptools-2001359 [009] ..s1. 4750249.552153: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+        cpptools-2001359 [009] ..s1. 4750249.552154: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 4
+        cpptools-2001359 [009] ..s1. 4750249.552155: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 4 from core 8
+        cpptools-2001359 [009] ..s1. 4750249.552156: bpf_trace_printk: [handle_one_packet_loss] recover pkt 4 SUCCEED
+
+log-3_6.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[008\].*loss.*pkt [1-9]" log-3_6.log
+          <idle>-0       [008] ..s2. 4750278.224608: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 2
+          <idle>-0       [008] ..s2. 4750278.224612: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 2 from core 9
+          <idle>-0       [008] ..s2. 4750278.224613: bpf_trace_printk: [handle_one_packet_loss] recover pkt 2 SUCCEED
+          <idle>-0       [008] ..s2. 4750278.224614: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [008] ..s2. 4750278.225473: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 9
+          <idle>-0       [008] ..s2. 4750278.225474: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+          <idle>-0       [008] ..s2. 4750278.225475: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+          <idle>-0       [008] ..s2. 4750278.225475: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 4
+          <idle>-0       [008] ..s2. 4750278.225477: bpf_trace_printk: [handle_packet_loss] pkt 4 is lost at core 9
+          <idle>-0       [008] ..s2. 4750278.225477: bpf_trace_printk: [handle_packet_loss] pkt 4 lost at all cores. Don't need to recover state
+          <idle>-0       [008] ..s2. 4750278.225478: bpf_trace_printk: [handle_one_packet_loss] recover pkt 4 SUCCEED
+          <idle>-0       [008] ..s2. 4750278.225478: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 5
+          <idle>-0       [008] ..s2. 4750278.225480: bpf_trace_printk: [handle_packet_loss] pkt 5 is lost at core 9
+          <idle>-0       [008] ..s2. 4750278.225481: bpf_trace_printk: [handle_packet_loss] pkt 5 lost at all cores. Don't need to recover state
+          <idle>-0       [008] ..s2. 4750278.225481: bpf_trace_printk: [handle_one_packet_loss] recover pkt 5 SUCCEED
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss$ grep "\[009\].*loss.*pkt [1-9]" log-3_6.log
+          <idle>-0       [009] ..s2. 4750278.225472: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 3
+          <idle>-0       [009] ..s2. 4750278.225474: bpf_trace_printk: [handle_packet_loss] pkt 3 is lost at core 8
+          <idle>-0       [009] ..s2. 4750278.225474: bpf_trace_printk: [handle_packet_loss] pkt 3 lost at all cores. Don't need to recover state
+          <idle>-0       [009] ..s2. 4750278.225475: bpf_trace_printk: [handle_one_packet_loss] recover pkt 3 SUCCEED
+          <idle>-0       [009] ..s2. 4750278.225476: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 4
+          <idle>-0       [009] ..s2. 4750278.225477: bpf_trace_printk: [handle_packet_loss] pkt 4 is lost at core 8
+          <idle>-0       [009] ..s2. 4750278.225478: bpf_trace_printk: [handle_packet_loss] pkt 4 lost at all cores. Don't need to recover state
+          <idle>-0       [009] ..s2. 4750278.225478: bpf_trace_printk: [handle_one_packet_loss] recover pkt 4 SUCCEED
+          <idle>-0       [009] ..s2. 4750278.225479: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 5
+          <idle>-0       [009] ..s2. 4750278.225481: bpf_trace_printk: [handle_packet_loss] pkt 5 is lost at core 8
+          <idle>-0       [009] ..s2. 4750278.225481: bpf_trace_printk: [handle_packet_loss] pkt 5 lost at all cores. Don't need to recover state
+          <idle>-0       [009] ..s2. 4750278.225482: bpf_trace_printk: [handle_one_packet_loss] recover pkt 5 SUCCEED
+          <idle>-0       [009] ..s2. 4750278.225482: bpf_trace_printk: [handle_one_packet_loss] to recover pkt 6
+          <idle>-0       [009] ..s2. 4750278.225484: bpf_trace_printk: [handle_packet_loss] get metadata of pkt 6 from core 8
+          <idle>-0       [009] ..s2. 4750278.225486: bpf_trace_printk: [handle_one_packet_loss] recover pkt 6 SUCCEED
