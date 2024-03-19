@@ -1,0 +1,64 @@
+log-0.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[008\].* state " log-0.log
+          <idle>-0       [008] ..s2. 4779131.291036: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.293098: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.293101: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.294814: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.294817: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.296364: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779131.296368: bpf_trace_printk: [update_state_by_metadata] remove state 1 for src ip 6401a8c0
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[009\].* state " log-0.log
+           <...>-2065224 [009] ..s1. 4779131.292259: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+           <...>-2065224 [009] ..s1. 4779131.292261: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+           <...>-2065224 [009] ..s1. 4779131.294025: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+           <...>-2065224 [009] ..s1. 4779131.294028: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+        cpptools-2065224 [009] ..s1. 4779131.295587: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+        cpptools-2065224 [009] ..s1. 4779131.295592: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+
+log-1.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[008\].* state " log-1.log
+          <idle>-0       [008] .Ns2. 4779376.612707: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+          <idle>-0       [008] .Ns2. 4779376.612710: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [008] .Ns2. 4779376.612711: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+          <idle>-0       [008] .Ns2. 4779376.614400: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] .Ns2. 4779376.614402: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+          <idle>-0       [008] .Ns2. 4779376.615951: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] .Ns2. 4779376.615952: bpf_trace_printk: [update_state_by_metadata] remove state 1 for src ip 6401a8c0
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[009\].* state " log-1.log
+          <idle>-0       [009] .Ns2. 4779376.611864: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+          <idle>-0       [009] .Ns2. 4779376.611868: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+        cpptools-2065221 [009] ..s1. 4779376.613615: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+        cpptools-2065221 [009] ..s1. 4779376.613618: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [009] .Ns2. 4779376.615196: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+          <idle>-0       [009] .Ns2. 4779376.615203: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+
+log-2.log
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[008\].* state " log-2.log
+          <idle>-0       [008] ..s2. 4779449.358893: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779449.360968: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779449.360974: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779449.362679: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779449.362683: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779449.364231: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779449.364233: bpf_trace_printk: [update_state_by_metadata] remove state 1 for src ip 6401a8c0
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[009\].* state " log-2.log
+          <idle>-0       [009] ..s2. 4779449.361918: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+          <idle>-0       [009] ..s2. 4779449.361925: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [009] ..s2. 4779449.361932: bpf_trace_printk: [update_state_by_metadata] new state 3 for src ip 6401a8c0
+          <idle>-0       [009] ..s2. 4779449.361936: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [009] ..s2. 4779449.363456: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+          <idle>-0       [009] ..s2. 4779449.363458: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+
+log-3_5.log (p3-4 are lost at both cores)
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[008\].* state " log-3_5.log
+          <idle>-0       [008] ..s2. 4779318.876615: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779318.881951: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779318.881965: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779318.881970: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+          <idle>-0       [008] ..s2. 4779318.881975: bpf_trace_printk: [update_state_by_metadata] remove state 0 for src ip 6401a8c0
+qx51@thennai:/data/local/qx51/bpf-profile/dpdk_burst_replay/pkt_loss/state_check$ grep "\[009\].* state " log-3_5.log
+          <idle>-0       [009] .Ns2. 4779318.877838: bpf_trace_printk: [update_state_by_metadata] insert state 1 for src ip 6401a8c0
+          <idle>-0       [009] .Ns2. 4779318.877840: bpf_trace_printk: [update_state_by_metadata] new state 2 for src ip 6401a8c0
+          <idle>-0       [009] .Ns2. 4779318.881961: bpf_trace_printk: [update_state_by_metadata] new state 0 for src ip 6401a8c0
+          <idle>-0       [009] .Ns2. 4779318.881963: bpf_trace_printk: [update_state_by_metadata] new state 1 for src ip 6401a8c0
+
