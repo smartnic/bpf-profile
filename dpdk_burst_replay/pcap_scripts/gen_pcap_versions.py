@@ -13,6 +13,7 @@ from gen_pcap_flow_affinity_token_bucket import gen_pcap_flow_affinity_token_buc
 from gen_pcap_with_md_token_bucket import gen_pcap_with_md_token_bucket
 from gen_pcap_flow_affinity_portknock import gen_pcap_flow_affinity_portknock
 from gen_pcap_with_md_portknock import gen_pcap_with_md_portknock
+from gen_pcap_with_md_portknock_pkt_loss import gen_pcap_with_md_portknock_pkt_loss
 from gen_pcap_flow_affinity_conntrack import gen_pcap_flow_affinity_conntrack
 from gen_pcap_with_md_conntrack import gen_pcap_with_md_conntrack
 from process_pcap_file_ddos_srcip import read_src_ip_from_tcp_packets
@@ -21,6 +22,7 @@ from preprocessing_conntrack import preprocessing_conntrack
 
 APPROACH_shared = "shared"
 APPROACH_shared_nothing = "shared_nothing"
+APPROACH_shared_nothing_pkt_loss = "shared_nothing_pkt_loss"
 APPROACH_flow_affinity = "flow_affinity"
 
 BM_hhd = "hhd"
@@ -107,6 +109,14 @@ def add_tasks_to_process_pool(approach, benchmarks, num_cores, dst_mac, output_p
                 for n in range(1, num_cores + 1):
                     r = pool.apply_async(gen_pcap_with_md_conntrack,
                                          args=(n, dst_mac, output_path, input_file_conntrack, tcp_only, pkt_len, ))
+                    result_list.append(r)
+                    time.sleep(sleep_dur)
+    elif approach == APPROACH_shared_nothing_pkt_loss:
+        for b in benchmarks:
+            if b == BM_portknock:
+                for n in range(1, num_cores + 1):
+                    r = pool.apply_async(gen_pcap_with_md_portknock_pkt_loss,
+                                         args=(n, dst_mac, output_path, input_file, tcp_only, pkt_len, ))
                     result_list.append(r)
                     time.sleep(sleep_dur)
     return result_list
