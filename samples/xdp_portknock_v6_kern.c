@@ -51,6 +51,40 @@ static inline u32 get_new_state(u32 state, u16 dst_port) {
   return state;
 }
 
+static inline int update_state_by_metadata(struct metadata_elem *md_elem,
+                                           struct port_state_map_cuckoo_hash_map *map) {
+    bool need_session_table = md_elem->tcp_syn_flag;
+    bool remove_session_table = md_elem->tcp_fin_flag;
+    u32 src_ip = md_elem->src_ip;
+    u16 dst_port = md_elem->dst_port;
+    struct array_elem *port_state_ptr = port_state_map_cuckoo_lookup(map, &src_ip);
+    uint32_t new_state = CLOSED_0;
+    if (!port_state_ptr) {
+      if (dst_port == PORT_1) {
+        new_state = CLOSED_1;
+      }
+      if (need_session_table) {
+        struct array_elem elem;
+        elem.state = new_state;
+        port_state_map_cuckoo_insert(map, &src_ip, &elem);
+        bpf_log_debug("[update_state_by_metadata] insert state %d for src ip %04x",
+                       new_state, src_ip);
+      }
+    } else {
+      new_state = get_new_state(port_state_ptr->state, dst_port);
+      port_state_ptr->state = new_state;
+      if (remove_session_table) {
+        port_state_map_cuckoo_delete(map, &src_ip);
+        bpf_log_debug("[update_state_by_metadata] remove state %d for src ip %04x",
+                       new_state, src_ip);
+      } else {
+        bpf_log_debug("[update_state_by_metadata] new state %d for src ip %04x",
+                       new_state, src_ip);
+      }
+    }
+    return new_state;
+}
+
 /* metadata_log is used to sync up information across cores
  * METADATA_LOG_MAX_ENTIRES should be 2^n
  */
@@ -80,7 +114,7 @@ static inline void print_md(struct metadata_elem *md) {
     return;
   }
   bpf_log_info("src ip %04x, dst port: %d, tcp_syn_flag: %d, tcp_fin_flag: %d",
-               ntohl(md->src_ip), ntohs(md->dst_port),
+               ntohl(md->src_ip), md->dst_port,
                md->tcp_syn_flag, md->tcp_fin_flag);
 }
 
@@ -214,6 +248,7 @@ struct handle_one_packet_loss_use_other_log_ctx {
   u64 lost_flags;
   int pkt_id;
   bool recover_flag;
+  struct port_state_map_cuckoo_hash_map *map;
 };
 
 static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) {
@@ -257,6 +292,7 @@ static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) 
     copy_metadata_from_log(md_log, i, &md);
     print_md(&md);
     // todo: call state transition
+    update_state_by_metadata(&md, ctx->map);
     ctx->recover_flag = true;
     return 1;
   }
@@ -268,6 +304,7 @@ struct handle_one_packet_loss_ctx {
   int next_pkt_to_process;
   int cur_core;
   struct metadata_log_t *cur_md_log;
+  struct port_state_map_cuckoo_hash_map *map;
 };
 
 static inline int handle_one_packet_loss(__u32 index, void *data) {
@@ -282,7 +319,8 @@ static inline int handle_one_packet_loss(__u32 index, void *data) {
   struct handle_one_packet_loss_use_other_log_ctx loop_ctx = {
     .lost_flags = 0,
     .pkt_id = i,
-    .recover_flag = false
+    .recover_flag = false,
+    .map = ctx->map
   };
   set_pkt_lost_at_core(ctx->cur_core, &loop_ctx.lost_flags);
   bpf_loop(BPF_LOOP_MAX, handle_one_packet_loss_use_other_log, &loop_ctx, 0);
@@ -297,7 +335,8 @@ static inline int handle_one_packet_loss(__u32 index, void *data) {
 }
 
 static inline void handle_packet_loss(struct xdp_md *ctx, struct metadata_log_t *cur_md_log,
-                                      int cur_pkt_id) {
+                                      int cur_pkt_id,
+                                      struct port_state_map_cuckoo_hash_map *map) {
   int min_id_in_pkt = cur_pkt_id - (NUM_PKTS - 1);
   min_id_in_pkt = min_id_in_pkt > 1? min_id_in_pkt : 1;
   int max_processed_pkt_id = cur_md_log->pkt_max;
@@ -319,7 +358,8 @@ static inline void handle_packet_loss(struct xdp_md *ctx, struct metadata_log_t 
     .lost_pkt_max = min_id_in_pkt - 1,
     .next_pkt_to_process = max_processed_pkt_id + 1,
     .cur_core = cur_core,
-    .cur_md_log = cur_md_log
+    .cur_md_log = cur_md_log,
+    .map = map,
   };
 
   bpf_loop(BPF_LOOP_MAX, handle_one_packet_loss, &loop_ctx, 0);
@@ -366,7 +406,6 @@ int xdp_prog(struct xdp_md *ctx) {
   }
   cur_pkt_id = *(u32*)pkt_id_start;
   bpf_log_info("cur_pkt_id: %u", cur_pkt_id);
-  handle_packet_loss(ctx, cur_md_log, cur_pkt_id);
 
   uint32_t zero = 0;
   struct port_state_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&port_state_map, &zero);
@@ -374,6 +413,7 @@ int xdp_prog(struct xdp_md *ctx) {
     bpf_log_err("port_state_map not found");
     return XDP_DROP;
   }
+  handle_packet_loss(ctx, cur_md_log, cur_pkt_id, map);
 
   struct array_elem *port_state_ptr;
   /* Process latest (n-1) packets using metadata */
@@ -396,27 +436,7 @@ int xdp_prog(struct xdp_md *ctx) {
   }
   for (int i = pkt_history_start_id; i < NUM_PKTS - 1; i++) {
     md_elem = md_start + i * sizeof(struct metadata_elem);
-    need_session_table = md_elem->tcp_syn_flag;
-    remove_session_table = md_elem->tcp_fin_flag;
-    src_ip = md_elem->src_ip;
-    dst_port = md_elem->dst_port;
-    port_state_ptr = port_state_map_cuckoo_lookup(map, &src_ip);
-    if (!port_state_ptr) {
-      uint32_t new_state = CLOSED_0;
-      if (dst_port == PORT_1) {
-        new_state = CLOSED_1;
-      }
-      if (need_session_table) {
-        struct array_elem elem;
-        elem.state = new_state;
-        port_state_map_cuckoo_insert(map, &src_ip, &elem);
-      }
-    } else {
-      port_state_ptr->state = get_new_state(port_state_ptr->state, dst_port);
-      if (remove_session_table) {
-        port_state_map_cuckoo_delete(map, &src_ip);
-      }
-    }
+    update_state_by_metadata(md_elem, map);
   }
 
   /* Process the current packet */
@@ -463,26 +483,9 @@ int xdp_prog(struct xdp_md *ctx) {
     .tcp_fin_flag = tcp->fin
   };
   add_metadata_to_log(cur_md_log, &cur_md);
-
-  port_state_ptr = port_state_map_cuckoo_lookup(map, &src_ip);
-  if (!port_state_ptr) {
-    uint32_t new_state = CLOSED_0;
-    if (dst_port == PORT_1) {
-      new_state = CLOSED_1;
-    }
-    if (need_session_table) {
-      struct array_elem elem;
-      elem.state = new_state;
-      port_state_map_cuckoo_insert(map, &src_ip, &elem);
-    }
-  } else {
-    port_state_ptr->state = get_new_state(port_state_ptr->state, dst_port);
-    if (port_state_ptr->state == OPEN) {
-      rc = XDP_PASS;
-    }
-    if (remove_session_table) {
-      port_state_map_cuckoo_delete(map, &src_ip);
-    }
+  uint32_t new_state = update_state_by_metadata(&cur_md, map);
+  if (new_state == OPEN) {
+    rc = XDP_PASS;
   }
 
   /* For all valid packets, bounce them back to the packet generator. */
