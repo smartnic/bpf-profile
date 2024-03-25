@@ -88,7 +88,7 @@ static inline int update_state_by_metadata(struct metadata_elem *md_elem,
 /* metadata_log is used to sync up information across cores
  * METADATA_LOG_MAX_ENTIRES should be 2^n
  */
-#define METADATA_LOG_MAX_ENTIRES 8
+#define METADATA_LOG_MAX_ENTIRES 1024
 struct metadata_log_elem {
   bool valid;
   struct metadata_elem metadata;
@@ -130,6 +130,12 @@ static inline void print_log_md(struct metadata_log_elem *md) {
   }
 }
 
+static inline void reset_log(struct metadata_log_t *log) {
+  log->next_loc = 0;
+  log->pkt_min = 0;
+  log->pkt_max = 0;
+}
+
 /* Add `md` to `log`. If `md` is null, add an invalid metadata */
 static inline void add_metadata_to_log(struct metadata_log_t *log,
                                        struct metadata_elem *md) {
@@ -161,10 +167,17 @@ static inline void add_metadata_to_log(struct metadata_log_t *log,
 }
 
 static inline bool pkt_processed_at_core(struct metadata_log_t *log,
-                                         int pkt_id) {
+                                         int pkt_id,
+                                         int *pkt_max_at_core) {
   if (!log) {
     return false;
   }
+  // todo:
+  // two cases: if the core and the current core are
+  // at the same pcap replay round,
+  // we just need to check if log->pkt_max >= pkt_id)
+  // if not, we need to compare the pcap replay round id?
+  *pkt_max_at_core = log->pkt_max;
   return (log->pkt_max >= pkt_id);
 }
 
@@ -173,13 +186,17 @@ static inline bool pkt_processed_at_core(struct metadata_log_t *log,
  */
 static inline void copy_metadata_from_log(struct metadata_log_t *log,
                                           int pkt_id,
-                                          struct metadata_elem *md) {
+                                          struct metadata_elem *md,
+                                          bool *aborted) {
+  *aborted = false;
   if ((!log) || (!md) || (pkt_id == 0)) {
     bpf_log_err("[ERROR][copy_metadata_from_log]");
     return;
   }
-  if (!pkt_processed_at_core(log, pkt_id)) {
-    bpf_log_err("[ERROR][copy_metadata_from_log] pkt %d NOT processed", pkt_id);
+  int pkt_max_at_core = 0;
+  if (!pkt_processed_at_core(log, pkt_id, &pkt_max_at_core)) {
+    bpf_log_err("[ERROR][copy_metadata_from_log] pkt %d NOT processed (cur: %d)",
+                pkt_id, pkt_max_at_core);
     return;
   }
   int loc = (pkt_id - 1) & (METADATA_LOG_MAX_ENTIRES - 1);
@@ -191,12 +208,14 @@ static inline void copy_metadata_from_log(struct metadata_log_t *log,
       (pkt_id < log_pkt_min + safety_offset)) {
     bpf_log_err("[ERROR][copy_metadata_from_log] need to increase log size! pkt_id: %d, log->pkt_min: %d",
                 pkt_id, log_pkt_min);
-    // return XDP_ABORTED;
+    // *aborted = true;
   }
 }
 
 static inline bool pkt_lost_at_core(struct metadata_log_t *log,
-                                    int pkt_id) {
+                                    int pkt_id,
+                                    bool *aborted) {
+  *aborted = false;
   if (!log) {
     return false;
   }
@@ -208,16 +227,32 @@ static inline bool pkt_lost_at_core(struct metadata_log_t *log,
       (pkt_id < log_pkt_min + safety_offset)) {
     bpf_log_err("[ERROR][pkt_lost_at_core] need to increase log size! pkt_id: %d, log->pkt_min: %d",
                  pkt_id, log_pkt_min);
+    // *aborted = true;
     return false;
-    // return XDP_ABORTED;
   }
   return lost;
 }
 
 // int cores[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
 // #define NUM_CORES 16
-int cores[] = {8, 9};
-#define NUM_CORES 2
+#if NUM_PKTS == 2
+  int cores[] = {8, 9};
+#elif NUM_PKTS == 3
+  int cores[] = {8, 9, 10};
+#elif NUM_PKTS == 4
+  int cores[] = {8, 9, 10, 11};
+#elif NUM_PKTS == 5
+  int cores[] = {8, 9, 10, 11, 12};
+#elif NUM_PKTS == 6
+  int cores[] = {8, 9, 10, 11, 12, 13};
+#elif NUM_PKTS == 7
+  int cores[] = {8, 9, 10, 11, 12, 13, 14};
+#elif NUM_PKTS == 8
+  int cores[] = {8, 9, 10, 11, 12, 13, 14, 15};
+#else
+  int cores[] = {8};
+#endif
+// int cores[] = {8, 9, 10};
 u64 LOST_FLAGS = 0;
 
 static inline void init_expected_lost_flags() {
@@ -249,12 +284,17 @@ struct handle_one_packet_loss_use_other_log_ctx {
   int pkt_id;
   bool recover_flag;
   struct port_state_map_cuckoo_hash_map *map;
+  bool aborted;
+  int min_pkt_id_other_logs;
+  int max_pkt_id_other_logs;
 };
 
 static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) {
   struct handle_one_packet_loss_use_other_log_ctx *ctx = data;
   int i = ctx->pkt_id;
   u64 lost_flags = ctx->lost_flags;
+  ctx->min_pkt_id_other_logs = INT_MAX;
+  ctx->max_pkt_id_other_logs = 0;
   for (int j = 0; j < NUM_PKTS; j++) {
     int core = cores[j];
     if (is_pkt_lost_at_core(core, lost_flags)) {
@@ -268,10 +308,23 @@ static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) 
       bpf_log_err("[ERROR][handle_packet_loss] no md_log of core %d found", core);
       return 1;
     }
-    if (! pkt_processed_at_core(md_log, i)) {
+    int pkt_max_at_core = 0;
+    if (! pkt_processed_at_core(md_log, i, &pkt_max_at_core)) {
+      if (ctx->max_pkt_id_other_logs < pkt_max_at_core) {
+        ctx->max_pkt_id_other_logs = pkt_max_at_core;
+      }
+      if (ctx->min_pkt_id_other_logs > pkt_max_at_core) {
+        ctx->min_pkt_id_other_logs = pkt_max_at_core;
+      }
       continue;
     }
-    if (pkt_lost_at_core(md_log, i)) {
+    bool aborted = false;
+    bool lost = pkt_lost_at_core(md_log, i, &aborted);
+    if (aborted) {
+      ctx->aborted = true;
+      return 1;
+    }
+    if (lost) {
       set_pkt_lost_at_core(core, &lost_flags);
       bpf_log_debug("[handle_packet_loss] pkt %d is lost at core %d", i, core);
       if (is_pkt_lost_at_all_cores(lost_flags)) {
@@ -289,7 +342,12 @@ static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) 
       .tcp_syn_flag = false,
       .tcp_fin_flag = false
     };
-    copy_metadata_from_log(md_log, i, &md);
+    aborted = false;
+    copy_metadata_from_log(md_log, i, &md, &aborted);
+    if (aborted) {
+      ctx->aborted = true;
+      return 1;
+    }
     print_md(&md);
     // todo: call state transition
     update_state_by_metadata(&md, ctx->map);
@@ -305,6 +363,7 @@ struct handle_one_packet_loss_ctx {
   int cur_core;
   struct metadata_log_t *cur_md_log;
   struct port_state_map_cuckoo_hash_map *map;
+  bool aborted;
 };
 
 static inline int handle_one_packet_loss(__u32 index, void *data) {
@@ -320,12 +379,18 @@ static inline int handle_one_packet_loss(__u32 index, void *data) {
     .lost_flags = 0,
     .pkt_id = i,
     .recover_flag = false,
-    .map = ctx->map
+    .map = ctx->map,
+    .aborted = false,
+    /* monitor the progress in other logs */
+    .min_pkt_id_other_logs = 0,
+    .max_pkt_id_other_logs = 0,
   };
   set_pkt_lost_at_core(ctx->cur_core, &loop_ctx.lost_flags);
   bpf_loop(BPF_LOOP_MAX, handle_one_packet_loss_use_other_log, &loop_ctx, 0);
+  ctx->aborted = loop_ctx.aborted;
   if (!loop_ctx.recover_flag) {
-    bpf_log_err("[handle_one_packet_loss] recover pkt %d FAIL! Wait time is not enough", i);
+    bpf_log_err("[handle_one_packet_loss] recover pkt %d FAIL! Wait time is not enough: other cores processed [%d, %d]",
+                i, loop_ctx.min_pkt_id_other_logs, loop_ctx.max_pkt_id_other_logs);
     return 1;
   } else {
     bpf_log_info("[handle_one_packet_loss] recover pkt %d SUCCEED", i);
@@ -334,9 +399,13 @@ static inline int handle_one_packet_loss(__u32 index, void *data) {
   return 0;
 }
 
-static inline void handle_packet_loss(struct xdp_md *ctx, struct metadata_log_t *cur_md_log,
+static inline void handle_packet_loss(u32 cur_core,
+                                      struct xdp_md *ctx,
+                                      struct metadata_log_t *cur_md_log,
                                       int cur_pkt_id,
-                                      struct port_state_map_cuckoo_hash_map *map) {
+                                      struct port_state_map_cuckoo_hash_map *map,
+                                      bool *aborted) {
+  *aborted = false;
   int min_id_in_pkt = cur_pkt_id - (NUM_PKTS - 1);
   min_id_in_pkt = min_id_in_pkt > 1? min_id_in_pkt : 1;
   int max_processed_pkt_id = cur_md_log->pkt_max;
@@ -347,7 +416,6 @@ static inline void handle_packet_loss(struct xdp_md *ctx, struct metadata_log_t 
   bpf_log_info("Detect packet loss, need to recover pkts [%d, %d]",
                max_processed_pkt_id + 1, min_id_in_pkt - 1);
   init_expected_lost_flags();
-  u32 cur_core = bpf_get_smp_processor_id();
   // // Update log first such that other cores know these packets 
   // // are lost on this core. We CANNOT do this after recovering state
   // for (int i = max_processed_pkt_id + 1; i < min_id_in_pkt; i++) {
@@ -360,9 +428,11 @@ static inline void handle_packet_loss(struct xdp_md *ctx, struct metadata_log_t 
     .cur_core = cur_core,
     .cur_md_log = cur_md_log,
     .map = map,
+    .aborted = false,
   };
 
   bpf_loop(BPF_LOOP_MAX, handle_one_packet_loss, &loop_ctx, 0);
+  *aborted = loop_ctx.aborted;
   if (loop_ctx.next_pkt_to_process <= loop_ctx.lost_pkt_max) {
     bpf_log_err("[handle_packet_loss] FAIL: next_pkt_to_process: %d <= %d",
                 loop_ctx.next_pkt_to_process, loop_ctx.lost_pkt_max);
@@ -406,6 +476,10 @@ int xdp_prog(struct xdp_md *ctx) {
   }
   cur_pkt_id = *(u32*)pkt_id_start;
   bpf_log_info("cur_pkt_id: %u", cur_pkt_id);
+  if (cur_pkt_id < cur_md_log->pkt_min) {
+    bpf_log_info("Reset log");
+    reset_log(cur_md_log);
+  }
 
   uint32_t zero = 0;
   struct port_state_map_cuckoo_hash_map *map = bpf_map_lookup_elem(&port_state_map, &zero);
@@ -413,7 +487,9 @@ int xdp_prog(struct xdp_md *ctx) {
     bpf_log_err("port_state_map not found");
     return XDP_DROP;
   }
-  handle_packet_loss(ctx, cur_md_log, cur_pkt_id, map);
+
+  bool aborted = false;
+  handle_packet_loss(cpu, ctx, cur_md_log, cur_pkt_id, map, &aborted);
 
   struct array_elem *port_state_ptr;
   /* Process latest (n-1) packets using metadata */
@@ -434,9 +510,11 @@ int xdp_prog(struct xdp_md *ctx) {
     add_metadata_to_log(cur_md_log, md_elem);
     md_elem += 1;
   }
+  md_elem = md_start;
   for (int i = pkt_history_start_id; i < NUM_PKTS - 1; i++) {
-    md_elem = md_start + i * sizeof(struct metadata_elem);
+    // md_elem = md_start + i * sizeof(struct metadata_elem); // this cannot pass the verifier when NUM_PKTS >=4
     update_state_by_metadata(md_elem, map);
+    md_elem += 1;
   }
 
   /* Process the current packet */
