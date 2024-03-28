@@ -90,7 +90,7 @@ static inline int update_state_by_metadata(struct metadata_elem *md_elem,
 /* metadata_log is used to sync up information across cores
  * METADATA_LOG_MAX_ENTIRES should be 2^n
  */
-#define METADATA_LOG_MAX_ENTIRES 1024
+#define METADATA_LOG_MAX_ENTIRES 2048
 struct metadata_log_elem {
   int id;
   struct metadata_elem metadata;
@@ -143,25 +143,23 @@ static inline void add_metadata_to_log(struct metadata_log_t *log,
     next_loc = log->end_loc;
   }
   next_loc = next_loc & (METADATA_LOG_MAX_ENTIRES - 1);
+  log->end_loc = next_loc;
   log->ring[next_loc].id = pkt_id;
   memcpy_cilium(&log->ring[next_loc].metadata, md, sizeof(struct metadata_elem));
-  bpf_log_info("[add_metadata_to_log] add pkt %d to ring[%d]", pkt_id, next_loc);
-  print_md(&log->ring[next_loc].metadata);
-  // update log info
-  log->end_loc = next_loc;
-  log->pkt_max = pkt_id;
   // if overwrite, need to update log->start_loc
   if ((log->pkt_max > 0) && (next_loc == log->start_loc)) {
     log->start_loc = (log->start_loc + 1) & (METADATA_LOG_MAX_ENTIRES - 1);
   }
+  log->pkt_max = pkt_id;
+  // update log info
+  bpf_log_info("[add_metadata_to_log] add pkt %d to ring[%d], loc_s: %d, loc_e: %d, pkt_max: %d",
+               pkt_id, next_loc, log->start_loc, log->end_loc, log->pkt_max);
+  print_md(&log->ring[next_loc].metadata);
 }
 
 static inline bool pkt_processed_at_core(struct metadata_log_t *log,
                                          int pkt_id) {
-  if (log->pkt_max <= 0) return false;
-  int loc = log->end_loc & (METADATA_LOG_MAX_ENTIRES - 1);
-  int id = log->ring[loc].id;
-  return (id >= pkt_id);
+  return (log->pkt_max >= pkt_id);
 }
 
 struct binary_search_id_in_log_iter_ctx {
@@ -202,6 +200,8 @@ static inline int binary_search_id_in_log(struct metadata_log_t *log,
   if (l > h) {
     h = l + METADATA_LOG_MAX_ENTIRES;
   }
+  // int loc = l & (METADATA_LOG_MAX_ENTIRES - 1);
+  // int id = log->ring[loc].id;
   struct binary_search_id_in_log_iter_ctx loop_ctx = {
     .pkt_id = pkt_id,
     .low = l,
@@ -209,8 +209,14 @@ static inline int binary_search_id_in_log(struct metadata_log_t *log,
     .log = log,
     .loc = -1,
   };
-  const int num_loop_max = 12; // since METADATA_LOG_MAX_ENTIRES is 1024
+  // loop_ctx.loc = 0;
+  const int num_loop_max = 13; // since METADATA_LOG_MAX_ENTIRES is 2048
   bpf_loop(num_loop_max, binary_search_id_in_log_iter, &loop_ctx, 0);
+  // loc = loop_ctx.loc & (METADATA_LOG_MAX_ENTIRES - 1);
+  // int find_id = log->ring[loc].id;
+  // if ((id > pkt_id) && (loop_ctx.loc >= 0)) {
+  //   bpf_log_err("[ERROR] id %d > pkt_id %d, find id: %d", id, pkt_id, find_id);
+  // }
   return loop_ctx.loc;
 }
 
@@ -222,20 +228,21 @@ static inline void get_pkt_metadata_from_log(struct metadata_log_t *log,
   if (log->pkt_max <= 0) return;
   // find out the location of pkt_id
   int loc = binary_search_id_in_log(log, pkt_id);
-  bpf_log_info("find loc: %d\n", loc);
+  bpf_log_info("find loc: %d", loc);
   // pkt_id is lost at core
   if (loc < 0) {
     return;
   }
   loc = loc & (METADATA_LOG_MAX_ENTIRES - 1);
-  // const int safety_offset = 1;
-  // int log_pkt_min = log->ring[log->start_loc].id;
-  // if ((log->overwrite) &&
-  //     (pkt_id < log_pkt_min + safety_offset)) {
-  //   // If the metadata has been overwritten,
-  //   // we assume it is lost
-  //   // printf("log->overwrite: %d\n", log->overwrite);
-  //   return;
+  int id = log->ring[loc].id;
+  // // Check if the metadata has been overwritten
+  // const int safety_offset = 2;
+  // int start_loc = log->start_loc;
+  // int min_loc = (start_loc + safety_offset) & (METADATA_LOG_MAX_ENTIRES - 1);
+  // int log_pkt_min = log->ring[min_loc].id;
+  // if ((start_loc > 0) && (pkt_id < log_pkt_min)) {
+  //   bpf_log_err("[ERROR] Need to increase log size: pkt_id: %d, log_pkt_min: %d, id: %d",
+  //               pkt_id, log_pkt_min, id);
   // }
   *lost = false;
   memcpy_cilium(md_dst, &log->ring[loc].metadata, sizeof(struct metadata_elem));
@@ -423,6 +430,8 @@ static inline void handle_packet_loss(u32 cur_core,
   int num_lost_pkts = min_id_in_pkt - max_processed_pkt_id - 1;
   bpf_log_info("Detect packet loss, need to recover pkts [%d, %d]",
                max_processed_pkt_id + 1, min_id_in_pkt - 1);
+  // Need to update log->pkt_max to avoid deadlock (other cores waiting)!
+  cur_md_log->pkt_max = min_id_in_pkt - 1;
   if (num_lost_pkts >= CONGESTED_LOSS_THRESHOLD) {
     // cur_md_log->num_congested_loss_pkts += num_lost_pkts;
     return;
