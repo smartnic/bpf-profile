@@ -143,13 +143,13 @@ static inline void add_metadata_to_log(struct metadata_log_t *log,
     next_loc = log->end_loc;
   }
   next_loc = next_loc & (METADATA_LOG_MAX_ENTIRES - 1);
-  log->end_loc = next_loc;
   log->ring[next_loc].id = pkt_id;
   memcpy_cilium(&log->ring[next_loc].metadata, md, sizeof(struct metadata_elem));
   // if overwrite, need to update log->start_loc
   if ((log->pkt_max > 0) && (next_loc == log->start_loc)) {
     log->start_loc = (log->start_loc + 1) & (METADATA_LOG_MAX_ENTIRES - 1);
   }
+  log->end_loc = next_loc;
   log->pkt_max = pkt_id;
   // update log info
   bpf_log_info("[add_metadata_to_log] add pkt %d to ring[%d], loc_s: %d, loc_e: %d, pkt_max: %d",
@@ -196,10 +196,12 @@ static inline int binary_search_id_in_log(struct metadata_log_t *log,
                                           int pkt_id) {
   // Use binary search
   int l = log->start_loc;
-  int h = log->end_loc;
-  if (l > h) {
-    h = l + METADATA_LOG_MAX_ENTIRES;
-  }
+  // We should get `h` based on `l`, since `l` and `h` are updated without lock!
+  int h = l + METADATA_LOG_MAX_ENTIRES;
+  // int h = log->end_loc;
+  // if (l > h) {
+  //   h = l + METADATA_LOG_MAX_ENTIRES;
+  // }
   // int loc = l & (METADATA_LOG_MAX_ENTIRES - 1);
   // int id = log->ring[loc].id;
   struct binary_search_id_in_log_iter_ctx loop_ctx = {
@@ -237,12 +239,16 @@ static inline void get_pkt_metadata_from_log(struct metadata_log_t *log,
   int id = log->ring[loc].id;
   // // Check if the metadata has been overwritten
   // const int safety_offset = 2;
+  // int end_loc = log->end_loc;
   // int start_loc = log->start_loc;
-  // int min_loc = (start_loc + safety_offset) & (METADATA_LOG_MAX_ENTIRES - 1);
+  // int min_loc = (loc - 1) & (METADATA_LOG_MAX_ENTIRES - 1);
+  // int max_loc = (loc + 1) & (METADATA_LOG_MAX_ENTIRES - 1);
   // int log_pkt_min = log->ring[min_loc].id;
+  // int log_pkt_max = log->ring[max_loc].id;
   // if ((start_loc > 0) && (pkt_id < log_pkt_min)) {
-  //   bpf_log_err("[ERROR] Need to increase log size: pkt_id: %d, log_pkt_min: %d, id: %d",
-  //               pkt_id, log_pkt_min, id);
+  //   bpf_log_err("[ERROR] loc [%d, %d]", start_loc, end_loc);
+  //   bpf_log_err("[ERROR] Need to increase log size: pkt_id: %d =? %d, min: %d, max: %d",
+  //               pkt_id, id, pkt_id-log_pkt_min, log_pkt_max-pkt_id);
   // }
   *lost = false;
   memcpy_cilium(md_dst, &log->ring[loc].metadata, sizeof(struct metadata_elem));
