@@ -87,12 +87,15 @@ static inline int update_state_by_metadata(struct metadata_elem *md_elem,
     return new_state;
 }
 
+#define NUM_PKTS_IN_TRACE 842185
+
 /* metadata_log is used to sync up information across cores
  * METADATA_LOG_MAX_ENTIRES should be 2^n
  */
-#define METADATA_LOG_MAX_ENTIRES 2048
+#define METADATA_LOG_MAX_ENTIRES 1024
 struct metadata_log_elem {
-  int id;
+  int circle_id; // circle number, since we replay the packet trace in the experiments
+  int id;        // packet number in a circle
   struct metadata_elem metadata;
 } __attribute__((packed));
 
@@ -101,6 +104,7 @@ struct metadata_log_t {
   int end_loc; // range: [0, METADATA_LOG_MAX_ENTIRES-1]
   // int pkt_min;
   int pkt_max;
+  int circle_max;
   // id in ring is increasing from start_loc to end_loc
   // or [start_loc, -1], [0, end_loc]
   struct metadata_log_elem ring[METADATA_LOG_MAX_ENTIRES];
@@ -128,6 +132,7 @@ static inline void print_log_md(struct metadata_log_elem *md) {
     bpf_log_err("[print_log_md] null pointer");
     return;
   }
+  bpf_log_info("id: %d.%d", md->circle_id, md->id);
   print_md(&md->metadata);
 }
 
@@ -138,11 +143,17 @@ static inline void add_metadata_to_log(struct metadata_log_t *log,
   //   return;
   // }
   // int pkt_id = pkt_id_in;
+  int circle_id = log->circle_max;
+  if (pkt_id == 1) {
+    circle_id++;
+    // bpf_log_debug("(recv) Increase circle %d", circle_id);
+  }
   int next_loc = log->end_loc + 1;
   if (log->pkt_max <= 0) {
     next_loc = log->end_loc;
   }
   next_loc = next_loc & (METADATA_LOG_MAX_ENTIRES - 1);
+  log->ring[next_loc].circle_id = circle_id;
   log->ring[next_loc].id = pkt_id;
   memcpy_cilium(&log->ring[next_loc].metadata, md, sizeof(struct metadata_elem));
   // if overwrite, need to update log->start_loc
@@ -151,18 +162,28 @@ static inline void add_metadata_to_log(struct metadata_log_t *log,
   }
   log->end_loc = next_loc;
   log->pkt_max = pkt_id;
+  log->circle_max = circle_id;
   // update log info
-  bpf_log_info("[add_metadata_to_log] add pkt %d to ring[%d], loc_s: %d, loc_e: %d, pkt_max: %d",
-               pkt_id, next_loc, log->start_loc, log->end_loc, log->pkt_max);
+  bpf_log_info("[add_metadata_to_log] add pkt %d.%d to ring[%d], loc_s: %d, loc_e: %d, circle_max: %d, pkt_max: %d",
+               circle_id, pkt_id, next_loc, log->start_loc, log->end_loc, circle_id, log->pkt_max);
   print_md(&log->ring[next_loc].metadata);
 }
 
 static inline bool pkt_processed_at_core(struct metadata_log_t *log,
-                                         int pkt_id) {
-  return (log->pkt_max >= pkt_id);
+                                         int circle_id, int pkt_id) {
+  int circle_max = log->circle_max;
+  int pkt_max = log->pkt_max;
+  if (circle_max > circle_id) {
+    return true;
+  }
+  if ((circle_max == circle_id) && (pkt_max >= pkt_id)) {
+    return true;
+  }
+  return false;
 }
 
 struct binary_search_id_in_log_iter_ctx {
+  int circle_id;
   int pkt_id;
   int low;
   int high;
@@ -172,6 +193,7 @@ struct binary_search_id_in_log_iter_ctx {
 
 static inline int binary_search_id_in_log_iter(__u32 index, void *data) {
   struct binary_search_id_in_log_iter_ctx *ctx = data;
+  int circle_id = ctx->circle_id;
   int pkt_id = ctx->pkt_id;
   struct metadata_log_t *log = ctx->log;
   if (ctx->low > ctx->high) {
@@ -179,12 +201,21 @@ static inline int binary_search_id_in_log_iter(__u32 index, void *data) {
   }
   int mid = (ctx->low + ctx->high) >> 1;
   int loc = mid & (METADATA_LOG_MAX_ENTIRES - 1);
+  int circle_in_loc = log->ring[loc].circle_id;
   int id_in_loc = log->ring[loc].id;
-  // printf("l:%d, h:%d, m:%d; %d ? %d\n", l, h, m, id_in_loc, pkt_id);
-  if (id_in_loc == pkt_id) {
+  bpf_log_debug("l:%d, h:%d, m:%d; %d.%d ? %d.%d\n", ctx->low, ctx->high, mid,
+                circle_in_loc, id_in_loc, circle_id, pkt_id);
+  if (circle_in_loc == 0) {
+    // detect invalid element
+    ctx->high = mid - 1;
+    return 0;
+  }
+  if ((circle_in_loc == circle_id) && (id_in_loc == pkt_id)) {
     ctx->loc = loc;
     return 1;
-  } else if (id_in_loc < pkt_id) {
+  }
+  if ((circle_in_loc < circle_id) ||
+     ((circle_in_loc == circle_id) && (id_in_loc < pkt_id))) {
     ctx->low = mid + 1;
   } else {
     ctx->high = mid - 1;
@@ -193,7 +224,7 @@ static inline int binary_search_id_in_log_iter(__u32 index, void *data) {
 }
 
 static inline int binary_search_id_in_log(struct metadata_log_t *log,
-                                          int pkt_id) {
+                                          int circle_id, int pkt_id) {
   // Use binary search
   int l = log->start_loc;
   // We should get `h` based on `l`, since `l` and `h` are updated without lock!
@@ -205,6 +236,7 @@ static inline int binary_search_id_in_log(struct metadata_log_t *log,
   // int loc = l & (METADATA_LOG_MAX_ENTIRES - 1);
   // int id = log->ring[loc].id;
   struct binary_search_id_in_log_iter_ctx loop_ctx = {
+    .circle_id = circle_id,
     .pkt_id = pkt_id,
     .low = l,
     .high = h,
@@ -212,7 +244,7 @@ static inline int binary_search_id_in_log(struct metadata_log_t *log,
     .loc = -1,
   };
   // loop_ctx.loc = 0;
-  const int num_loop_max = 13; // since METADATA_LOG_MAX_ENTIRES is 2048
+  const int num_loop_max = 13; // since METADATA_LOG_MAX_ENTIRES is 1024
   bpf_loop(num_loop_max, binary_search_id_in_log_iter, &loop_ctx, 0);
   // loc = loop_ctx.loc & (METADATA_LOG_MAX_ENTIRES - 1);
   // int find_id = log->ring[loc].id;
@@ -223,13 +255,14 @@ static inline int binary_search_id_in_log(struct metadata_log_t *log,
 }
 
 static inline void get_pkt_metadata_from_log(struct metadata_log_t *log,
+                                             int circle_id,
                                              int pkt_id,
                                              bool *lost,
                                              struct metadata_elem *md_dst) {
   *lost = true;
   if (log->pkt_max <= 0) return;
   // find out the location of pkt_id
-  int loc = binary_search_id_in_log(log, pkt_id);
+  int loc = binary_search_id_in_log(log, circle_id, pkt_id);
   bpf_log_info("find loc: %d", loc);
   // pkt_id is lost at core
   if (loc < 0) {
@@ -318,6 +351,7 @@ static inline bool is_pkt_lost_at_core(int core, u64 lost_flags) {
 
 struct handle_one_packet_loss_use_other_log_ctx {
   u64 lost_flags;
+  int circle_id;
   int pkt_id;
   bool recover_flag;
   struct port_state_map_cuckoo_hash_map *map;
@@ -328,6 +362,7 @@ struct handle_one_packet_loss_use_other_log_ctx {
 
 static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) {
   struct handle_one_packet_loss_use_other_log_ctx *ctx = data;
+  int circle_id = ctx->circle_id;
   int i = ctx->pkt_id;
   u64 lost_flags = ctx->lost_flags;
   ctx->min_pkt_id_other_logs = INT_MAX;
@@ -352,23 +387,24 @@ static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) 
       return 1;
     }
     int pkt_max_at_core = 0;
-    if (! pkt_processed_at_core(md_log, i)) {
+    if (! pkt_processed_at_core(md_log, circle_id, i)) {
       continue;
     }
     bool lost = true;
-    get_pkt_metadata_from_log(md_log, i, &lost, &md);
+    get_pkt_metadata_from_log(md_log, circle_id, i, &lost, &md);
     if (lost) {
       set_pkt_lost_at_core(core, &lost_flags);
-      bpf_log_debug("[handle_packet_loss] pkt %d is lost at core %d", i, core);
+      bpf_log_debug("[handle_packet_loss] pkt %d.%d is lost at core %d", circle_id, i, core);
       if (is_pkt_lost_at_all_cores(lost_flags)) {
-        bpf_log_info("[handle_packet_loss] pkt %d lost at all cores. Don't need to recover state", i);
+        bpf_log_info("[handle_packet_loss] pkt %d.%d lost at all cores. Don't need to recover state",
+                     circle_id, i);
         ctx->recover_flag = true;
         return 1;
       }
       continue;
     }
     // Recover the state
-    bpf_log_info("[handle_packet_loss] get metadata of pkt %d from core %d", i, core);
+    bpf_log_info("[handle_packet_loss] get metadata of pkt %d.%d from core %d", circle_id, i, core);
     print_md(&md);
     // todo: call state transition
     update_state_by_metadata(&md, ctx->map);
@@ -379,24 +415,32 @@ static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) 
 }
 
 struct handle_one_packet_loss_ctx {
+  int lost_circle_max;
   int lost_pkt_max;
+  int next_circle_to_process;
   int next_pkt_to_process;
   int cur_core;
   struct metadata_log_t *cur_md_log;
   struct port_state_map_cuckoo_hash_map *map;
+  bool recover_flag;
   // bool aborted;
 };
 
 static inline int handle_one_packet_loss(__u32 index, void *data) {
   struct handle_one_packet_loss_ctx *ctx = data;
+  int circle_id = ctx->next_circle_to_process;
   int i = ctx->next_pkt_to_process;
-  bpf_log_debug("[handle_one_packet_loss] next pkt to recover: %d, lost_pkt_max: %d", i, ctx->lost_pkt_max);
-  if (i > ctx->lost_pkt_max) {
+  bpf_log_debug("[handle_one_packet_loss] next pkt to recover: %d.%d, lost_pkt_max: %d.%d",
+                circle_id, i, ctx->lost_circle_max, ctx->lost_pkt_max);
+  // check if (circle_id, pkt_id) > (lost_circle_max, lost_pkt_max)
+  if ((circle_id > ctx->lost_circle_max) ||
+      ((circle_id == ctx->lost_circle_max) && (i > ctx->lost_pkt_max))) {
     return 1; // break loop
   }
-  bpf_log_info("[handle_one_packet_loss] to recover pkt %d", i);
+  bpf_log_info("[handle_one_packet_loss] to recover pkt %d.%d", circle_id, i);
   struct handle_one_packet_loss_use_other_log_ctx loop_ctx = {
     .lost_flags = 0,
+    .circle_id = circle_id,
     .pkt_id = i,
     .recover_flag = false,
     .map = ctx->map,
@@ -409,13 +453,21 @@ static inline int handle_one_packet_loss(__u32 index, void *data) {
   bpf_loop(BPF_LOOP_MAX, handle_one_packet_loss_use_other_log, &loop_ctx, 0);
   // ctx->aborted = loop_ctx.aborted;
   if (!loop_ctx.recover_flag) {
-    bpf_log_err("[handle_one_packet_loss] recover pkt %d FAIL! Wait time is not enough: other cores processed [%d, %d]",
-                i, loop_ctx.min_pkt_id_other_logs, loop_ctx.max_pkt_id_other_logs);
+    bpf_log_err("[handle_one_packet_loss] recover pkt %d.%d FAIL! Wait time is not enough: other cores processed [%d, %d]",
+                circle_id, i, loop_ctx.min_pkt_id_other_logs, loop_ctx.max_pkt_id_other_logs);
+    ctx->recover_flag = false;
     return 1;
   } else {
-    bpf_log_info("[handle_one_packet_loss] recover pkt %d SUCCEED", i);
+    bpf_log_info("[handle_one_packet_loss] recover pkt %d.%d SUCCEED", circle_id, i);
   }
-  ctx->next_pkt_to_process++;
+  if (ctx->next_pkt_to_process < NUM_PKTS_IN_TRACE) {
+    // the current trace (no overflow)
+    ctx->next_pkt_to_process++;
+  } else {
+    // the next trace (overflow)
+    ctx->next_pkt_to_process = 1;
+    ctx->next_circle_to_process++;
+  }
   return 0;
 }
 
@@ -427,39 +479,72 @@ static inline void handle_packet_loss(u32 cur_core,
   // *aborted = false;
   int min_id_in_pkt = cur_pkt_id - (NUM_PKTS - 1);
   min_id_in_pkt = min_id_in_pkt > 1? min_id_in_pkt : 1;
-  int max_processed_pkt_id = cur_md_log->pkt_max;
-  // Check if there is packet loss
-  if (min_id_in_pkt <= max_processed_pkt_id + 1) {
+  int expected_next_circle_id = cur_md_log->circle_max;
+  int expected_next_pkt_id = cur_md_log->pkt_max + 1;
+  if (cur_md_log->pkt_max == NUM_PKTS_IN_TRACE) {
+    expected_next_pkt_id = 1;
+    expected_next_circle_id++;
+    // bpf_log_debug("(lost 1) Increase circle %d", expected_next_circle_id);
+  }
+  // We assume # lost packets < # of packets in a trace:
+  // No packet loss: min_id_in_pkt == expected_next_pkt_id
+  // case (1) lost packets are in the same trace: lost_pkt_max >= expected_next_pkt_id
+  // case (2) lost packets are in two traces: lost_pkt_max < expected_next_pkt_id
+  if (min_id_in_pkt == expected_next_pkt_id) {
     return;
   }
-  // Check if the loss is due to congestion
-  int num_lost_pkts = min_id_in_pkt - max_processed_pkt_id - 1;
-  bpf_log_info("Detect packet loss, need to recover pkts [%d, %d]",
-               max_processed_pkt_id + 1, min_id_in_pkt - 1);
-  // Need to update log->pkt_max to avoid deadlock (other cores waiting)!
-  cur_md_log->pkt_max = min_id_in_pkt - 1;
+  // Check if it is reordering: when min_id_in_pkt < expected_next_pkt_id,
+  // it might not be due to a new trace but reordering
+  const int max_gap_reorder = 10000;
+  if ((min_id_in_pkt < expected_next_pkt_id) &&
+      (min_id_in_pkt + max_gap_reorder > expected_next_pkt_id)) {
+      return;
+  }
+  int lost_pkt_max = min_id_in_pkt > 1? min_id_in_pkt - 1 : NUM_PKTS_IN_TRACE;
+  // We need to get `num_lost_pkts` to detect if packet loss is due to congestion
+  // and update log->circle_max and log->pkt_max to avoid deadlock (other cores waiting)!
+  int num_lost_pkts = 0;
+  if (lost_pkt_max >= expected_next_pkt_id) {
+    // lost packets are in the same trace
+    cur_md_log->circle_max = expected_next_circle_id;
+    num_lost_pkts = lost_pkt_max - expected_next_pkt_id + 1;
+  } else {
+    // lost packets are in two traces
+    cur_md_log->circle_max = expected_next_circle_id + 1;
+    // bpf_log_debug("(lost 2) Increase circle %d. lost [%d, %d], min_id_in_pkt:%d, cur_pkt_id:%d",
+    //               cur_md_log->circle_max, expected_next_pkt_id, lost_pkt_max, min_id_in_pkt, cur_pkt_id);
+    // this trace: NUM_PKTS_IN_TRACE - expected_next_pkt_id + 1
+    // next trace: min_id_in_pkt - 1
+    num_lost_pkts = NUM_PKTS_IN_TRACE - expected_next_pkt_id + min_id_in_pkt;
+  }
+  cur_md_log->pkt_max = lost_pkt_max;
+  bpf_log_info("Detect packet loss, need to recover %d pkts [%d.%d, %d.%d]",
+               num_lost_pkts, expected_next_circle_id, expected_next_pkt_id,
+               cur_md_log->circle_max, lost_pkt_max);
   if (num_lost_pkts >= CONGESTED_LOSS_THRESHOLD) {
     // cur_md_log->num_congested_loss_pkts += num_lost_pkts;
     return;
   }
-  bpf_log_info("Detect packet loss, need to recover pkts [%d, %d]",
-               max_processed_pkt_id + 1, min_id_in_pkt - 1);
   init_expected_lost_flags();
   // Get information from other cores
   struct handle_one_packet_loss_ctx loop_ctx = {
-    .lost_pkt_max = min_id_in_pkt - 1,
-    .next_pkt_to_process = max_processed_pkt_id + 1,
+    .lost_circle_max = cur_md_log->circle_max,
+    .lost_pkt_max = lost_pkt_max,
+    .next_circle_to_process = expected_next_circle_id,
+    .next_pkt_to_process = expected_next_pkt_id,
     .cur_core = cur_core,
     .cur_md_log = cur_md_log,
     .map = map,
+    .recover_flag = true,
     // .aborted = false,
   };
 
   bpf_loop(BPF_LOOP_MAX, handle_one_packet_loss, &loop_ctx, 0);
   // *aborted = loop_ctx.aborted;
-  if (loop_ctx.next_pkt_to_process <= loop_ctx.lost_pkt_max) {
-    bpf_log_err("[handle_packet_loss] FAIL: next_pkt_to_process: %d <= %d",
-                loop_ctx.next_pkt_to_process, loop_ctx.lost_pkt_max);
+  if (! loop_ctx.recover_flag) {
+    bpf_log_err("[handle_packet_loss] FAIL: next_pkt_to_process: %d.%d <= %d.%d",
+                loop_ctx.next_circle_to_process, loop_ctx.next_pkt_to_process,
+                loop_ctx.lost_circle_max, loop_ctx.lost_pkt_max);
   } else {
     bpf_log_info("[handle_packet_loss] SUCCEED");
   }
@@ -534,14 +619,17 @@ int xdp_prog(struct xdp_md *ctx) {
     .tcp_syn_flag = false,
     .tcp_fin_flag = false
   };
-  for (int i = pkt_history_start_pos; i < NUM_PKTS - 1; i++) {
+  for (int i = 0; i < NUM_PKTS - 1; i++) {
     // int pkt_id = cur_pkt_id - (NUM_PKTS - 1 - i);
     // add_metadata_to_log(cur_md_log, cur_pkt_id - (NUM_PKTS - 1 - i), md_elem);
+    if (i < pkt_history_start_pos) {
+      continue;
+    }
     int a = NUM_PKTS - 1 - i;
-    int j = cur_pkt_id - a;
-    memcpy_cilium(&md, md_elem, sizeof(struct metadata_elem));
-    add_metadata_to_log(cur_md_log, &md, j);
-    update_state_by_metadata(&md, map);
+    int j = (int32_t)cur_pkt_id - a;
+    // memcpy_cilium(&md, md_elem, sizeof(struct metadata_elem));
+    add_metadata_to_log(cur_md_log, md_elem, j);
+    update_state_by_metadata(md_elem, map);
     md_elem += 1;
   }
 
