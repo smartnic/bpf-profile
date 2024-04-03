@@ -1,0 +1,6 @@
+items:
+  - input: /data/local/qx51/pcap_pkt_loss_debug/univ1_pt16/
+    output: /data/local/qx51/pcap_pkt_loss_debug/univ1_pt16/
+    num_cores: 14
+    benchmark: portknock
+    loss_rate_list: 0.005, 0.01, 0.015
