@@ -356,8 +356,6 @@ struct handle_one_packet_loss_use_other_log_ctx {
   bool recover_flag;
   struct port_state_map_cuckoo_hash_map *map;
   // bool aborted;
-  int min_pkt_id_other_logs;
-  int max_pkt_id_other_logs;
 };
 
 static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) {
@@ -365,8 +363,6 @@ static inline int handle_one_packet_loss_use_other_log(__u32 index, void *data) 
   int circle_id = ctx->circle_id;
   int i = ctx->pkt_id;
   u64 lost_flags = ctx->lost_flags;
-  ctx->min_pkt_id_other_logs = INT_MAX;
-  ctx->max_pkt_id_other_logs = 0;
   for (int j = 0; j < NUM_PKTS; j++) {
     int core = cores[j];
     if (is_pkt_lost_at_core(core, lost_flags)) {
@@ -445,16 +441,13 @@ static inline int handle_one_packet_loss(__u32 index, void *data) {
     .recover_flag = false,
     .map = ctx->map,
     // .aborted = false,
-    /* monitor the progress in other logs */
-    .min_pkt_id_other_logs = 0,
-    .max_pkt_id_other_logs = 0,
   };
   set_pkt_lost_at_core(ctx->cur_core, &loop_ctx.lost_flags);
   bpf_loop(BPF_LOOP_MAX, handle_one_packet_loss_use_other_log, &loop_ctx, 0);
   // ctx->aborted = loop_ctx.aborted;
   if (!loop_ctx.recover_flag) {
-    bpf_log_err("[handle_one_packet_loss] recover pkt %d.%d FAIL! Wait time is not enough: other cores processed [%d, %d]",
-                circle_id, i, loop_ctx.min_pkt_id_other_logs, loop_ctx.max_pkt_id_other_logs);
+    bpf_log_err("[handle_one_packet_loss] recover pkt %d.%d FAIL! Wait time is not enough",
+                circle_id, i);
     ctx->recover_flag = false;
     return 1;
   } else {
