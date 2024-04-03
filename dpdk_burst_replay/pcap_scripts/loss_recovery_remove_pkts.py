@@ -15,7 +15,7 @@ def sample(start, stop, num_samples, excluded_numbers):
     samples = random.sample(valid_numbers, num_samples)
     sorted_samples = sorted(samples)
     # Print the sampled values
-    print("Sampled values:", sorted_samples)
+    # print("Sampled values:", sorted_samples)
     return sorted_samples
 
 def sample_test():
@@ -46,15 +46,19 @@ def count_packets_get_excluded_ids(input_file):
 #    After resetting the metadata log for the first packet at core c, other cores
 #    cannot get metadata info of last x packets from core c)
 def remove_packets(input_file, output_file, num_first_pkts_left, num_last_pkts_left, loss_rate):
+    loss_rate = float(loss_rate)
+    print(f"remove_packets start {input_file} {output_file} {loss_rate}")
     num_pkts, excluded_ids = count_packets_get_excluded_ids(input_file)
     min_sample_id = num_first_pkts_left
     max_sample_id = num_pkts - num_last_pkts_left - 1
     if max_sample_id < min_sample_id:
+        print(f"[ERROR] remove_packets: not enough packets")
         return
     num_samples = round(loss_rate * num_pkts)
     sorted_samples = sample(min_sample_id, max_sample_id, num_samples, excluded_ids)
     sample_output_file = f"{output_file}.sample.txt"
     with open(sample_output_file, 'w') as file:
+        print(f"write to sample_output_file {sample_output_file}")
         file.write(f"Loss_rate: {loss_rate}, number of pkts: {num_pkts}, number of samples: {num_samples}, ")
         file.write(f"num_last_pkts_left: {num_last_pkts_left}\n")
         file.write(f"Sampled values: {sorted_samples}\n")
@@ -79,10 +83,13 @@ def remove_packets(input_file, output_file, num_first_pkts_left, num_last_pkts_l
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Information about parameters')
     parser.add_argument('--input', '-i', dest='input_file', help='Input file name', required=True)
-    parser.add_argument("--output", "-o", dest="output_file", help="Output file name", required=True)
+    parser.add_argument('--loss_rate', '-l', dest='loss_rate', help='Loss rate', required=True)
+    # parser.add_argument("--output", "-o", dest="output_file", help="Output file name", required=True)
     args = parser.parse_args()
-    loss_rate = 0.01
     # output_file = "xdp_portknock_shared_nothing_pkt_loss_4.pkt_removed.pcap"
+    output_file = f"{args.input_file[:-5]}.{args.loss_rate}.pcap"
+    print(output_file)
     num_first_pkts_left = 1024
     num_last_pkts_left = num_first_pkts_left
-    remove_packets(args.input_file, args.output_file, num_first_pkts_left, num_last_pkts_left, loss_rate)
+    loss_rate = float(args.loss_rate)
+    remove_packets(args.input_file, output_file, num_first_pkts_left, num_last_pkts_left, loss_rate)
