@@ -44,3 +44,19 @@ portknock
 - v2: scr (only tcp packets)
 - v4: sharding (cuckoo map)
 - v5: rss++
+
+Run RSS++
+1. Upgrade kernel to `6.5.0-rsspp` ([kernel code](https://github.com/sebymiano/linux/tree/61c1e629df31cd19a0e208d6ebd978a4e51cd52b))
+
+2. Boot from `6.5.0-rsspp`: we need to change default kernel in GRUB
+   - Identify the target kernel entris (`rsspp/list-grub-menuentries.sh`): the following is `1>2`
+   ```
+   ....
+   1>2 Ubuntu, with Linux 6.5.0-rsspp
+   ...
+   ```
+   - Modify GRUB configuration in `/etc/default/grub`
+     ```
+     GRUB_DEFAULT='1>2'
+     ```
+   - Update GRUB `sudo update-grub` and reboot, and use `uname -r` to verify the kernel
