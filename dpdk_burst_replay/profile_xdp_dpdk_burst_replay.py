@@ -342,18 +342,28 @@ def run_test(prog_name, core_list, tx_rate, client, seconds, output_folder,
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = get_prog_load_command(prog_name, len(core_list))
     run_cmd_on_core(cmd, 0)
+    # check if xdp program is attached (rsspp cannot run without loading an xdp program)
+    max_times = 3 # try at most 3 times
+    count = 0
+    flag = False
+    while count < max_times:
+        try:
+            tag = get_prog_tag()
+            flag = True
+            break
+        except:
+            count += 1
+            time.sleep(0.5)
+    if not flag:
+        print_log(f"ERROR: not able to get the tag of {prog_name}. Test stop...")
+        clean_environment(client, prog_name, len(core_list))
+        return
+        
 
     # 3. run packet generator
     run_packet_generator(pcap_file, tx_rate, client)
 
     # 4. measure the xdp prorgam
-    try:
-        tag = get_prog_tag()
-    except:
-        print_log(f"ERROR: not able to get the tag of {prog_name}. Test stop...")
-        clean_environment(client, prog_name, len(core_list))
-        return
-
     # 4.3 use kernel stats to measure overall latency (nanoseconds)
     if not DISABLE_prog_latency_ns:
         if not DISABLE_pktgen_measure_parallel:
@@ -422,6 +432,22 @@ def measure_mlffr(prog_name, core_list, client, seconds, output_folder, pcap_pat
     run_cmd(f"sudo bpftool net detach xdp dev {SERVER_IFACE}")
     cmd = get_prog_load_command(prog_name, len(core_list))
     run_cmd_on_core(cmd, 0)
+    # check if xdp program is attached (rsspp cannot run without loading an xdp program)
+    max_times = 3 # try at most 3 times
+    count = 0
+    flag = False
+    while count < max_times:
+        try:
+            tag = get_prog_tag()
+            flag = True
+            break
+        except:
+            count += 1
+            time.sleep(0.5)
+    if not flag:
+        print_log(f"ERROR: not able to get the tag of {prog_name}. Test stop...")
+        clean_environment(client, prog_name, len(core_list))
+        return
 
     is_rsspp = check_is_rsspp(benchmark, version)
     if is_rsspp:
