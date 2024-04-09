@@ -95,6 +95,7 @@ struct metadata_log_elem {
 } __attribute__((packed));
 
 struct metadata_log_t {
+  int num_congested_loss_pkts; // number of pkts lost due to congestion
   int next_loc; // range: [0, METADATA_LOG_MAX_ENTIRES-1]
   int pkt_min;  // pkt_id starts at 1, pkt_min == 0 means no pkt
   int pkt_max;
@@ -228,11 +229,16 @@ static inline bool pkt_lost_at_core(struct metadata_log_t *log,
     bpf_log_err("[ERROR][pkt_lost_at_core] need to increase log size! pkt_id: %d, log->pkt_min: %d",
                  pkt_id, log_pkt_min);
     // *aborted = true;
-    return false;
+    // return true since we are not able to get the metadata
+    return true;
   }
   return lost;
 }
 
+// If # of lost packets >= BURSTY_LOSS_THRESHOLD,
+// We assume packet loss is due to congestion instead of
+// loss configured in the pcap file
+#define CONGESTED_LOSS_THRESHOLD 10
 // int cores[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
 // #define NUM_CORES 16
 #if NUM_PKTS == 2
@@ -413,6 +419,14 @@ static inline void handle_packet_loss(u32 cur_core,
   if (min_id_in_pkt <= max_processed_pkt_id + 1) {
     return;
   }
+  // Check if the loss is due to congestion
+  int num_lost_pkts = min_id_in_pkt - max_processed_pkt_id - 1;
+  bpf_printk("Detect packet loss, need to recover pkts [%d, %d]",
+             max_processed_pkt_id + 1, min_id_in_pkt - 1);
+  // if (num_lost_pkts >= CONGESTED_LOSS_THRESHOLD) {
+  //   // cur_md_log->num_congested_loss_pkts += num_lost_pkts;
+  //   return;
+  // }
   bpf_log_info("Detect packet loss, need to recover pkts [%d, %d]",
                max_processed_pkt_id + 1, min_id_in_pkt - 1);
   init_expected_lost_flags();

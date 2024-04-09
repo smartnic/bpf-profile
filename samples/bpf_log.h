@@ -11,7 +11,7 @@
 #define INFO (4)
 #define DEBUG (5)
 
-#define LOG_LEVEL ERR
+#define LOG_LEVEL DISABLED
 
 #define bpf_log_err(...) (LOG_LEVEL< ERR ? (0) : bpf_printk(__VA_ARGS__))
 #define bpf_log_warning(...) (LOG_LEVEL< WARNING ? (0) : bpf_printk(__VA_ARGS__))
